@@ -1,0 +1,9 @@
+{
+  "name": "nape3",
+  "private": true,
+  "packageManager": "pnpm@10.15.1",
+  "scripts": {
+    "dev:extension": "pnpm --filter @nape3/extension dev",
+    "build:extension": "pnpm --filter @nape3/extension build"
+  }
+}
