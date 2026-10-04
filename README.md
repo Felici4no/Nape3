@@ -21,10 +21,12 @@ Rappi, 99Food, Colosseum, Superteam or any delivery platform.
 | iFood context detection + extractors | implemented, tested on **synthetic** HTML; **not yet calibrated on real iFood pages** |
 | Extension popup + on-page badge | implemented; smoke-tested in Chromium against the synthetic pages |
 | Observation network API | local MVP (no auth, no anti-Sybil) |
-| Rappi / 99Food | **fixtures only** — no live connector |
+| Rappi / 99Food | **fixtures only**: no live connector |
+| Categories | açaí (volume), pizza (size), sushi (pieces), burger (single, loose) |
 | Pix | BR Code parsing/validation of the visible payload; **no payment executed** |
 | Solana (wallet → USDC → off-ramp → Pix) | interfaces + mocks; off-ramp still simulated |
 | Private funding (Cloak, `@cloak.dev/sdk`) | shield / shielded balance / unshield implemented (`payments/cloak`, `pnpm cloak`); mainnet proof tx pending, see [privacy-week](docs/privacy-week.md) |
+| Food Market website (`apps/web`) | market, product pages, agent, wallet, pay, privacy; **synthetic demo data**, labelled |
 | Pay with crypto (popup → UPAY3FOOD Pay) | wallet status in popup, Phantom/Solflare connection, funds check, shield required amount, confirmation; **settlement disabled** (no licensed off-ramp) |
 
 ## Principles
@@ -46,13 +48,14 @@ apps/
   extension/      Chrome MV3: context detection, extractors, badge, popup
   observer-api/   observation network ingestion + aggregation (Node http)
   cloak-cli/      private funding CLI: mainnet shield, balance, dry-run demo
-  funding-web/    UPAY3FOOD Pay: wallet connection, private funds, confirmation
+  web/            Food Market (Next.js): market, product pages, agent, wallet, /pay, privacy
 packages/
   domain/         money, CartQuote, MarketObservation, provenance, normalization
   market/         allowlist sanitizer, market summary, checkout comparison
   agent/          intent parser, decision engine, agent state machine
   fixtures/       deterministic synthetic açaí observations (iFood/Rappi/99Food)
   payments/       pix/ (BR Code), solana/, offramp/, router/, cloak/ (private funding)
+  pay/            UPAY3FOOD Pay client: wallet (Phantom/Solflare), Cloak balance, payment flow
 docs/             product, architecture, ADRs, hackathon
 ```
 
@@ -66,7 +69,7 @@ pnpm check            # typecheck + tests + extension build
 pnpm build:extension  # → apps/extension/dist (load unpacked in Chrome)
 pnpm dev:api          # observation API on http://localhost:8787 (optional)
 pnpm demo:cloak       # private funding demo (simulated, no wallet)
-pnpm dev:funding      # private funding page on http://localhost:5174
+pnpm dev:web          # Food Market website on http://localhost:3000 (incl. /pay)
 ```
 
 ## Demo

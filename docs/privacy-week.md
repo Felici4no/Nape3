@@ -13,9 +13,9 @@ wallet ──shield──► Cloak USDC pool ──unshield (partialWithdraw)─
 ```
 
 Code: `packages/payments/src/cloak` (SDK port, keys, notes, funding, public balances),
-`packages/agent` (wallet/funding states), `apps/funding-web` (UPAY3FOOD Pay),
+`packages/agent` (wallet/funding states), `packages/pay` + `apps/web` `/pay` (UPAY3FOOD Pay),
 `packages/payments/src/router` (`FundingSource`), `apps/cloak-cli`,
-`apps/funding-web`, popup panel in `apps/extension`.
+popup panel in `apps/extension`.
 
 ## 1. What is hidden
 
