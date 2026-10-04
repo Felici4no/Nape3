@@ -93,17 +93,21 @@ Each event has `actor`: `user | agent | browser | wallet | chain | system`.
 | Event | Actor | Payload (summary) |
 | --- | --- | --- |
 | `INTENT_CREATED` | user | intent, executorId, executionMode |
+| `MARKET_SEARCH_STARTED` | agent | — |
 | `MARKET_SEARCHED` | agent | ranked candidates, rejected count, source |
 | `CANDIDATE_SELECTED` | agent | candidateId |
 | `REVALIDATION_REQUESTED` | agent | command (REVALIDATE_CANDIDATE) |
 | `REVALIDATION_STARTED` | browser | commandId (executor picked it up) |
+| `BROWSER_NEEDS_USER` | browser | commandId, what the user must do (log in, add the item); command stays pending |
 | `QUOTE_VALIDATED` | browser | ExecutorQuote |
 | `CANDIDATE_REJECTED` | agent/browser | candidateId, reasons |
 | `CHECKOUT_REQUESTED` | agent | command (PREPARE_CHECKOUT / READ_CHECKOUT) |
 | `CHECKOUT_READY` | browser | ExecutorQuote at checkout |
+| `CHECKOUT_INVALIDATED` | agent | reason (stale quote, expired confirmation); Pix, funds and consent dropped |
 | `PIX_REQUESTED` | agent | command (READ_PIX) |
 | `PIX_DETECTED` | browser | amountCents, evidence, expiresAt, payloadDigest |
-| `WALLET_CONNECTED` / `WALLET_DISCONNECTED` | wallet | address |
+| `WALLET_REQUIRED` | agent | — (Pix known, no wallet yet) |
+| `WALLET_CONNECTED` / `WALLET_DISCONNECTED` | wallet | address, optional shielded balance report |
 | `FUNDS_CHECKED` | wallet/chain | balances (decimal strings), requirement, verified flags |
 | `SHIELD_REQUIRED` | agent | assessment |
 | `PAYMENT_READY` | agent | assessment |
@@ -181,6 +185,7 @@ basis until mandates are enabled.
 | POST | `/agent/runs/:id/confirm` | run token | `{ digest, amountCents }` or `{ reject: true }` |
 | POST | `/agent/runs/:id/payment` | run token | `{ signature }` after the wallet signed the private withdrawal |
 | GET | `/agent/chain/balances?address=` | — | public USDC + SOL via RPC Fast (keeps the key server-side) |
+| GET | `/agent/demo` | — | simulated demo executor id, when `DEMO_EXECUTOR=1` |
 | GET | `/healthz` | — | |
 
 Tokens are random 32-byte values; only SHA-256 hashes are stored.
@@ -231,3 +236,49 @@ It never clicks "place order" or pays: it observes, navigates, reads.
 4. Extension browser executor (registration, polling, command handlers).
 5. Web: start a run from `/agent` and show its live timeline (no redesign).
 6. Docs, `pnpm check`, end-to-end run against a real agent-api.
+
+## Run it
+
+```bash
+# Simulated demo, end to end in the browser (synthetic market, simulated executor and settlement):
+pnpm demo:agent                                          # agent-api on :8788 (PGlite in apps/agent-api/data)
+AGENT_API_URL=http://127.0.0.1:8788 pnpm dev:web          # /agent → decide → "Run simulated demo"
+
+# With the extension as the executor (real iFood session):
+pnpm dev:api                                             # observer API (live market)
+OBSERVER_API_URL=http://127.0.0.1:8787 pnpm dev:agent    # agent-api over the live market
+AGENT_API_URL=http://127.0.0.1:8788 OBSERVER_API_URL=http://127.0.0.1:8787 pnpm dev:web
+# extension popup → settings → Agent runtime: http://localhost:8788
+# open /agent from the extension's Pay link once (so the site learns the extension id), then "Start in my browser"
+```
+
+| Env (agent-api) | |
+| --- | --- |
+| `AGENT_STORE` | `pglite` (default, persistent local Postgres), `memory`, or `postgres` with `DATABASE_URL` (install `pg`) |
+| `OBSERVER_API_URL`, `OBSERVER_READ_TOKEN` | live market; without them the labelled synthetic market is used |
+| `RPC_FAST_URL`, `RPC_FAST_API_KEY`, `RPC_FAST_API_KEY_HEADER` | Solana mainnet reads via RPC Fast (server only) |
+| `DEMO_EXECUTOR=1` | in-process simulated executor (synthetic market only) |
+| `WEB_ORIGIN` | extra CORS origins |
+
+## Status and limits
+
+- Every run is `simulated`: the off-ramp is the mock, settlement is
+  `SimulatedSettlement`, and the web submits a simulated signature. The
+  chain-verified settlement path (`ChainSettlement`: transfer to the off-ramp
+  deposit address read via RPC Fast) is implemented and tested on the mock
+  chain, and refuses real funds to a simulated off-ramp.
+- The extension executor reads only what the user's iFood tab shows. It
+  cannot build a cart by itself: when the bag is missing or from another
+  merchant, it opens a search tab and reports `NEEDS_USER`. iFood creates the
+  Pix code after the order is placed, so before that the Pix target is
+  `pix-selected` with the checkout total.
+- The extension executor polls (alarm every 30 s, every 3 s while a run is
+  active). Rappi and 99Food candidates are reported unavailable by it.
+- RPC Fast's documentation was not reachable from the build environment; the
+  provider is standard Solana JSON-RPC with the key in the URL or a header
+  (configurable). Check the key placement against the RPC Fast dashboard.
+- Auth is per-run capability tokens and per-executor tokens, not user
+  accounts. `userId` is carried for later; spending mandates are modelled
+  (`evaluateMandate`) and refused by the reducer.
+- SSE fan-out is in-process: run one agent-api instance (or add a
+  Postgres `LISTEN/NOTIFY` bus) before scaling out.

@@ -45,6 +45,8 @@ One market source per request (`src/lib/source.ts`), shared by `/`, `/market`,
 | `OBSERVER_READ_TOKEN` | bearer token if the observer sets one (server-side only; never sent to the browser) |
 | `MARKET_DATA` | `live` or `demo` to pin the mode |
 | `ALLOW_DEMO_TOGGLE=1` | enable the dev switch in a production build |
+| `AGENT_API_URL` | agent runtime (server-side); enables "Execute with the agent" on `/agent` |
+| `NEXT_PUBLIC_EXTENSION_ID` | optional; otherwise the extension id is remembered from its Pay link |
 
 Dev switch: the banner link calls `/api/dev/data-mode?mode=demo|live|auto`
 (cookie `u3_data`); it is disabled in production unless `ALLOW_DEMO_TOGGLE=1`.
@@ -56,6 +58,7 @@ Dev switch: the banner link calls `/api/dev/data-mode?mode=demo|live|auto`
 | `GET /api/market` | source description + quotes for every instrument |
 | `GET /api/market/[slug]` | source + one quote (summary, 24 h change, observations, stale / region / account-context facts) |
 | `GET /api/agent?q=…`, `POST /api/agent {"q"}` | source + `PurchasePlan` from the same source |
+| `POST /api/runs`, `GET /api/runs/[id]`, `GET /api/runs/[id]/events` (SSE), `POST /api/runs/[id]/{wallet-state,confirm,payment}` | server-side proxy to agent-api (run token in `x-run-token` / `?token=`) |
 
 ## Architecture
 
