@@ -252,6 +252,8 @@ AGENT_API_URL=http://127.0.0.1:8788 OBSERVER_API_URL=http://127.0.0.1:8787 pnpm 
 # open /agent from the extension's Pay link once (so the site learns the extension id), then "Start in my browser"
 ```
 
+Put these in `apps/agent-api/.env` (gitignored; see `.env.example`) or the environment. `pnpm rpc:check [address]` verifies RPC Fast with two read-only calls and never prints the endpoint or key.
+
 | Env (agent-api) | |
 | --- | --- |
 | `AGENT_STORE` | `pglite` (default, persistent local Postgres), `memory`, or `postgres` with `DATABASE_URL` (install `pg`) |

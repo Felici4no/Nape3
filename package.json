@@ -16,6 +16,7 @@
     "dev:api": "pnpm --filter @nape3/observer-api dev",
     "dev:agent": "pnpm --filter @nape3/agent-api dev",
     "demo:agent": "DEMO_EXECUTOR=1 pnpm --filter @nape3/agent-api start",
+    "rpc:check": "pnpm --filter @nape3/agent-api rpc:check",
     "cloak": "pnpm --filter @nape3/cloak-cli cloak",
     "demo:cloak": "pnpm --filter @nape3/cloak-cli demo",
     "dev:web": "pnpm --filter @nape3/web dev",
