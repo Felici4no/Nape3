@@ -71,6 +71,10 @@ importers:
       '@nape3/domain':
         specifier: workspace:*
         version: link:../domain
+    devDependencies:
+      '@nape3/fixtures':
+        specifier: workspace:*
+        version: link:../fixtures
 
   packages/payments:
     dependencies:
