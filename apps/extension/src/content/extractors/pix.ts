@@ -1,7 +1,7 @@
 import { parseBRL } from "@nape3/domain";
 import { looksLikePixPayload, parsePixBrCode } from "@nape3/payments";
 import type { PixSnapshot } from "../../shared/types";
-import { field, findByOwnText, isVisible, missing, ownText, textOf } from "../dom";
+import { field, findByOwnText, isOnScreen, isVisible, missing, ownText, textOf } from "../dom";
 
 /**
  * Reads what the payment screen *shows*: a Pix Copia e Cola payload, a QR
@@ -64,7 +64,9 @@ export function extractPixPayment(doc: Document, now: Date = new Date()): PixSna
   if (parsedPayload?.amountCents !== undefined && parsedPayload.crcValid) {
     amountCents = field(parsedPayload.amountCents, "high", "Pix payload tag 54 (CRC valid)");
   } else {
-    const label = findByOwnText(root, /^(valor|valor a pagar|total)( do pedido)?:?$/i)[0];
+    // Pix-specific labels only, on screen only. "Total" belongs to the order summary
+    // (and a stale bag drawer can hold an old one).
+    const label = findByOwnText(root, /^(valor|valor a pagar|valor do pix):?$/i).find(isOnScreen);
     const value = label ? parseBRL(textOf(label.parentElement ?? label)) : null;
     amountCents = value !== null ? field(value, "medium", `"${textOf(label!.parentElement ?? label!)}"`) : missing("amount not visible");
   }

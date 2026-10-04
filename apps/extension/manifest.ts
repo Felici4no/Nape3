@@ -15,6 +15,12 @@ export default defineManifest({
     service_worker: "src/background/index.ts",
     type: "module"
   },
+  // Only the UPAY3FOOD Pay page (wallet connection lives there: wallets do not
+  // inject into extension pages) may message the extension. The background also
+  // checks the sender origin against settings.fundingAppUrl.
+  externally_connectable: {
+    matches: ["http://localhost/*", "http://127.0.0.1/*"]
+  },
   action: {
     default_popup: "src/popup/index.html"
   },

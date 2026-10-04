@@ -3,6 +3,7 @@ import type { CartQuoteObservation, MarketObservation } from "@nape3/domain";
 import { acaiFixtures } from "@nape3/fixtures";
 import { compareCheckout, summarizeMarket, type MarketSummary } from "@nape3/market";
 import { createLogger, errorMessage } from "../shared/log";
+import { isAllowedPayOrigin, parseWalletReport, payability, type PendingPayment, type WalletStatus } from "../shared/payment";
 import { mergeObservation, requirementFromObservation, snapshotToObservation } from "../shared/observation";
 import {
   DEFAULT_SETTINGS,
@@ -165,8 +166,85 @@ async function handlePlan(request: string, snapshot: PageSnapshot | null): Promi
   };
 }
 
+// --------------------------------------------------------------------------
+// Crypto payment: pending payment (session storage) + wallet status bridge
+// --------------------------------------------------------------------------
+
+const PAYMENT_TTL_MS = 15 * 60_000;
+
+async function createPayment(snapshot: PageSnapshot): Promise<ExtensionResponse> {
+  const pay = payability(snapshot);
+  if (!pay.payable) return { ok: false, error: `cannot pay: ${pay.reason}` };
+  const now = Date.now();
+  const payment: PendingPayment = {
+    paymentId: crypto.randomUUID(),
+    amountCents: pay.amountCents,
+    merchant: pay.merchant,
+    destination: pay.destination,
+    pixPayload: pay.pixPayload,
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + PAYMENT_TTL_MS).toISOString()
+  };
+  // Session storage: in memory only, cleared when the browser closes.
+  await chrome.storage.session.set({ [`payment:${payment.paymentId}`]: payment });
+  const settings = await getSettings();
+  const fragment = new URLSearchParams({ pay: payment.paymentId, ext: chrome.runtime.id });
+  log.info("payment.created", { paymentId: payment.paymentId, amountCents: payment.amountCents, destination: payment.destination });
+  return { ok: true, type: "PAYMENT_CREATED", paymentId: payment.paymentId, url: `${settings.fundingAppUrl.split("#")[0]}#${fragment}` };
+}
+
+async function getWalletStatus(): Promise<WalletStatus | null> {
+  const { walletStatus } = await chrome.storage.local.get("walletStatus");
+  return (walletStatus as WalletStatus | undefined) ?? null;
+}
+
+type ExternalMessage =
+  | { type: "GET_PAYMENT_CONTEXT"; paymentId: string }
+  | { type: "REPORT_WALLET_STATUS"; status: unknown }
+  | { type: "WALLET_DISCONNECTED" };
+
+async function handleExternal(message: ExternalMessage, origin: string | undefined): Promise<unknown> {
+  const settings = await getSettings();
+  if (!isAllowedPayOrigin(origin, settings.fundingAppUrl)) {
+    log.warn("external.rejected_origin", { origin: origin ?? null });
+    return { ok: false, error: "origin not allowed" };
+  }
+  switch (message?.type) {
+    case "GET_PAYMENT_CONTEXT": {
+      if (typeof message.paymentId !== "string") return { ok: false, error: "missing paymentId" };
+      const key = `payment:${message.paymentId}`;
+      const payment = (await chrome.storage.session.get(key))[key] as PendingPayment | undefined;
+      if (!payment || Date.parse(payment.expiresAt) < Date.now()) return { ok: false, error: "payment expired or unknown" };
+      return { ok: true, payment };
+    }
+    case "REPORT_WALLET_STATUS": {
+      const status = parseWalletReport(message.status);
+      if (!status) return { ok: false, error: "invalid wallet status" };
+      await chrome.storage.local.set({ walletStatus: status });
+      log.info("wallet.status", { state: status.agentState, checkedAt: status.checkedAt });
+      return { ok: true };
+    }
+    case "WALLET_DISCONNECTED":
+      await chrome.storage.local.remove("walletStatus");
+      return { ok: true };
+    default:
+      return { ok: false, error: "unsupported message" };
+  }
+}
+
+chrome.runtime.onMessageExternal.addListener((message: ExternalMessage, sender, sendResponse) => {
+  handleExternal(message, sender.origin ?? (sender.url ? new URL(sender.url).origin : undefined))
+    .then(sendResponse)
+    .catch((error: unknown) => sendResponse({ ok: false, error: errorMessage(error) }));
+  return true;
+});
+
 async function handle(message: ExtensionMessage, tabId: number | undefined): Promise<ExtensionResponse> {
   switch (message.type) {
+    case "CREATE_PAYMENT":
+      return createPayment(message.snapshot);
+    case "GET_WALLET_STATUS":
+      return { ok: true, type: "WALLET_STATUS", status: await getWalletStatus() };
     case "RECORD_SNAPSHOT":
       return { ok: true, type: "MARKET", market: await handleRecord(message.snapshot, tabId) };
     case "PLAN_INTENT":

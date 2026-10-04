@@ -200,12 +200,20 @@ details summary {
   word-break: break-word;
 }
 
-.private-funding {
-  border: 1px solid #111;
-  padding: 10px;
-  margin-top: 10px;
+.wallet {
+  gap: 2px;
 }
 
-.private-funding button {
-  margin-top: 6px;
+.pay {
+  border: 1px solid #111;
+  padding: 12px;
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.pay-button {
+  width: 100%;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 13px;
 }

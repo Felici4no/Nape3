@@ -2,6 +2,7 @@ import type { Decision } from "@nape3/agent";
 import type { Cents, CartQuoteObservation, Membership } from "@nape3/domain";
 import type { CheckoutComparison, MarketSummary } from "@nape3/market";
 import type { PixBrCode } from "@nape3/payments";
+import type { WalletStatus } from "./payment";
 
 export type PageContext =
   | "SEARCH_RESULTS"
@@ -149,7 +150,9 @@ export type ExtensionMessage =
   | { type: "PLAN_INTENT"; request: string; snapshot: PageSnapshot | null }
   | { type: "GET_SETTINGS" }
   | { type: "SAVE_SETTINGS"; settings: ExtensionSettings }
-  | { type: "CLEAR_OBSERVATIONS" };
+  | { type: "CLEAR_OBSERVATIONS" }
+  | { type: "CREATE_PAYMENT"; snapshot: PageSnapshot }
+  | { type: "GET_WALLET_STATUS" };
 
 export type ExtensionResponse =
   | { ok: true; type: "SNAPSHOT"; snapshot: PageSnapshot }
@@ -167,4 +170,6 @@ export type ExtensionResponse =
   | { ok: true; type: "SETTINGS"; settings: ExtensionSettings }
   | { ok: true; type: "DONE" }
   | { ok: true; type: "DOM_CAPTURE"; capture: string }
+  | { ok: true; type: "PAYMENT_CREATED"; paymentId: string; url: string }
+  | { ok: true; type: "WALLET_STATUS"; status: WalletStatus | null }
   | { ok: false; error: string };

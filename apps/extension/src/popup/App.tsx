@@ -3,6 +3,7 @@ import type { CandidateEvaluation, Decision } from "@nape3/agent";
 import { formatBRL, type Cents, type Membership } from "@nape3/domain";
 import { PRIVACY_COPY } from "@nape3/payments/privacy-copy";
 import { errorMessage } from "../shared/log";
+import { abbreviateAddress, payability, walletSummary, type WalletStatus } from "../shared/payment";
 import type {
   CartSnapshot,
   ExtensionMessage,
@@ -244,22 +245,64 @@ function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; marke
   );
 }
 
-/**
- * Private funding (Cloak). Explains exactly what is shielded and opens the
- * funding page with the purchase in the URL fragment (not sent to any server).
- */
-function PrivateFundingPanel({ amountCents, merchant, fundingAppUrl }: { amountCents: Cents; merchant: string | null; fundingAppUrl: string }) {
-  function open() {
-    const fragment = new URLSearchParams({ amountCents: String(amountCents), ...(merchant ? { merchant } : {}) });
-    void chrome.tabs.create({ url: `${fundingAppUrl.split("#")[0]}#${fragment.toString()}` });
+function WalletPanel({ status }: { status: WalletStatus | null }) {
+  const summary = walletSummary(status, new Date());
+  return (
+    <section className="wallet">
+      <div className="kv">
+        <span className="label">Wallet</span>
+        <span className={summary.connected ? "small" : "small muted"} title={status?.address}>
+          {summary.label}
+        </span>
+      </div>
+      {summary.connected && (
+        <>
+          <div className="kv small"><span>Public USDC</span><span>{summary.publicUsdc}</span></div>
+          <div className="kv small">
+            <span>Shielded USDC (Cloak)</span>
+            <span>{summary.shieldedUsdc ?? "locked: unlock when paying"}</span>
+          </div>
+          <span className={`small ${summary.stale ? "warn" : "muted"}`}>
+            checked {summary.ageMinutes === 0 ? "just now" : `${summary.ageMinutes} min ago`}
+            {status?.agentState ? ` · ${status.agentState}` : ""}
+          </span>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Entry to the payment flow; the purchase continues on the UPAY3FOOD Pay screen. */
+function PayPanel({ snapshot, wallet, onError }: { snapshot: PageSnapshot; wallet: WalletStatus | null; onError: (m: string) => void }) {
+  const pay = payability(snapshot);
+  if (!pay.payable) {
+    return <p className="small muted">Crypto payment unavailable: {pay.reason}.</p>;
+  }
+  async function start() {
+    try {
+      const response = await send({ type: "CREATE_PAYMENT", snapshot });
+      if (!response.ok) return onError(response.error);
+      if (response.type === "PAYMENT_CREATED") await chrome.tabs.create({ url: response.url });
+    } catch (error) {
+      onError(errorMessage(error));
+    }
   }
   return (
-    <section className="private-funding">
-      <span className="label">Private funding · Cloak</span>
+    <section className="pay">
       <strong>{PRIVACY_COPY.headline}</strong>
-      <p className="small">{PRIVACY_COPY.whatIsHidden}</p>
-      <p className="small muted">{PRIVACY_COPY.whatIsNotHidden}</p>
-      <button onClick={open}>Fund {money(amountCents)} privately</button>
+      <button className="pay-button" onClick={() => void start()}>
+        Pay {money(pay.amountCents)} with crypto
+      </button>
+      <span className="small muted">
+        {wallet ? `From ${abbreviateAddress(wallet.address)} · funded privately via Cloak` : "Connects your Solana wallet (Phantom or Solflare) first"}
+        {" · "}
+        {pay.destination === "pix-payload-via-offramp" ? "Pix Copia e Cola detected" : "Pix selected at checkout"}
+      </span>
+      <details>
+        <summary className="small">What stays private?</summary>
+        <p className="small">{PRIVACY_COPY.whatIsHidden}</p>
+        <p className="small muted">{PRIVACY_COPY.whatIsNotHidden}</p>
+      </details>
     </section>
   );
 }
@@ -325,6 +368,7 @@ function SettingsPanel({ settings, onSave, onClear }: { settings: ExtensionSetti
 export function App() {
   const [snapshot, setSnapshot] = useState<PageSnapshot | null>(null);
   const [tabId, setTabId] = useState<number | null>(null);
+  const [wallet, setWallet] = useState<WalletStatus | null>(null);
   const [pageError, setPageError] = useState<PageError | null>(null);
   const [market, setMarket] = useState<MarketView | null>(null);
   const [settings, setSettings] = useState<ExtensionSettings | null>(null);
@@ -341,6 +385,8 @@ export function App() {
     setSnapshot(null);
     setMarket(null);
     try {
+      const walletResponse = await send({ type: "GET_WALLET_STATUS" });
+      if (walletResponse.ok && walletResponse.type === "WALLET_STATUS") setWallet(walletResponse.status);
       const settingsResponse = await send({ type: "GET_SETTINGS" });
       if (settingsResponse.ok && settingsResponse.type === "SETTINGS") setSettings(settingsResponse.settings);
       const result = await readActiveTab();
@@ -424,6 +470,8 @@ export function App() {
         )}
       </header>
 
+      <WalletPanel status={wallet} />
+
       {busy && <div className="status">Reading…</div>}
 
       {pageError?.kind === "not-ifood" && <div className="status">Open an iFood page (ifood.com.br) to observe prices.</div>}
@@ -486,12 +534,8 @@ export function App() {
         </section>
       )}
 
-      {settings && total !== null && (context === "CHECKOUT" || context === "PIX_PAYMENT") && (
-        <PrivateFundingPanel
-          amountCents={total}
-          merchant={snapshot?.cart?.merchantName.value ?? snapshot?.pix?.parsedPayload?.merchantName ?? null}
-          fundingAppUrl={settings.fundingAppUrl}
-        />
+      {snapshot && (context === "CHECKOUT" || context === "PIX_PAYMENT") && (
+        <PayPanel snapshot={snapshot} wallet={wallet} onError={setNotice} />
       )}
 
       {snapshot?.restaurant && (
