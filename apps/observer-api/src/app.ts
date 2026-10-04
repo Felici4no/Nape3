@@ -1,5 +1,6 @@
+import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { cents, PRODUCT_CATEGORIES, type ProductCategory } from "@nape3/domain";
+import { cents, normalizeTitle, PRODUCT_CATEGORIES, SOURCE_PLATFORMS, type MarketObservation, type ProductCategory, type SourcePlatform } from "@nape3/domain";
 import { compareCheckout, sanitizeObservation, summarizeMarket, type MarketSummary } from "@nape3/market";
 import type { ObservationStore } from "./store";
 
@@ -7,12 +8,18 @@ import type { ObservationStore } from "./store";
  * Observation network API (MVP).
  *
  *   POST /v1/observations      ingest one sanitized, non-synthetic observation
- *   GET  /v1/market/summary    aggregated stats for a product requirement
- *   POST /v1/market/compare    observational comparison for a checkout total
+ *   GET  /v1/observations      recent observations (read-protected)
+ *   GET  /v1/market/summary    aggregated stats for a product requirement (read-protected)
+ *   POST /v1/market/compare    observational comparison for a checkout total (read-protected)
  *   GET  /healthz
  *
- * Not production-ready: no authentication, no Sybil resistance, in-memory
- * rate limiting only. See docs/05-architecture/observation-network.md.
+ * Reads: with OBSERVER_READ_TOKEN set, `Authorization: Bearer <token>` is
+ * required; without it, reads are accepted from loopback only (dev-safe).
+ * The store never contains synthetic data (rejected on ingest), and every
+ * observation keeps its provenance flags so clients can tell live from manual.
+ *
+ * Not production-ready: no write authentication, no Sybil resistance,
+ * in-memory rate limiting only. See docs/05-architecture/observation-network.md.
  */
 
 const MAX_BODY = 32 * 1024;
@@ -20,6 +27,8 @@ const CATEGORIES: readonly ProductCategory[] = PRODUCT_CATEGORIES;
 const PIZZA_SIZES = ["broto", "media", "grande", "familia"] as const;
 
 export interface AppOptions {
+  /** Bearer token required for reads. Unset → reads allowed from loopback only. */
+  readToken?: string | null;
   now?: () => Date;
   /** Requests per minute per client IP. */
   rateLimitPerMinute?: number;
@@ -62,6 +71,25 @@ function intParam(params: URLSearchParams, name: string, fallback?: number): num
   const value = Number(raw);
   if (!Number.isSafeInteger(value) || value < 0) throw new HttpError(400, `${name} must be a non-negative integer`);
   return value;
+}
+
+const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+const MAX_SINCE_MINUTES = 30 * 24 * 60;
+
+/** An observation as served to readers: everything but the per-install observer id. */
+export function publicObservation(observation: MarketObservation): Omit<MarketObservation, "observerId"> {
+  const { observerId: _omit, ...rest } = observation;
+  return rest;
+}
+
+/** Category of an observation = category of its (first normalizable) line or offer. */
+function categoryOf(observation: MarketObservation): ProductCategory | null {
+  if (observation.kind === "product-offer") return observation.offer.product?.category ?? null;
+  for (const line of observation.quote.lines) {
+    const product = line.product ?? normalizeTitle(line.sourceTitle).product;
+    if (product) return product.category;
+  }
+  return null;
 }
 
 /** Public view of a summary: aggregate numbers only, no per-observer ids. */
@@ -108,6 +136,19 @@ function query(params: URLSearchParams, now: Date) {
 
 export function createApp(store: ObservationStore, options: AppOptions = {}) {
   const now = options.now ?? (() => new Date());
+  const readToken = options.readToken ? Buffer.from(options.readToken) : null;
+
+  function authorizeRead(req: IncomingMessage): void {
+    if (readToken) {
+      const header = req.headers.authorization ?? "";
+      const given = Buffer.from(header.startsWith("Bearer ") ? header.slice(7) : "");
+      if (given.length !== readToken.length || !timingSafeEqual(given, readToken)) throw new HttpError(401, "read token required");
+      return;
+    }
+    if (!LOOPBACK.has(req.socket.remoteAddress ?? "")) {
+      throw new HttpError(403, "reads are loopback-only unless OBSERVER_READ_TOKEN is configured");
+    }
+  }
   const limit = options.rateLimitPerMinute ?? 60;
   const log = options.log ?? ((entry) => console.log(JSON.stringify({ ts: now().toISOString(), scope: "observer-api", ...entry })));
   const hits = new Map<string, { windowStart: number; count: number }>();
@@ -128,7 +169,7 @@ export function createApp(store: ObservationStore, options: AppOptions = {}) {
     const origin = req.headers.origin;
     if (origin && /^chrome-extension:\/\//.test(origin)) {
       res.setHeader("access-control-allow-origin", origin);
-      res.setHeader("access-control-allow-headers", "content-type");
+      res.setHeader("access-control-allow-headers", "content-type, authorization");
       res.setHeader("access-control-allow-methods", "GET, POST");
     }
     if (req.method === "OPTIONS") {
@@ -151,12 +192,47 @@ export function createApp(store: ObservationStore, options: AppOptions = {}) {
         return send(res, created ? 201 : 200, { ok: true, id: result.observation.id, created });
       }
 
+      if (req.method === "GET" && url.pathname === "/v1/observations") {
+        authorizeRead(req);
+        const params = url.searchParams;
+        const sinceMinutes = Math.min(intParam(params, "sinceMinutes", 7 * 24 * 60)!, MAX_SINCE_MINUTES);
+        const limit = Math.min(Math.max(intParam(params, "limit", 1000)!, 1), 5000);
+        const provenance = params.get("provenance") ?? "real";
+        if (provenance !== "real" && provenance !== "live") throw new HttpError(400, "provenance must be real or live");
+        const category = params.get("category");
+        if (category !== null && !CATEGORIES.includes(category as ProductCategory)) {
+          throw new HttpError(400, `category must be one of: ${CATEGORIES.join(", ")}`);
+        }
+        const platform = params.get("source");
+        if (platform !== null && !SOURCE_PLATFORMS.includes(platform as SourcePlatform)) {
+          throw new HttpError(400, `source must be one of: ${SOURCE_PLATFORMS.join(", ")}`);
+        }
+        const region = params.get("region");
+        const cutoff = now().getTime() - sinceMinutes * 60_000;
+        const observations = (await store.all())
+          .filter((o) => !o.provenance.synthetic) // defense in depth: ingest already refuses synthetic
+          .filter((o) => provenance === "real" || o.provenance.live)
+          .filter((o) => Date.parse(o.observedAt) >= cutoff)
+          .filter((o) => !category || categoryOf(o) === category)
+          .filter((o) => !platform || o.source === platform)
+          .filter((o) => !region || o.context.marketRegion === region)
+          .sort((a, b) => Date.parse(b.observedAt) - Date.parse(a.observedAt))
+          .slice(0, limit);
+        return send(res, 200, {
+          ok: true,
+          meta: { generatedAt: now().toISOString(), count: observations.length, provenance, synthetic: false, sinceMinutes },
+          observations: observations.map(publicObservation)
+        });
+      }
+
       if (req.method === "GET" && url.pathname === "/v1/market/summary") {
+        authorizeRead(req);
         const summary = summarizeMarket(await store.all(), query(url.searchParams, now()));
         return send(res, 200, publicSummary(summary));
       }
 
       if (req.method === "POST" && url.pathname === "/v1/market/compare") {
+        authorizeRead(req);
         const body = (await readJson(req)) as Record<string, unknown>;
         if (typeof body.totalCents !== "number" || !Number.isSafeInteger(body.totalCents)) {
           throw new HttpError(400, "totalCents must be integer cents");

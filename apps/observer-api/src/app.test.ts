@@ -68,3 +68,47 @@ describe("observer API", () => {
     expect((await post("/v1/market/compare", { totalCents: 24.9, category: "acai" })).status).toBe(400);
   });
 });
+
+describe("observer API reads", () => {
+  it("serves recent real observations without observer ids, newest first", async () => {
+    const response = await fetch(`${base}/v1/observations?category=acai`);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.meta).toMatchObject({ synthetic: false, provenance: "real" });
+    expect(body.observations.length).toBeGreaterThan(0);
+    expect(JSON.stringify(body)).not.toContain("observer-");
+    expect(body.observations.every((o: { provenance: { synthetic: boolean } }) => !o.provenance.synthetic)).toBe(true);
+    const times = body.observations.map((o: { observedAt: string }) => Date.parse(o.observedAt));
+    expect([...times].sort((a, b) => b - a)).toEqual(times);
+  });
+
+  it("filters by window, platform, region and category", async () => {
+    const empty = await (await fetch(`${base}/v1/observations?category=sushi`)).json();
+    expect(empty.observations).toEqual([]);
+    const rj = await (await fetch(`${base}/v1/observations?region=BR-RJ-rio-de-janeiro`)).json();
+    expect(rj.observations.length).toBeGreaterThan(0);
+    expect(rj.observations.every((o: { context: { marketRegion: string } }) => o.context.marketRegion === "BR-RJ-rio-de-janeiro")).toBe(true);
+    const ifood = await (await fetch(`${base}/v1/observations?source=ifood`)).json();
+    expect(ifood.observations.every((o: { source: string }) => o.source === "ifood")).toBe(true);
+    const recent = await (await fetch(`${base}/v1/observations?sinceMinutes=0`)).json();
+    expect(recent.observations.length).toBeLessThanOrEqual(1);
+    expect((await fetch(`${base}/v1/observations?source=ubereats`)).status).toBe(400);
+    expect((await fetch(`${base}/v1/observations?provenance=synthetic`)).status).toBe(400);
+  });
+
+  it("requires the bearer token when one is configured", async () => {
+    const guarded = createServer(createApp(new MemoryStore(), { readToken: "s3cret", log: () => {} }));
+    await new Promise<void>((resolve) => guarded.listen(0, resolve));
+    const url = `http://127.0.0.1:${(guarded.address() as AddressInfo).port}`;
+    try {
+      expect((await fetch(`${url}/v1/observations`)).status).toBe(401);
+      expect((await fetch(`${url}/v1/observations`, { headers: { authorization: "Bearer wrong!" } })).status).toBe(401);
+      expect((await fetch(`${url}/v1/market/summary?category=acai`)).status).toBe(401);
+      expect((await fetch(`${url}/v1/observations`, { headers: { authorization: "Bearer s3cret" } })).status).toBe(200);
+      // writes stay open (extension upload); health stays public
+      expect((await fetch(`${url}/healthz`)).status).toBe(200);
+    } finally {
+      await new Promise<void>((resolve) => guarded.close(() => resolve()));
+    }
+  });
+});
