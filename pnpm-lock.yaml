@@ -94,6 +94,9 @@ importers:
       '@cloak.dev/sdk':
         specifier: 0.2.5
         version: 0.2.5(@solana/web3.js@1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      '@nape3/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@nape3/domain':
         specifier: workspace:*
         version: link:../../packages/domain

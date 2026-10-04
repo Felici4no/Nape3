@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@cloak.dev/sdk": "0.2.5",
+    "@nape3/agent": "workspace:*",
     "@nape3/domain": "workspace:*",
     "@nape3/payments": "workspace:*",
     "@solana/web3.js": "^1.98.4",

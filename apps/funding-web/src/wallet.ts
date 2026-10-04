@@ -6,7 +6,7 @@ import type { CloakSigner } from "@nape3/payments/cloak";
 interface InjectedWallet {
   publicKey: { toBase58(): string } | null;
   isConnected?: boolean;
-  connect(): Promise<{ publicKey: { toBase58(): string } }>;
+  connect(options?: { onlyIfTrusted?: boolean }): Promise<{ publicKey: { toBase58(): string } }>;
   disconnect?(): Promise<void>;
   signTransaction(tx: unknown): Promise<unknown>;
   signMessage(message: Uint8Array, display?: "utf8" | "hex"): Promise<{ signature: Uint8Array } | Uint8Array>;
@@ -29,15 +29,22 @@ export function findWallet(): { name: string; wallet: InjectedWallet } | null {
 
 export interface ConnectedWallet {
   name: string;
+  disconnect(): Promise<void>;
   address: Address;
   signMessage(message: Uint8Array): Promise<Uint8Array>;
   cloakSigner(): CloakSigner;
 }
 
-export async function connectWallet(): Promise<ConnectedWallet> {
+/**
+ * Connects the injected wallet. `silent` reconnects only if the wallet already
+ * trusts this site (no prompt); otherwise it throws and the UI shows "Connect".
+ */
+export async function connectWallet(options: { silent?: boolean } = {}): Promise<ConnectedWallet> {
   const found = findWallet();
   if (!found) throw new Error("No Solana wallet found. Install Phantom or Solflare and reload.");
-  const { publicKey } = await found.wallet.connect();
+  const { publicKey } = options.silent
+    ? await found.wallet.connect({ onlyIfTrusted: true })
+    : await found.wallet.connect();
   const walletAddress = address(publicKey.toBase58());
   // Raw 64-byte ed25519 signature, as the Cloak relay requires (no re-encoding).
   const signMessage = async (message: Uint8Array) => {
@@ -46,6 +53,9 @@ export async function connectWallet(): Promise<ConnectedWallet> {
   };
   return {
     name: found.name,
+    disconnect: async () => {
+      await found.wallet.disconnect?.();
+    },
     address: walletAddress,
     signMessage,
     cloakSigner: () => ({
