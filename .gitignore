@@ -10,3 +10,4 @@ apps/observer-api/data/
 *.zip
 .next
 next-env.d.ts
+*.tsbuildinfo
