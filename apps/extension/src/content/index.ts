@@ -7,7 +7,7 @@ import {
   type MarketView,
   type PageSnapshot
 } from "../shared/types";
-import { removeBadge, renderBadge } from "./badge";
+import { removeBadge, renderBadge as renderBadgeNow, whenPageSettled } from "./badge";
 import { captureOrderDom } from "./capture";
 import { takeSnapshot } from "./extract";
 
@@ -18,6 +18,16 @@ let settings: ExtensionSettings = DEFAULT_SETTINGS;
 let lastFingerprint = "";
 let lastMarket: MarketView | null = null;
 let lastSnapshot: PageSnapshot | null = null;
+let pageSettled = false;
+
+/** The badge is opt-in and never mounted before the page has hydrated. */
+function renderBadge(doc: Document, snapshot: PageSnapshot, market: MarketView | null, debug: boolean) {
+  if (!settings.showBadge || !pageSettled) {
+    removeBadge();
+    return;
+  }
+  renderBadgeNow(doc, snapshot, market, debug);
+}
 
 /**
  * Everything that defines the order state. Any change (quantity, delivery
@@ -131,6 +141,10 @@ chrome.storage.local.get("settings").then(({ settings: stored }) => {
 chrome.storage.onChanged.addListener((changes) => {
   if (!changes.settings) return;
   settings = { ...DEFAULT_SETTINGS, ...(changes.settings.newValue as Partial<ExtensionSettings> | undefined) };
+  if (lastSnapshot) renderBadge(document, lastSnapshot, lastMarket, settings.debug);
+});
+void whenPageSettled(window).then(() => {
+  pageSettled = true;
   if (lastSnapshot) renderBadge(document, lastSnapshot, lastMarket, settings.debug);
 });
 

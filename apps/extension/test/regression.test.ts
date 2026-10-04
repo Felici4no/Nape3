@@ -139,3 +139,23 @@ describe("calibration requirements", () => {
     expect(next[0]!.kind === "cart-quote" && next[0]!.quote.totalCents).toBe(cents(2779));
   });
 });
+
+describe("real iFood bag drawer (modelled on user screenshot)", () => {
+  const url = "https://www.ifood.com.br/delivery/sao-paulo-sp/adega-mk-delivery/d188a20e-aaaa-bbbb-cccc-1234567890ab";
+  it("extracts R$78,55 and ignores the coupon picker", () => {
+    const snapshot = takeSnapshot(load("cart-real-screenshot-skol", url), url);
+    expect(snapshot.detection.context).toBe("CART");
+    expect(snapshot.cart).toMatchObject({
+      merchantName: { value: "Adega Mk Delivery - Adega e Tabacaria - 24h" },
+      itemsSubtotalCents: { value: 6966 },
+      serviceFeeCents: { value: 199 },
+      deliveryFeeCents: { value: 690 },
+      discountCents: { value: 0 },
+      totalCents: { value: 7855 },
+      validity: { valid: true }
+    });
+    expect(snapshot.cart!.lines).toEqual([
+      expect.objectContaining({ quantity: 1, lineTotalCents: 6966, sourceTitle: "Cerveja Pilsen Lata Skol 269ml com 15un" })
+    ]);
+  });
+});

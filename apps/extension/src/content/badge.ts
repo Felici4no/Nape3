@@ -2,9 +2,14 @@ import { formatBRL } from "@nape3/domain";
 import type { MarketView, PageSnapshot } from "../shared/types";
 
 /**
- * On-page badge rendered inside a *closed* Shadow DOM attached to our own
- * host element. It never touches iFood's nodes or styles, and page CSS cannot
- * leak in. Removing the host removes every trace.
+ * Optional on-page badge rendered inside a *closed* Shadow DOM attached to our
+ * own host element. It never touches iFood's nodes or styles.
+ *
+ * iFood web is a React/Next.js app that hydrates the whole document. Inserting
+ * any node while hydration runs (or directly under <html>) can make React throw
+ * ("Application error: a client-side exception has occurred"). So the badge is
+ * OFF by default, and when enabled it is mounted at the end of <body> only
+ * after the page has fully loaded and gone idle (see `whenPageSettled`).
  */
 
 const HOST_TAG = "upay3food-agent-badge";
@@ -17,8 +22,8 @@ function ensureRoot(doc: Document): ShadowRoot {
   host = doc.createElement(HOST_TAG);
   host.setAttribute("data-upay3food", "");
   shadow = host.attachShadow({ mode: "closed" });
-  // Appended to <html>, outside iFood's <body> tree.
-  doc.documentElement.appendChild(host);
+  // Last child of <body>, never under <html>, and only after whenPageSettled().
+  doc.body.appendChild(host);
   return shadow;
 }
 
@@ -32,6 +37,23 @@ const STYLE = `
   .muted { opacity: .7; }
   button { all: unset; cursor: pointer; float: right; opacity: .6; padding: 0 2px; }
 `;
+
+/** Resolves after `load`, an idle period and a grace delay — i.e. after hydration. */
+export function whenPageSettled(win: Window, graceMs = 2000): Promise<void> {
+  const afterLoad =
+    win.document.readyState === "complete"
+      ? Promise.resolve()
+      : new Promise<void>((resolve) => win.addEventListener("load", () => resolve(), { once: true }));
+  return afterLoad
+    .then(
+      () =>
+        new Promise<void>((resolve) => {
+          if ("requestIdleCallback" in win) win.requestIdleCallback(() => resolve(), { timeout: 5000 });
+          else setTimeout(resolve, 500);
+        })
+    )
+    .then(() => new Promise<void>((resolve) => setTimeout(resolve, graceMs)));
+}
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);

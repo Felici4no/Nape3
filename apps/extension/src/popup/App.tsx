@@ -271,6 +271,10 @@ function SettingsPanel({ settings, onSave, onClear }: { settings: ExtensionSetti
         </select>
       </label>
       <label className="inline">
+        <input type="checkbox" checked={draft.showBadge} onChange={(e) => setDraft({ ...draft, showBadge: e.target.checked })} />
+        On-page badge (experimental; mounted only after the page loads)
+      </label>
+      <label className="inline">
         <input type="checkbox" checked={draft.debug} onChange={(e) => setDraft({ ...draft, debug: e.target.checked })} />
         Debug mode (timestamps, evidence, DOM capture)
       </label>

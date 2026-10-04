@@ -120,12 +120,15 @@ export interface ExtensionSettings {
   networkEndpoint?: string;
   /** Show timestamps, evidence and container selection in the popup and badge. */
   debug: boolean;
+  /** On-page badge (experimental, off by default: injecting into iFood's React tree is risky). */
+  showBadge: boolean;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   membership: "unknown",
   includeFixtures: true,
-  debug: false
+  debug: false,
+  showBadge: false
 };
 
 export interface MarketView {

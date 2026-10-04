@@ -113,7 +113,9 @@ function extractLines(region: Element, summary: Element): ExtractedLine[] {
         .replace(/R\$\s*-?\s*[\d.]+(,\d{1,2})?/g, " ")
         .replace(/(?:^|\s)\d{1,2}\s*[x×]\s/i, " ")
         .replace(/\s[x×]\s?\d{1,2}(?=\s|$)/i, " ")
-        .replace(/\b(editar|remover|excluir)\b/gi, " ")
+        .replace(/\b(editar|remover|excluir|item promocional|promo[cç][aã]o)\b/gi, " ")
+        // Quantity stepper "− 1 +" rendered inside the line.
+        .replace(/(?:^|\s)[−-]\s*\d{1,2}\s*\+(?=\s|$)/g, " ")
     );
     if (!title) continue;
     lines.push({
