@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { CandidateEvaluation, PurchasePlan } from "@nape3/agent";
 import type { ProductRequirement } from "@nape3/domain";
 import { SourceTag } from "@/components/bits";
+import { RunPanel } from "@/components/RunPanel";
 import { brl, freshnessLabel } from "@/lib/format";
 import type { SourceInfo } from "@/lib/source";
 import styles from "./agent.module.css";
@@ -44,12 +45,14 @@ export function AgentConsole({
   initial,
   initialPlan,
   initialSource,
-  instruments
+  instruments,
+  runtime
 }: {
   initial: string;
   initialPlan: PurchasePlan;
   initialSource: SourceInfo;
   instruments: InstrumentRef[];
+  runtime: { configured: boolean; demo: boolean };
 }) {
   const examples = instruments.map((i) => i.intent);
   const [request, setRequest] = useState(initial);
@@ -155,6 +158,8 @@ export function AgentConsole({
               <p className="small">Every candidate failed a hard constraint. See why below.</p>
             </section>
           )}
+
+          {d.status === "selected" && <RunPanel key={request} request={plan.intent.ok ? plan.intent.intent.request : request} runtime={runtime} />}
 
           <section className={styles.lists}>
             {d.alternatives.length > 0 && (

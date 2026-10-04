@@ -11,7 +11,27 @@ import type { PaymentRequest } from "./flow";
 
 // Read lazily: this module may be imported during server rendering.
 const hashParams = () => new URLSearchParams(typeof location === "undefined" ? "" : location.hash.slice(1));
-const extensionIdOf = () => hashParams().get("ext");
+const EXT_KEY = "upay3food.extensionId";
+
+/**
+ * Extension id: from the popup's link (#ext=…, remembered in this browser),
+ * then from earlier visits, then from NEXT_PUBLIC_EXTENSION_ID.
+ */
+function extensionIdOf(): string | null {
+  const fromHash = hashParams().get("ext");
+  try {
+    if (fromHash && /^[a-p]{32}$/.test(fromHash)) {
+      localStorage.setItem(EXT_KEY, fromHash);
+      return fromHash;
+    }
+    const remembered = typeof localStorage === "undefined" ? null : localStorage.getItem(EXT_KEY);
+    if (remembered) return remembered;
+  } catch {
+    /* storage blocked: fall through */
+  }
+  const fromEnv = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_EXTENSION_ID : undefined;
+  return fromHash ?? fromEnv ?? null;
+}
 
 interface ChromeRuntime {
   sendMessage(extensionId: string, message: unknown, callback: (response: unknown) => void): void;
@@ -86,4 +106,17 @@ export function reportToExtension(context: AgentContext, shieldedUsdc: bigint | 
 
 export function reportDisconnected(): void {
   void send({ type: "WALLET_DISCONNECTED" });
+}
+
+/** The extension's browser-executor id, so a run is bound to this browser. null if not installed/configured. */
+export async function requestExecutor(): Promise<{ executorId: string; agentApiUrl: string } | { error: string }> {
+  const response = await send({ type: "GET_EXECUTOR" });
+  if (!response) return { error: "extension not reachable from this page" };
+  if (!response.ok || typeof response.executorId !== "string") return { error: String(response.error ?? "extension executor unavailable") };
+  return { executorId: response.executorId, agentApiUrl: String(response.agentApiUrl) };
+}
+
+/** Tells the extension a run bound to it started, so it polls right away. */
+export async function notifyRunStarted(): Promise<void> {
+  await send({ type: "AGENT_RUN_STARTED" });
 }

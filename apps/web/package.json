@@ -15,6 +15,7 @@
     "@fontsource/anton": "^5.2.6",
     "@fontsource/jetbrains-mono": "^5.2.6",
     "@nape3/agent": "workspace:*",
+    "@nape3/chain": "workspace:*",
     "@nape3/domain": "workspace:*",
     "@nape3/fixtures": "workspace:*",
     "@nape3/market": "workspace:*",

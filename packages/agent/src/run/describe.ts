@@ -93,7 +93,7 @@ export function describeEvent(event: RunEvent, run?: AgentRun): string {
     case "ORDER_REQUESTED":
       return "Checking the order confirmation…";
     case "ORDER_CONFIRMED":
-      return "Order confirmed";
+      return event.payload.evidence.startsWith("simulated:") ? "Order confirmed (simulated demo)" : "Order confirmed";
     case "RUN_FAILED":
       return `Stopped: ${event.payload.reason}`;
   }

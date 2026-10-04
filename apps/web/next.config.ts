@@ -9,7 +9,8 @@ const config: NextConfig = {
     "@nape3/agent",
     "@nape3/fixtures",
     "@nape3/payments",
-    "@nape3/pay"
+    "@nape3/pay",
+    "@nape3/chain"
   ]
 };
 

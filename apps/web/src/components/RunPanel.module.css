@@ -1,0 +1,10 @@
+.box { padding: clamp(18px, 3vw, 28px); display: grid; gap: 14px; margin-top: 20px; min-width: 0; }
+.head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.state { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--paper-2); border: 1px solid var(--line); }
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 360px; overflow-y: auto; }
+.timeline li { display: grid; grid-template-columns: 76px 1fr; gap: 10px; font-size: 14px; border-bottom: 1px solid var(--line); padding: 6px 0; min-width: 0; }
+.timeline li span:last-child { overflow-wrap: anywhere; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.confirm { border-radius: var(--radius-m); padding: 18px; display: grid; gap: 8px; }
+.amount { font-size: 40px; margin: 0; }
+.error { margin: 0; }
