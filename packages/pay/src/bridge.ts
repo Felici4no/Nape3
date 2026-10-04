@@ -9,9 +9,9 @@ import type { PaymentRequest } from "./flow";
  * the URL. Only public data goes back: address, balances, agent state.
  */
 
-const params = new URLSearchParams(location.hash.slice(1));
-const extensionId = params.get("ext");
-const paymentId = params.get("pay");
+// Read lazily: this module may be imported during server rendering.
+const hashParams = () => new URLSearchParams(typeof location === "undefined" ? "" : location.hash.slice(1));
+const extensionIdOf = () => hashParams().get("ext");
 
 interface ChromeRuntime {
   sendMessage(extensionId: string, message: unknown, callback: (response: unknown) => void): void;
@@ -20,11 +20,12 @@ interface ChromeRuntime {
 
 function runtime(): ChromeRuntime | null {
   const rt = (globalThis as unknown as { chrome?: { runtime?: ChromeRuntime } }).chrome?.runtime;
-  return rt && typeof rt.sendMessage === "function" && extensionId ? rt : null;
+  return rt && typeof rt.sendMessage === "function" && extensionIdOf() ? rt : null;
 }
 
 function send(message: unknown): Promise<Record<string, unknown> | null> {
   const rt = runtime();
+  const extensionId = extensionIdOf();
   if (!rt || !extensionId) return Promise.resolve(null);
   return new Promise((resolve) => {
     try {
@@ -40,8 +41,13 @@ function send(message: unknown): Promise<Record<string, unknown> | null> {
 
 export const connectedToExtension = () => runtime() !== null;
 
-/** The checkout to pay: from the extension, or (standalone dev) from #amountCents=…. */
+/**
+ * The checkout to pay: from the extension (#pay=<id>&ext=<id>), or from the
+ * website itself (#amountCents=…&merchant=…, e.g. "Execute" on a market page).
+ */
 export async function loadPaymentRequest(): Promise<PaymentRequest | null> {
+  const params = hashParams();
+  const paymentId = params.get("pay");
   if (paymentId) {
     const response = await send({ type: "GET_PAYMENT_CONTEXT", paymentId });
     const payment = response?.ok ? (response.payment as Record<string, unknown>) : null;

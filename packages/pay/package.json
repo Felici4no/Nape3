@@ -1,0 +1,25 @@
+{
+  "name": "@nape3/pay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "UPAY3FOOD Pay client: wallet connection (Phantom/Solflare), Cloak private balance, payment flow, extension bridge. Browser-only.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./polyfills": "./src/polyfills.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@cloak.dev/sdk": "0.2.5",
+    "@nape3/agent": "workspace:*",
+    "@nape3/domain": "workspace:*",
+    "@nape3/payments": "workspace:*",
+    "@solana/web3.js": "^1.98.4",
+    "buffer": "^6.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0"
+  }
+}

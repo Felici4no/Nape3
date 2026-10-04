@@ -63,8 +63,8 @@ describe("wallet status", () => {
   });
 
   it("only accepts the configured Pay page origin", () => {
-    expect(isAllowedPayOrigin("http://localhost:5174", "http://localhost:5174/")).toBe(true);
-    expect(isAllowedPayOrigin("https://evil.example", "http://localhost:5174/")).toBe(false);
-    expect(isAllowedPayOrigin(undefined, "http://localhost:5174/")).toBe(false);
+    expect(isAllowedPayOrigin("http://localhost:3000", "http://localhost:3000/")).toBe(true);
+    expect(isAllowedPayOrigin("https://evil.example", "http://localhost:3000/")).toBe(false);
+    expect(isAllowedPayOrigin(undefined, "http://localhost:3000/")).toBe(false);
   });
 });

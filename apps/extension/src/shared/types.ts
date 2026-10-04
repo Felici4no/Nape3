@@ -123,7 +123,7 @@ export interface ExtensionSettings {
   debug: boolean;
   /** On-page badge (experimental, off by default: injecting into iFood's React tree is risky). */
   showBadge: boolean;
-  /** Private funding page (apps/funding-web). The purchase is passed in the URL fragment only. */
+  /** UPAY3FOOD Pay page (apps/web /pay). The checkout is fetched from the extension by id, never put in the URL. */
   fundingAppUrl: string;
 }
 
@@ -132,7 +132,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   includeFixtures: true,
   debug: false,
   showBadge: false,
-  fundingAppUrl: "http://localhost:5174/"
+  fundingAppUrl: "http://localhost:3000/pay"
 };
 
 export interface MarketView {

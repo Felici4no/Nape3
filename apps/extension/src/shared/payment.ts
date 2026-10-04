@@ -3,7 +3,7 @@ import type { PageSnapshot } from "./types";
 
 /**
  * Crypto payment glue between the popup, the background and the UPAY3FOOD
- * Pay page (apps/funding-web). Only public data crosses these boundaries:
+ * Pay page (apps/web /pay). Only public data crosses these boundaries:
  * wallet address, balances, agent state. Never keys, notes or signatures.
  * Amounts travel as decimal strings (bigint is not JSON-serializable).
  */
