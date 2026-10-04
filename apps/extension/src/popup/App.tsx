@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CandidateEvaluation, Decision } from "@nape3/agent";
 import { formatBRL, type Cents, type Membership } from "@nape3/domain";
+import { PRIVACY_COPY } from "@nape3/payments/privacy-copy";
 import { errorMessage } from "../shared/log";
 import type {
   CartSnapshot,
@@ -243,6 +244,26 @@ function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; marke
   );
 }
 
+/**
+ * Private funding (Cloak). Explains exactly what is shielded and opens the
+ * funding page with the purchase in the URL fragment (not sent to any server).
+ */
+function PrivateFundingPanel({ amountCents, merchant, fundingAppUrl }: { amountCents: Cents; merchant: string | null; fundingAppUrl: string }) {
+  function open() {
+    const fragment = new URLSearchParams({ amountCents: String(amountCents), ...(merchant ? { merchant } : {}) });
+    void chrome.tabs.create({ url: `${fundingAppUrl.split("#")[0]}#${fragment.toString()}` });
+  }
+  return (
+    <section className="private-funding">
+      <span className="label">Private funding · Cloak</span>
+      <strong>{PRIVACY_COPY.headline}</strong>
+      <p className="small">{PRIVACY_COPY.whatIsHidden}</p>
+      <p className="small muted">{PRIVACY_COPY.whatIsNotHidden}</p>
+      <button onClick={open}>Fund {money(amountCents)} privately</button>
+    </section>
+  );
+}
+
 const REGIONS = ["", "BR-SP-sao-paulo", "BR-RJ-rio-de-janeiro", "BR-MG-belo-horizonte", "BR-DF-brasilia", "BR-PR-curitiba"];
 const MEMBERSHIPS: Membership[] = ["unknown", "none", "ifood-club", "rappi-prime", "other"];
 
@@ -281,6 +302,10 @@ function SettingsPanel({ settings, onSave, onClear }: { settings: ExtensionSetti
       <label className="inline">
         <input type="checkbox" checked={draft.includeFixtures} onChange={(e) => setDraft({ ...draft, includeFixtures: e.target.checked })} />
         Compare with synthetic fixtures (demo)
+      </label>
+      <label>
+        Private funding page
+        <input value={draft.fundingAppUrl} onChange={(e) => setDraft({ ...draft, fundingAppUrl: e.target.value })} />
       </label>
       <label>
         Observation network endpoint (optional)
@@ -459,6 +484,14 @@ export function App() {
           )}
           <p className="muted small">Payment is not executed by UPAY3FOOD in this version.</p>
         </section>
+      )}
+
+      {settings && total !== null && (context === "CHECKOUT" || context === "PIX_PAYMENT") && (
+        <PrivateFundingPanel
+          amountCents={total}
+          merchant={snapshot?.cart?.merchantName.value ?? snapshot?.pix?.parsedPayload?.merchantName ?? null}
+          fundingAppUrl={settings.fundingAppUrl}
+        />
       )}
 
       {snapshot?.restaurant && (

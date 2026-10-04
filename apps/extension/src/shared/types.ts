@@ -122,13 +122,16 @@ export interface ExtensionSettings {
   debug: boolean;
   /** On-page badge (experimental, off by default: injecting into iFood's React tree is risky). */
   showBadge: boolean;
+  /** Private funding page (apps/funding-web). The purchase is passed in the URL fragment only. */
+  fundingAppUrl: string;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   membership: "unknown",
   includeFixtures: true,
   debug: false,
-  showBadge: false
+  showBadge: false,
+  fundingAppUrl: "http://localhost:5174/"
 };
 
 export interface MarketView {
