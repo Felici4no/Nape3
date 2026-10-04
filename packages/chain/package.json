@@ -1,0 +1,13 @@
+{
+  "name": "@nape3/chain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Chain access boundary (Solana RPC: RPC Fast in production, mock in tests). Server-side only for keyed providers.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

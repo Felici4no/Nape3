@@ -173,6 +173,8 @@ importers:
         specifier: workspace:*
         version: link:../fixtures
 
+  packages/chain: {}
+
   packages/domain: {}
 
   packages/fixtures:
