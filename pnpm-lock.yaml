@@ -57,6 +57,10 @@ importers:
       '@nape3/market':
         specifier: workspace:*
         version: link:../market
+    devDependencies:
+      '@nape3/fixtures':
+        specifier: workspace:*
+        version: link:../fixtures
 
   packages/domain: {}
 

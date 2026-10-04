@@ -177,5 +177,7 @@ export interface PurchaseIntent {
     unparsed: string[];
     /** Fields the agent needed but the user did not state. */
     missing: string[];
+    /** Interpretation choices the parser made, in plain language. */
+    notes: string[];
   };
 }

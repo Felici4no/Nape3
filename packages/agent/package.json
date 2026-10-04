@@ -1,0 +1,19 @@
+{
+  "name": "@nape3/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nape3/domain": "workspace:*",
+    "@nape3/market": "workspace:*"
+  },
+  "devDependencies": {
+    "@nape3/fixtures": "workspace:*"
+  }
+}
