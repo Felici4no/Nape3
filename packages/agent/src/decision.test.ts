@@ -102,4 +102,10 @@ describe("decide — ranking", () => {
     expect(withCurrent.savings.vsCurrentCheckoutCents).toBe(cents(2188 - 1690));
     expect(withCurrent.reasoning.join(" ")).toContain("Best option you can act on now");
   });
+
+  it("warns that sizes are mixed when the volume is unstated and there is no cart", () => {
+    const vague = decide(intentOf("quero açaí até R$25"), fixtures, { now: FIXTURE_NOW, policy: syntheticPolicy });
+    expect(vague.selected!.observationId).toBe("fx-ifood-300");
+    expect(vague.reasoning[0]).toContain("different sizes");
+  });
 });

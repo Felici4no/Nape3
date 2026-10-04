@@ -167,7 +167,21 @@ function normalizationConfidence(observation: CartQuoteObservation): number {
 export function decide(intent: PurchaseIntent, observations: readonly MarketObservation[], options: DecideOptions): Decision {
   const policy: DecisionPolicy = { ...DEFAULT_POLICY, ...options.policy };
   const requirement: ProductRequirement = { category: intent.product.category };
-  if (intent.product.volumeMl !== undefined) requirement.volumeMl = intent.product.volumeMl;
+  const preamble: string[] = [];
+  if (intent.product.volumeMl !== undefined) {
+    requirement.volumeMl = intent.product.volumeMl;
+  } else {
+    // Different sizes are not equivalent offers. Without a stated volume we use
+    // the size in the user's current cart, and say so; otherwise we warn.
+    const cartVolumes = new Set(options.currentCheckout?.quote.lines.map((line) => line.product?.volumeMl));
+    const [cartVolume] = [...cartVolumes];
+    if (cartVolumes.size === 1 && cartVolume !== undefined) {
+      requirement.volumeMl = cartVolume;
+      preamble.push(`Volume not stated; using ${cartVolume} ml from your current cart.`);
+    } else {
+      preamble.push("Volume not stated: candidates of different sizes are being compared. State a volume (e.g. 500ml) for an equivalent comparison.");
+    }
+  }
 
   const all = options.currentCheckout && !observations.some((o) => o.id === options.currentCheckout!.id)
     ? [options.currentCheckout, ...observations]
@@ -293,8 +307,9 @@ export function decide(intent: PurchaseIntent, observations: readonly MarketObse
   const containsSynthetic = accepted.some((e) => e.provenance === "synthetic");
 
   const reasoning: string[] = [
+    ...preamble,
     `Intent: ${intent.product.quantity}× ${intent.product.category}` +
-      (intent.product.volumeMl ? ` ${intent.product.volumeMl} ml` : "") +
+      (requirement.volumeMl ? ` ${requirement.volumeMl} ml` : "") +
       (intent.budget.maxCents !== undefined ? `, max ${formatBRL(intent.budget.maxCents)}` : ", no max budget"),
     `Evaluated ${evaluations.length} observation(s); ${accepted.length} passed hard constraints, ${rejected.length} rejected.`
   ];
