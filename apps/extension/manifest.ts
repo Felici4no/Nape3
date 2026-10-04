@@ -6,8 +6,9 @@ export default defineManifest({
   name: "UPAY3FOOD.agent",
   description: "Observes delivery prices you see on iFood and compares your checkout with recent market observations.",
   version: packageJson.version,
-  // storage: local observations/settings. activeTab/tabs: read the active tab URL and reload it on request.
-  permissions: ["storage", "activeTab"],
+  // storage: local observations/settings. activeTab: read the active tab on request.
+  // alarms: poll the agent runtime for executor commands (only when agentApiUrl is configured).
+  permissions: ["storage", "activeTab", "alarms"],
   host_permissions: ["https://*.ifood.com.br/*"],
   // Requested at runtime only if the user configures an observation network endpoint.
   optional_host_permissions: ["http://localhost/*", "https://*/*"],

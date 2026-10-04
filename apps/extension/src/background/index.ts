@@ -3,6 +3,7 @@ import type { CartQuoteObservation, MarketObservation } from "@nape3/domain";
 import { acaiFixtures } from "@nape3/fixtures";
 import { compareCheckout, summarizeMarket, type MarketSummary } from "@nape3/market";
 import { createLogger, errorMessage } from "../shared/log";
+import { executorIdentity, scheduleExecutor } from "./executor";
 import { isAllowedPayOrigin, parseWalletReport, payability, type PendingPayment, type WalletStatus } from "../shared/payment";
 import { mergeNetworkObservations } from "../shared/network";
 import { mergeObservation, requirementFromObservation, snapshotToObservation } from "../shared/observation";
@@ -237,6 +238,10 @@ async function getWalletStatus(): Promise<WalletStatus | null> {
 
 type ExternalMessage =
   | { type: "GET_PAYMENT_CONTEXT"; paymentId: string }
+  /** The web app asks which executor to bind a new agent run to. */
+  | { type: "GET_EXECUTOR" }
+  /** The web app started a run bound to this executor: poll now. */
+  | { type: "AGENT_RUN_STARTED" }
   | { type: "REPORT_WALLET_STATUS"; status: unknown }
   | { type: "WALLET_DISCONNECTED" };
 
@@ -264,10 +269,19 @@ async function handleExternal(message: ExternalMessage, origin: string | undefin
     case "WALLET_DISCONNECTED":
       await chrome.storage.local.remove("walletStatus");
       return { ok: true };
+    case "GET_EXECUTOR": {
+      const identity = await executorIdentity(settings);
+      return identity ? { ok: true, ...identity } : { ok: false, error: "agent-api is not configured in the extension settings" };
+    }
+    case "AGENT_RUN_STARTED":
+      executor.nudge("run-started");
+      return { ok: true };
     default:
       return { ok: false, error: "unsupported message" };
   }
 }
+
+const executor = scheduleExecutor(getSettings, getObserverId);
 
 chrome.runtime.onMessageExternal.addListener((message: ExternalMessage, sender, sendResponse) => {
   handleExternal(message, sender.origin ?? (sender.url ? new URL(sender.url).origin : undefined))
@@ -283,6 +297,7 @@ async function handle(message: ExtensionMessage, tabId: number | undefined): Pro
     case "GET_WALLET_STATUS":
       return { ok: true, type: "WALLET_STATUS", status: await getWalletStatus() };
     case "RECORD_SNAPSHOT":
+      executor.nudge("page-changed");
       return { ok: true, type: "MARKET", market: await handleRecord(message.snapshot, tabId) };
     case "PLAN_INTENT":
       return handlePlan(message.request, message.snapshot);

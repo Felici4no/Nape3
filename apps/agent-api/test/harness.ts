@@ -15,8 +15,8 @@ export const USDC = USDC_MINTS["mainnet-beta"];
 export const SIGNATURE = base58Encode(new Uint8Array(64).fill(9));
 
 /** A live extension observation of açaí 500 ml. */
-export function observation(spec: Partial<CartSpec> & { id: string; unit: number; minutesAgo: number }, now = T0): CartQuoteObservation {
-  const o = cartObservation({ source: "ifood", merchant: `Loja ${spec.id}`, lines: [{ title: "Açaí 500ml", unit: spec.unit }], delivery: 0, service: 0, ...spec } as CartSpec, now);
+export function observation(spec: Partial<CartSpec> & { id: string; unit?: number; minutesAgo: number }, now = T0): CartQuoteObservation {
+  const o = cartObservation({ source: "ifood", merchant: `Loja ${spec.id}`, lines: [{ title: "Açaí 500ml", unit: spec.unit ?? 0 }], delivery: 0, service: 0, ...spec } as CartSpec, now);
   return { ...o, provenance: { method: "browser-extension", live: true, synthetic: false } };
 }
 

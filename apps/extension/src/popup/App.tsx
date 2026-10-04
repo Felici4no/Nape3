@@ -355,6 +355,10 @@ function SettingsPanel({ settings, onSave, onClear }: { settings: ExtensionSetti
         <input placeholder="http://localhost:8787" value={draft.networkEndpoint ?? ""} onChange={(e) => setDraft({ ...draft, networkEndpoint: e.target.value || undefined })} />
       </label>
       <label>
+        Agent runtime (agent-api, optional)
+        <input placeholder="http://localhost:8788" value={draft.agentApiUrl ?? ""} onChange={(e) => setDraft({ ...draft, agentApiUrl: e.target.value || undefined })} />
+      </label>
+      <label>
         Network read token (optional)
         <input type="password" autoComplete="off" value={draft.networkReadToken ?? ""} onChange={(e) => setDraft({ ...draft, networkReadToken: e.target.value || undefined })} />
       </label>
@@ -435,11 +439,11 @@ export function App() {
 
   async function saveSettings(next: ExtensionSettings) {
     try {
-      if (next.networkEndpoint) {
-        const origin = `${new URL(next.networkEndpoint).origin}/*`;
-        const granted = await chrome.permissions.request({ origins: [origin] });
+      const origins = [next.networkEndpoint, next.agentApiUrl].filter((u): u is string => !!u).map((u) => `${new URL(u).origin}/*`);
+      if (origins.length) {
+        const granted = await chrome.permissions.request({ origins });
         if (!granted) {
-          setNotice("Permission to reach the endpoint was not granted; endpoint not saved.");
+          setNotice("Permission to reach the endpoint was not granted; settings not saved.");
           return;
         }
       }

@@ -119,6 +119,8 @@ export interface ExtensionSettings {
   includeFixtures: boolean;
   /** Optional observation network endpoint; nothing is uploaded when unset. */
   networkEndpoint?: string;
+  /** agent-api runtime; when set, this browser acts as the executor of agent runs (revalidation, checkout, Pix). */
+  agentApiUrl?: string;
   /** Read token for the observer network (OBSERVER_READ_TOKEN); not needed for a local observer. */
   networkReadToken?: string;
   /** Show timestamps, evidence and container selection in the popup and badge. */
