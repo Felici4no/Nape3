@@ -1,9 +1,23 @@
 {
   "name": "nape3",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.15.1",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "pnpm typecheck && pnpm test && pnpm build:extension",
     "dev:extension": "pnpm --filter @nape3/extension dev",
-    "build:extension": "pnpm --filter @nape3/extension build"
+    "build:extension": "pnpm --filter @nape3/extension build",
+    "dev:api": "pnpm --filter @nape3/observer-api dev"
+  },
+  "devDependencies": {
+    "jsdom": "^27.0.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
   }
 }
