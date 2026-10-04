@@ -1,20 +1,24 @@
 import Link from "next/link";
-import { Change, Freshness, Price, SyntheticTag } from "@/components/bits";
+import { Change, Freshness, Price, SourceTag } from "@/components/bits";
 import { DecisionCard } from "@/components/DecisionCard";
+import { EmptyMarket, marketIsEmpty } from "@/components/EmptyMarket";
 import { FoodArt } from "@/components/FoodArt";
 import { InstrumentCard } from "@/components/InstrumentCard";
 import { MarketRows } from "@/components/MarketRows";
 import { Watchlist } from "@/components/watchlist";
 import { agentPicks, brl, freshnessLabel, quoteAll, REGION, USDC_RATE } from "@/lib/market";
+import { getMarketSource } from "@/lib/source.server";
 import styles from "./home.module.css";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
-  const now = new Date();
-  const quotes = quoteAll(now);
+export default async function Home() {
+  const source = await getMarketSource();
+  const now = new Date(source.fetchedAt);
+  const quotes = quoteAll(source, now);
+  const empty = marketIsEmpty(quotes);
   const [acai, burger, pizza, sushi, acai300] = quotes as [typeof quotes[number], typeof quotes[number], typeof quotes[number], typeof quotes[number], typeof quotes[number]];
-  const picks = agentPicks(now);
+  const picks = agentPicks(source, now);
 
   const cheapest = quotes
     .filter((q) => q.observations.length > 0)
@@ -31,7 +35,7 @@ export default function Home() {
       <section className={styles.hero}>
         <div className={`wrap ${styles.heroGrid}`}>
           <div className={styles.heroCopy}>
-            <span className="eyebrow">Market now · {REGION.label} · <SyntheticTag /></span>
+            <span className="eyebrow">Market now · {REGION.label} · <SourceTag mode={source.mode} /></span>
             <h1 className={`display ${styles.headline}`}>The food market is moving.</h1>
             <p className={styles.lede}>
               Observed delivery prices, normalized into comparable food. UPAY3FOOD finds the lowest valid way to complete the purchase,
@@ -43,7 +47,7 @@ export default function Home() {
             </div>
           </div>
           <div className={styles.heroBoard}>
-            <MarketRows quotes={[acai, burger, pizza, sushi]} dense />
+            {empty ? <EmptyMarket source={source} quotes={quotes} /> : <MarketRows quotes={[acai, burger, pizza, sushi]} dense />}
             <p className="muted small">
               Best = lowest fresh comparable checkout total (fees and discounts included). USDC at {USDC_RATE.label}. 24h movement
               only where history exists.
@@ -57,13 +61,14 @@ export default function Home() {
           <h2 className={`display ${styles.h2}`}>Market now</h2>
           <Link href="/market" className={styles.headLink}>Full market →</Link>
         </div>
-        <div className={styles.bento}>
+        {!empty && <div className={styles.bento}>
           <div className={styles.b1}><InstrumentCard quote={acai} size="xl" /></div>
           <div className={styles.b2}><InstrumentCard quote={burger} size="l" /></div>
           <div className={styles.b3}><InstrumentCard quote={pizza} size="m" /></div>
           <div className={styles.b4}><InstrumentCard quote={sushi} size="m" /></div>
           <div className={styles.b5}><InstrumentCard quote={acai300} size="s" /></div>
-        </div>
+        </div>}
+        {empty && <MarketRows quotes={quotes} />}
       </section>
 
       <section className="wrap">
@@ -73,6 +78,7 @@ export default function Home() {
               <h2 className={`display ${styles.h2}`}>Cheapest near you</h2>
               <span className="muted small">{REGION.label} · checkout totals</span>
             </div>
+            {cheapest.length === 0 && <p className="muted">No fresh comparable checkouts near you yet.</p>}
             <ol className={styles.cheap}>
               {cheapest.map(({ q, best }) => (
                 <li key={q.instrument.slug}>
@@ -83,6 +89,7 @@ export default function Home() {
                       <span className="muted small">{best.merchant} · {best.source} · {freshnessLabel(best.ageMinutes)}</span>
                     </span>
                     <Price cents={best.totalCents} usdc={q.usdc.lowest} size="m" />
+                    {best.accountSpecific && <span className="tag" title="Seen with an account-specific promotion or membership; may not be available to your account">account price</span>}
                   </Link>
                 </li>
               ))}

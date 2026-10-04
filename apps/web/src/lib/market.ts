@@ -1,14 +1,14 @@
-import { planPurchase, type Decision } from "@nape3/agent";
-import type { MarketObservation, ProductRequirement } from "@nape3/domain";
-import { marketFixtures } from "@nape3/fixtures";
-import { priceChange, summarizeMarket, type MarketSummary, type PriceChange } from "@nape3/market";
+import { planPurchase, type Decision, type PurchasePlan } from "@nape3/agent";
+import type { MarketObservation, PromotionScope, ProductRequirement } from "@nape3/domain";
+import { priceChange, summarizeMarket, type MarketSummary, type PriceChange, type ProvenancePolicy } from "@nape3/market";
 import { usdcEstimate } from "./format";
+import type { DataMode, MarketSource } from "./source";
 
 /**
  * Data layer of the Food Market. Pure functions over the existing packages:
- * fixtures → summarizeMarket / priceChange / planPurchase. Nothing here
- * invents numbers; every figure comes from observations, and the source of
- * those observations is carried to the UI (`DATA_SOURCE`).
+ * market source → summarizeMarket / priceChange / planPurchase. Nothing here
+ * invents numbers; every figure comes from the observations of one source
+ * (live or demo, never both), and that source is carried to the UI.
  */
 
 export type ArtKind = "acai" | "burger" | "pizza" | "sushi";
@@ -34,14 +34,6 @@ export const INSTRUMENTS: Instrument[] = [
   { slug: "acai-300ml", name: "Açaí 300ml", ticker: "ACAI.300", unit: "copo 300 ml", requirement: { category: "acai", volumeMl: 300 }, art: "acai", tone: "acai-light", intent: "quero um açaí 300ml até R$20" }
 ];
 
-export const DATA_SOURCE = {
-  synthetic: true,
-  label: "Synthetic demo data",
-  detail:
-    "Prices on this site come from deterministic fixtures with fictitious merchants, not from real iFood, Rappi or 99Food observations. " +
-    "Real observations come from the UPAY3FOOD.agent extension and the observer API."
-} as const;
-
 /** Demo region for "near you" (coarse, as the observation network stores it). */
 export const REGION = { code: "BR-SP-sao-paulo", label: "São Paulo" } as const;
 
@@ -49,8 +41,20 @@ export const REGION = { code: "BR-SP-sao-paulo", label: "São Paulo" } as const;
 export const FRESH_MINUTES = 120;
 export const CHANGE_LAG_MINUTES = 24 * 60;
 
-export function loadObservations(now: Date): MarketObservation[] {
-  return marketFixtures(now);
+/**
+ * Live summaries see real observations only; demo summaries see fixtures only.
+ * `include-synthetic` is never used by the website.
+ */
+export function policyFor(mode: DataMode): ProvenancePolicy {
+  return mode === "live" ? "real-only" : "synthetic-only";
+}
+
+/** Promotions that depend on who is looking: observed context, not a public price. */
+const ACCOUNT_SCOPES: readonly PromotionScope[] = ["account-specific", "first-order", "membership"];
+
+export function isAccountSpecific(observation: MarketObservation): boolean {
+  const membership = observation.context.membership;
+  return ACCOUNT_SCOPES.includes(observation.context.promotionScope) || (membership !== "none" && membership !== "unknown");
 }
 
 export interface ObservationRow {
@@ -62,6 +66,9 @@ export interface ObservationRow {
   ageMinutes: number;
   region: string | null;
   promotion: string;
+  membership: string;
+  /** Price seen under an account-specific context (coupon, first order, membership). */
+  accountSpecific: boolean;
   synthetic: boolean;
 }
 
@@ -75,18 +82,31 @@ export interface InstrumentQuote {
   observations: ObservationRow[];
   excludedCount: number;
   usdc: { median: string | null; lowest: string | null };
+  /** Comparable observations in the region that are too old to quote, and the newest of them. */
+  stale: { count: number; newestAgeMinutes: number | null };
+  /** Fresh comparable observations in other regions (not in the headline). */
+  otherRegions: number;
+  /** The lowest observed total was seen under an account-specific context. */
+  lowestIsAccountSpecific: boolean;
 }
 
-export function quoteInstrument(observations: readonly MarketObservation[], instrument: Instrument, now: Date): InstrumentQuote {
+export function quoteInstrument(observations: readonly MarketObservation[], instrument: Instrument, now: Date, mode: DataMode): InstrumentQuote {
   const query = {
     requirement: instrument.requirement,
     quantity: 1,
     now,
     freshWithinMinutes: FRESH_MINUTES,
-    provenance: "include-synthetic" as const,
+    provenance: policyFor(mode),
     marketRegion: REGION.code
   };
   const summary = summarizeMarket(observations, query);
+  // Same filter over the whole fetched window: tells "quiet" apart from "stale".
+  const window = summarizeMarket(observations, { ...query, freshWithinMinutes: Number.MAX_SAFE_INTEGER, minSampleSize: 1 });
+  const freshIds = new Set(summary.comparable.map((o) => o.id));
+  const staleAges = window.comparable
+    .filter((o) => !freshIds.has(o.id))
+    .map((o) => Math.round((now.getTime() - Date.parse(o.observedAt)) / 60_000));
+  const otherRegions = summary.regionalVariation.filter((g) => g.key !== REGION.code).reduce((n, g) => n + g.sampleSize, 0);
   const change = priceChange(observations, query, { lagMinutes: CHANGE_LAG_MINUTES });
   const rows: ObservationRow[] = summary.comparable
     .map((o) => ({
@@ -98,6 +118,8 @@ export function quoteInstrument(observations: readonly MarketObservation[], inst
       ageMinutes: Math.round((now.getTime() - Date.parse(o.observedAt)) / 60_000),
       region: o.context.marketRegion ?? null,
       promotion: o.context.promotionScope,
+      membership: o.context.membership,
+      accountSpecific: isAccountSpecific(o),
       synthetic: o.provenance.synthetic
     }))
     .sort((a, b) => a.totalCents - b.totalCents);
@@ -121,13 +143,15 @@ export function quoteInstrument(observations: readonly MarketObservation[], inst
     usdc: {
       median: summary.medianCents === null ? null : usdcEstimate(summary.medianCents),
       lowest: summary.lowestCents === null ? null : usdcEstimate(summary.lowestCents)
-    }
+    },
+    stale: { count: staleAges.length, newestAgeMinutes: staleAges.length ? Math.min(...staleAges) : null },
+    otherRegions,
+    lowestIsAccountSpecific: rows.length > 0 && rows[0]!.accountSpecific
   };
 }
 
-export function quoteAll(now: Date): InstrumentQuote[] {
-  const observations = loadObservations(now);
-  return INSTRUMENTS.map((instrument) => quoteInstrument(observations, instrument, now));
+export function quoteAll(source: MarketSource, now: Date): InstrumentQuote[] {
+  return INSTRUMENTS.map((instrument) => quoteInstrument(source.observations, instrument, now, source.mode));
 }
 
 export function findInstrument(slug: string): Instrument | undefined {
@@ -141,19 +165,21 @@ export interface AgentPick {
   error: string | null;
 }
 
-/** The agent's answer for each instrument's example intent (same engine as /agent). */
-export function agentPicks(now: Date): AgentPick[] {
-  const observations = loadObservations(now);
-  return INSTRUMENTS.slice(0, 4).map((instrument) => {
-    const plan = planPurchase(instrument.intent, observations, {
-      now,
-      policy: { provenance: "include-synthetic", marketRegion: REGION.code }
-    });
-    return { instrument, intent: instrument.intent, decision: plan.decision, error: plan.intent.ok ? null : plan.intent.reason };
+/** The agent over one market source: same engine as the extension, same policy as the quotes. */
+export function planIntent(source: MarketSource, request: string, now: Date): PurchasePlan {
+  return planPurchase(request.slice(0, 200), source.observations, {
+    now,
+    // Same freshness horizon as the board: nothing the market calls stale can be the agent's pick.
+    policy: { provenance: policyFor(source.mode), marketRegion: REGION.code, staleAfterMinutes: 60, rejectAfterMinutes: FRESH_MINUTES }
   });
 }
 
-
-
+/** The agent's answer for each instrument's example intent (same engine as /agent). */
+export function agentPicks(source: MarketSource, now: Date): AgentPick[] {
+  return INSTRUMENTS.slice(0, 4).map((instrument) => {
+    const plan = planIntent(source, instrument.intent, now);
+    return { instrument, intent: instrument.intent, decision: plan.decision, error: plan.intent.ok ? null : plan.intent.reason };
+  });
+}
 
 export { brl, changeLabel, freshnessLabel, usdcEstimate, USDC_RATE } from "./format";

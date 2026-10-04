@@ -13,6 +13,8 @@ export interface ReferencePurchase {
   slug: string;
   name: string;
   cents: number;
+  /** Median from the synthetic demo market, not real observations. */
+  synthetic: boolean;
 }
 
 const STATE_COPY: Record<string, string> = {
@@ -83,7 +85,7 @@ export default function WalletScreen({ references }: { references: ReferencePurc
               <label className="small" style={{ display: "grid", gap: 6 }}>
                 Check readiness for
                 <select className={styles.select} value={ref} onChange={(e) => setRef(e.target.value)}>
-                  {references.map((r) => <option key={r.slug} value={r.slug}>{r.name} · market median {brl(r.cents)}</option>)}
+                  {references.map((r) => <option key={r.slug} value={r.slug}>{r.name} · {r.synthetic ? "demo median" : "market median"} {brl(r.cents)}</option>)}
                 </select>
               </label>
             )}

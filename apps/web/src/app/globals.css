@@ -165,3 +165,5 @@ button { font: inherit; }
 .kv > span:last-child { text-align: right; }
 
 section { scroll-margin-top: 80px; }
+.tag.live { background: #e3f3e4; border-color: #9fd0a3; color: #1e5a22; }
+.night .tag.live { background: #183a1b; border-color: #2f6b34; color: #9be3a5; }

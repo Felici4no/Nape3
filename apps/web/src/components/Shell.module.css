@@ -8,6 +8,9 @@
 .nav a { padding: 8px 14px; border-radius: 999px; text-decoration: none; font-weight: 600; font-size: 14px; white-space: nowrap; }
 .nav a:hover { background: var(--paper); }
 .banner { background: #fff3c4; border-bottom: 1px solid #e9cf6b; color: #4a3a00; font-size: 13px; padding: 8px 0; }
+.bannerLive { background: #e3f3e4; border-bottom-color: #9fd0a3; color: #1e3f20; }
+.bannerWarn { background: #ffe1d6; border-bottom-color: #f0a58f; color: #6b1d0c; }
+.toggle { margin-left: 8px; font-weight: 600; white-space: nowrap; }
 .footer { padding: 64px 0 48px; margin-top: 96px; }
 .sentence { font-size: clamp(40px, 6vw, 88px); max-width: 14ch; }
 .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 32px; color: var(--night-ink-2); }

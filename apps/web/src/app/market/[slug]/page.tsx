@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Change, Freshness, Price, SyntheticTag } from "@/components/bits";
+import { Change, Freshness, Price, SourceTag } from "@/components/bits";
 import { FoodArt } from "@/components/FoodArt";
 import { WatchButton } from "@/components/watchlist";
-import { brl, findInstrument, freshnessLabel, loadObservations, quoteInstrument, REGION } from "@/lib/market";
+import { brl, findInstrument, freshnessLabel, quoteInstrument, REGION } from "@/lib/market";
+import { getMarketSource } from "@/lib/source.server";
 import { CheckoutCompare } from "./CheckoutCompare";
 import styles from "./product.module.css";
 
@@ -25,8 +26,9 @@ export default async function ProductPage({
   const { checkout } = await searchParams;
   const instrument = findInstrument(slug);
   if (!instrument) notFound();
-  const now = new Date();
-  const quote = quoteInstrument(loadObservations(now), instrument, now);
+  const source = await getMarketSource();
+  const now = new Date(source.fetchedAt);
+  const quote = quoteInstrument(source.observations, instrument, now, source.mode);
   const s = quote.summary;
   const initialCheckout = checkout && /^\d{1,7}$/.test(checkout) ? Number(checkout) : null;
 
@@ -38,7 +40,7 @@ export default async function ProductPage({
             <Link href="/market" className={styles.crumb}>← Market</Link>
             <div className={styles.tags}>
               <span className="num">{instrument.ticker}</span>
-              <SyntheticTag show={s.containsSynthetic} />
+              <SourceTag mode={source.mode} />
               <WatchButton slug={instrument.slug} name={instrument.name} />
             </div>
             <h1 className={`display ${styles.h1}`}>{instrument.name}</h1>
@@ -55,7 +57,11 @@ export default async function ProductPage({
                 </div>
               </div>
             ) : (
-              <p className={styles.thin}>Not enough fresh market data ({s.sampleSize} comparable observation{s.sampleSize === 1 ? "" : "s"}, needs 3).</p>
+              <p className={styles.thin}>
+                Not enough fresh market data ({s.sampleSize} comparable observation{s.sampleSize === 1 ? "" : "s"} in the last 2 h, needs 3)
+                {quote.stale.count > 0 && <>; {quote.stale.count} older, latest {freshnessLabel(quote.stale.newestAgeMinutes)}</>}
+                {source.status === "unavailable" && <>; live market unavailable</>}.
+              </p>
             )}
           </div>
           <FoodArt kind={instrument.art} className={styles.art} />
@@ -101,12 +107,17 @@ export default async function ProductPage({
                       <td>{o.source}</td>
                       <td className="small">{o.title}</td>
                       <td className="small">{freshnessLabel(o.ageMinutes)}</td>
-                      <td className="small">{o.promotion}</td>
+                      <td className="small">{o.promotion}{o.accountSpecific && <> · <span className="tag" title="Seen under an account-specific context; may not be available to your account">account price</span></>}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          )}
+          {quote.lowestIsAccountSpecific && (
+            <p className="warn small">
+              The lowest total was observed with an account-specific promotion or membership. It is market intelligence, not an offer your account can execute.
+            </p>
           )}
           <p className="muted small">{quote.excludedCount} other observations excluded (other products, sizes, regions, stale or item-only prices).</p>
         </section>

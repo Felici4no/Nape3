@@ -1,20 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { planPurchase, type CandidateEvaluation, type PurchasePlan } from "@nape3/agent";
+import { useState } from "react";
+import type { CandidateEvaluation, PurchasePlan } from "@nape3/agent";
 import type { ProductRequirement } from "@nape3/domain";
-import { marketFixtures } from "@nape3/fixtures";
-import { SyntheticTag } from "@/components/bits";
+import { SourceTag } from "@/components/bits";
 import { brl, freshnessLabel } from "@/lib/format";
+import type { SourceInfo } from "@/lib/source";
 import styles from "./agent.module.css";
 
-const REGION = "BR-SP-sao-paulo";
-
-/** Runs the same deterministic agent as the extension, in the browser, over the demo market. */
-function run(request: string): PurchasePlan {
-  const now = new Date();
-  return planPurchase(request, marketFixtures(now), { now, policy: { provenance: "include-synthetic", marketRegion: REGION } });
+/** The agent runs on the server over the same market source as the pages (/api/agent). */
+async function run(request: string): Promise<{ plan: PurchasePlan; source: SourceInfo }> {
+  const response = await fetch("/api/agent", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ q: request })
+  });
+  const body = await response.json();
+  if (!response.ok || !body.ok) throw new Error(body.error ?? `agent answered ${response.status}`);
+  return { plan: body.plan, source: body.source };
 }
 
 function Candidate({ c, rank }: { c: CandidateEvaluation; rank: number }) {
@@ -36,15 +40,37 @@ interface InstrumentRef {
   requirement: ProductRequirement;
 }
 
-export function AgentConsole({ initial, instruments }: { initial: string; instruments: InstrumentRef[] }) {
+export function AgentConsole({
+  initial,
+  initialPlan,
+  initialSource,
+  instruments
+}: {
+  initial: string;
+  initialPlan: PurchasePlan;
+  initialSource: SourceInfo;
+  instruments: InstrumentRef[];
+}) {
   const examples = instruments.map((i) => i.intent);
   const [request, setRequest] = useState(initial);
-  const [plan, setPlan] = useState<PurchasePlan | null>(null);
-  useEffect(() => setPlan(run(initial)), [initial]);
+  const [plan, setPlan] = useState<PurchasePlan | null>(initialPlan);
+  const [source, setSource] = useState<SourceInfo>(initialSource);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const submit = (text: string) => {
+  const submit = async (text: string) => {
     setRequest(text);
-    setPlan(run(text));
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await run(text);
+      setPlan(result.plan);
+      setSource(result.source);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
   };
   const d = plan?.decision ?? null;
   const intent = plan?.intent.ok ? plan.intent.intent : null;
@@ -61,7 +87,7 @@ export function AgentConsole({ initial, instruments }: { initial: string; instru
   return (
     <div className="wrap">
       <header className={styles.header}>
-        <span className="eyebrow">Purchase intent · <SyntheticTag /></span>
+        <span className="eyebrow">Purchase intent · <SourceTag mode={source.mode} /></span>
         <h1 className={`display ${styles.h1}`}>Tell the agent what you want.</h1>
       </header>
 
@@ -69,18 +95,24 @@ export function AgentConsole({ initial, instruments }: { initial: string; instru
         className={styles.form}
         onSubmit={(e) => {
           e.preventDefault();
-          submit(request);
+          void submit(request);
         }}
       >
         <input className="field" value={request} onChange={(e) => setRequest(e.target.value)} aria-label="Purchase intent" maxLength={200} />
-        <button className="btn" type="submit">Decide</button>
+        <button className="btn" type="submit" disabled={busy}>{busy ? "Deciding…" : "Decide"}</button>
       </form>
       <div className={styles.examples}>
         {examples.map((ex) => (
-          <button key={ex} type="button" className="tag" onClick={() => submit(ex)}>{ex}</button>
+          <button key={ex} type="button" className="tag" onClick={() => void submit(ex)}>{ex}</button>
         ))}
       </div>
 
+      {error && <p className={`warn ${styles.error}`}>Agent unavailable: {error}</p>}
+      {source.mode === "live" && source.status !== "ok" && (
+        <p className={`warn ${styles.error}`}>
+          {source.status === "unavailable" ? `Live market unavailable (${source.error}).` : "No real observations yet."} The agent decides over real observations only; it will not fall back to synthetic data.
+        </p>
+      )}
       {plan && !plan.intent.ok && <p className={`warn ${styles.error}`}>Not understood: {plan.intent.reason}</p>}
 
       {plan && intent && d && (
@@ -106,7 +138,7 @@ export function AgentConsole({ initial, instruments }: { initial: string; instru
               </div>
               <div className={styles.facts}>
                 <div><span className="eyebrow">vs median</span><span className="num cheaper">{brl(d.savings.vsMarketMedianCents)}</span><span className="small">median {brl(d.marketMedianCents)}</span></div>
-                <div><span className="eyebrow">confidence</span><span className="num">{d.confidence}</span><span className="small">{d.containsSynthetic ? "synthetic data halves it" : "observation-based"}</span></div>
+                <div><span className="eyebrow">confidence</span><span className="num">{d.confidence}</span><span className="small">{d.containsSynthetic ? "synthetic demo data halves it" : "real observations"}</span></div>
                 <div><span className="eyebrow">freshness</span><span className="num">{freshnessLabel(d.freshness.selectedAgeMinutes)}</span><span className="small">newest {freshnessLabel(d.freshness.newestAgeMinutes)}</span></div>
               </div>
               <p className={styles.exec}>{d.selected!.executability.note}</p>

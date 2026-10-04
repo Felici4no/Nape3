@@ -6,6 +6,15 @@ export function SyntheticTag({ show = true }: { show?: boolean }) {
   return show ? <span className="tag synthetic" title="Fixtures with fictitious merchants, not real observations">Synthetic demo</span> : null;
 }
 
+/** Which market the numbers come from: live observations or the synthetic demo. */
+export function SourceTag({ mode }: { mode: "live" | "demo" }) {
+  return mode === "demo" ? (
+    <SyntheticTag />
+  ) : (
+    <span className="tag live" title="Real checkout observations from the UPAY3FOOD.agent extension, via the observer API">Live observations</span>
+  );
+}
+
 /** BRL is the price; USDC is a secondary estimate. */
 export function Price({ cents, usdc, size = "l" }: { cents: number | null; usdc?: string | null; size?: "xl" | "l" | "m" }) {
   return (
