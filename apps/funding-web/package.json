@@ -1,0 +1,28 @@
+{
+  "name": "@nape3/funding-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "UPAY3FOOD.agent private funding page: wallet connection + Cloak shielded balance",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloak.dev/sdk": "0.2.5",
+    "@nape3/domain": "workspace:*",
+    "@nape3/payments": "workspace:*",
+    "@solana/web3.js": "^1.98.4",
+    "buffer": "^6.0.3",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.7"
+  }
+}

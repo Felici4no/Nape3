@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./cloak": "./src/cloak/index.ts"
+    "./cloak": "./src/cloak/index.ts",
+    "./privacy-copy": "./src/cloak/copy.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
