@@ -85,3 +85,107 @@ footer {
   opacity: 0.45;
   line-height: 1.4;
 }
+
+/* --- UPAY3FOOD.agent additions --- */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+
+.context {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+section {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.small {
+  font-size: 12px;
+}
+
+.muted {
+  opacity: 0.6;
+}
+
+.warn {
+  color: #9a3b00;
+}
+
+p {
+  margin: 2px 0;
+}
+
+.conf {
+  font-size: 10px;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  opacity: 0.6;
+}
+
+.conf-missing,
+.conf-low {
+  color: #9a3b00;
+}
+
+details summary {
+  cursor: pointer;
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.intent input,
+.settings input:not([type="checkbox"]),
+.settings select {
+  width: 100%;
+  font: inherit;
+  padding: 7px;
+  border: 1px solid #999;
+  background: #fff;
+}
+
+.intent button {
+  margin-top: 4px;
+}
+
+.settings label {
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+  margin: 6px 0;
+}
+
+.settings label.inline {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.actions .secondary {
+  width: auto;
+}
+
+.status p {
+  margin-bottom: 8px;
+}
+
+.secondary {
+  margin-top: 10px;
+}

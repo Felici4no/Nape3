@@ -3,11 +3,14 @@ import packageJson from "./package.json";
 
 export default defineManifest({
   manifest_version: 3,
-  name: "Nape3",
-  description: "Browser-assisted delivery offer observation for Nape3.",
+  name: "UPAY3FOOD.agent",
+  description: "Observes delivery prices you see on iFood and compares your checkout with recent market observations.",
   version: packageJson.version,
-  permissions: ["activeTab", "storage"],
+  // storage: local observations/settings. activeTab/tabs: read the active tab URL and reload it on request.
+  permissions: ["storage", "activeTab"],
   host_permissions: ["https://*.ifood.com.br/*"],
+  // Requested at runtime only if the user configures an observation network endpoint.
+  optional_host_permissions: ["http://localhost/*", "https://*/*"],
   background: {
     service_worker: "src/background/index.ts",
     type: "module"
