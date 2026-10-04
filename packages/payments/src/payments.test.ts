@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cents } from "@nape3/domain";
 import { buildStaticPixBrCode, crc16ccitt, looksLikePixPayload, parsePixBrCode } from "./pix";
-import { brlCentsToUsdcBaseUnits, formatUsdc, MockWallet } from "./solana";
+import { brlCentsToUsdcBaseUnits, formatUsdc, formatUsdcDisplay, MockWallet } from "./solana";
 import { MockOfframp } from "./offramp";
 import { PaymentRouter } from "./router";
 
@@ -57,6 +57,9 @@ describe("Solana preparation", () => {
     expect(brlCentsToUsdcBaseUnits(540, 540)).toBe(1_000_000n);
     expect(brlCentsToUsdcBaseUnits(1744, 540)).toBe(3_229_630n);
     expect(formatUsdc(3_229_630n)).toBe("3.229630 USDC");
+    expect(formatUsdcDisplay(25_000_000n)).toBe("25,00 USDC");
+    expect(formatUsdcDisplay(5_665_144n)).toBe("5,665144 USDC");
+    expect(formatUsdcDisplay(1_234_500_000n)).toBe("1.234,50 USDC");
   });
 });
 

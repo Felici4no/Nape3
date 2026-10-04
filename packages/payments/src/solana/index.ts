@@ -28,6 +28,13 @@ export function brlCentsToUsdcBaseUnits(brlCents: number, rateCentsPerUsdc: numb
   return (numerator + rate - 1n) / rate;
 }
 
+/** User-facing pt-BR display: "25,00 USDC", "5,665144 USDC" (exact, zeros trimmed to 2 decimals). */
+export function formatUsdcDisplay(units: UsdcBaseUnits): string {
+  const whole = units / 1_000_000n;
+  const fraction = (units % 1_000_000n).toString().padStart(6, "0").replace(/0{1,4}$/, "");
+  return `${whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${fraction.padEnd(2, "0")} USDC`;
+}
+
 export function formatUsdc(units: UsdcBaseUnits): string {
   const whole = units / 1_000_000n;
   const fraction = (units % 1_000_000n).toString().padStart(6, "0");
