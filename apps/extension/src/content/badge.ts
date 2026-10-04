@@ -37,26 +37,43 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
-export function renderBadge(doc: Document, snapshot: PageSnapshot, market: MarketView | null): void {
-  const total = snapshot.cart?.totalCents.value ?? snapshot.pix?.amountCents.value ?? null;
-  if (total === null) {
+export function renderBadge(doc: Document, snapshot: PageSnapshot, market: MarketView | null, debug = false): void {
+  const cart = snapshot.cart;
+  const pixAmount = snapshot.pix?.amountCents.value ?? null;
+  if (!cart && pixAmount === null) {
     removeBadge();
     return;
   }
   const root = ensureRoot(doc);
-  const summary = market?.summary;
-  const marketLine =
-    summary && summary.sufficient && summary.medianCents !== null && summary.lowestCents !== null
-      ? `<div class="row"><span>Median</span><strong>${formatBRL(summary.medianCents)}</strong></div>
-         <div class="row"><span>Lowest observed</span><strong>${formatBRL(summary.lowestCents)}</strong></div>
-         <div class="muted">${summary.sampleSize} fresh observations${summary.containsSynthetic ? " · includes synthetic fixtures" : ""}</div>`
-      : `<div class="muted">Not enough fresh market data</div>`;
+  const time = new Date(snapshot.capturedAt).toLocaleTimeString("pt-BR");
+  const debugLine = debug
+    ? `<div class="muted">extracted ${escapeHtml(time)} · ${escapeHtml(snapshot.snapshotId)}${market?.observation ? ` · observed ${escapeHtml(new Date(market.observation.observedAt).toLocaleTimeString("pt-BR"))}` : ""}</div>`
+    : "";
+
+  let body: string;
+  if (cart && !cart.validity.valid) {
+    // Never show an unvalidated total (and never an item price instead).
+    body = `<div class="row"><span>Current checkout</span><strong>not validated</strong></div>
+      <div class="muted">${escapeHtml(cart.validity.reasons[0] ?? "")}</div>`;
+  } else {
+    const total = cart?.totalCents.value ?? pixAmount!;
+    const summary = market?.summary;
+    const marketLine = !market
+      ? `<div class="muted">Comparing…</div>`
+      : summary && summary.sufficient && summary.medianCents !== null && summary.lowestCents !== null
+        ? `<div class="row"><span>Median</span><strong>${formatBRL(summary.medianCents)}</strong></div>
+           <div class="row"><span>Lowest observed</span><strong>${formatBRL(summary.lowestCents)}</strong></div>
+           <div class="muted">${summary.sampleSize} fresh observations${summary.containsSynthetic ? " · includes synthetic fixtures" : ""}</div>`
+        : `<div class="muted">Not enough fresh market data</div>`;
+    body = `<div class="row"><span>Current checkout</span><strong>${formatBRL(total)}</strong></div>${marketLine}`;
+  }
+
   root.innerHTML = `<style>${STYLE}</style>
     <div class="badge" role="status">
       <button title="Hide" aria-label="Hide">✕</button>
       <div class="eyebrow">UPAY3FOOD.agent · ${escapeHtml(snapshot.detection.context)}</div>
-      <div class="row"><span>Current checkout</span><strong>${formatBRL(total)}</strong></div>
-      ${marketLine}
+      ${body}
+      ${debugLine}
     </div>`;
   root.querySelector("button")?.addEventListener("click", removeBadge, { once: true });
 }

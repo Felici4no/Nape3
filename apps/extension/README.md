@@ -23,15 +23,35 @@ see the signals that fired.
 
 ## Extraction
 
-- Fees are bound to their **labels inside the order-summary container** (the
-  smallest element holding "Subtotal" and "Total"); struck-through prices are
-  ignored; "Grátis" = R$0,00; missing optional rows are assumed R$0,00 with
-  `low` confidence and validated by reconciliation.
-- Item lines are only trusted if they add up to the subtotal.
-- Product prices are read inside the open product dialog only.
-- Pix: visible Copia e Cola payload (CRC-checked) > QR presence > visible key.
-- Every field has `confidence` and `evidence`; the snapshot stores a page
-  kind (`ifood:checkout`), never the URL.
+- **Order-summary container.** Every element that is the nearest ancestor of a
+  "Subtotal" label holding a "Total" label is a candidate. Candidates that are
+  not on screen (off-canvas drawers, `opacity: 0`, `inert`, hidden) are
+  rejected. Among the rest, the one whose *nearest* call-to-action matches
+  the context wins ("Fazer pedido" at checkout, "Escolher forma de pagamento"
+  in the bag). Several on-screen candidates with different totals → the quote
+  is **invalid** (ambiguous), never guessed.
+- Fees are bound to their labels inside that container; struck-through
+  prices are ignored; "Grátis" = R$0,00; "Cupom …"/"Desconto …" rows are read
+  as a positive discount; absent optional rows are assumed R$0,00 (`low`).
+- **Validity gate.** A quote is valid only if `subtotal + delivery + service −
+  discount = total` exactly and the item lines (quantity: `2x`, `2 x`, `2×`,
+  `x2`, `2 un.`) add up to the subtotal (line totals, or unit price × qty).
+  Invalid quotes are shown as *Not validated*, never recorded, never sent to
+  the decision engine; no item price is ever shown in place of a total.
+- **SPA.** The content script re-extracts on DOM, attribute (class, style,
+  hidden, aria-*) and route changes (400 ms debounce, 2 s max wait). Each new
+  valid state of the same cart (same observer + source + merchant, 60 min)
+  **replaces** the previous one in storage. Out-of-order snapshots are ignored.
+- The popup always requests a fresh extraction from the page (`GET_SNAPSHOT`);
+  it never displays cached background state as the current checkout.
+
+## Debug mode
+
+Settings → *Debug mode*: extraction timestamp, snapshot id, `observedAt`,
+context signals, chosen/rejected summary containers, validity reasons and the
+DOM evidence of every field. *Capture order DOM* exports the structure of the
+summary containers (scrubbed of e-mails, phones, CEPs, long numbers and
+addresses — review before sharing) to calibrate against real iFood markup.
 
 ## Privacy & safety
 
@@ -45,8 +65,11 @@ see the signals that fired.
 
 ## Known limitations
 
-- Labels and URL hints are **assumptions** modelled on iFood web and tested
-  on synthetic HTML (`test/fixtures`). Calibrate on real pages: hover the
-  confidence chips in the popup to see what DOM text each value came from.
+- Labels, CTAs and URL hints are **assumptions** modelled on iFood web and
+  tested on synthetic HTML (`test/fixtures`), including the regression
+  `checkout-stale-drawer.html` (bag drawer left mounted off-screen after the
+  SPA transition). They have not been verified against real iFood markup:
+  use Debug mode → *Capture order DOM* on a real checkout and add it as a
+  fixture.
 - Only açaí with a known volume is compared.
 - Discount scope (public vs account-specific) cannot be seen; recorded as `unknown`.

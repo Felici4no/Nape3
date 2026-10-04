@@ -54,7 +54,7 @@ describe("checkout → observation → market → agent", () => {
       policy: { provenance: "include-synthetic", marketRegion: "BR-SP-sao-paulo", observerId: "11111111-2222-3333-4444-555555555555" },
       currentCheckout: built.observation
     });
-    expect(plan.intent.ok && plan.intent.intent.parsing.missing).toEqual(["product.volumeMl"]);
+    expect(plan.intent.ok && plan.intent.intent.parsing.missing).toEqual(["product.volumeMl", "product.quantity"]);
     expect(plan.agent.state).toBe("USER_CONFIRMATION");
     expect(plan.decision!.bestExecutable!.observationId).toBe(built.observation.id);
     expect(plan.decision!.selected!.executability.executable).toBe(false);

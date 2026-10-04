@@ -1,9 +1,9 @@
 import { planPurchase } from "@nape3/agent";
-import type { MarketObservation } from "@nape3/domain";
+import type { CartQuoteObservation, MarketObservation } from "@nape3/domain";
 import { acaiFixtures } from "@nape3/fixtures";
 import { compareCheckout, summarizeMarket, type MarketSummary } from "@nape3/market";
 import { createLogger, errorMessage } from "../shared/log";
-import { requirementFromObservation, snapshotToObservation } from "../shared/observation";
+import { mergeObservation, requirementFromObservation, snapshotToObservation } from "../shared/observation";
 import {
   DEFAULT_SETTINGS,
   type ExtensionMessage,
@@ -39,16 +39,24 @@ async function getObservations(): Promise<MarketObservation[]> {
   return Array.isArray(observations) ? (observations as MarketObservation[]) : [];
 }
 
-async function saveObservation(observation: MarketObservation): Promise<void> {
-  const existing = await getObservations();
-  // Re-reading the same checkout within 10 minutes updates it instead of
-  // inflating the sample size.
-  const key = (o: MarketObservation) =>
-    o.kind === "cart-quote" ? `${o.source}|${o.quote.merchant.name}|${o.quote.totalCents}|${o.quote.itemsSubtotalCents}` : o.id;
-  const recentDuplicate = (o: MarketObservation) =>
-    key(o) === key(observation) && Math.abs(Date.parse(o.observedAt) - Date.parse(observation.observedAt)) < 10 * 60_000;
-  const next = [observation, ...existing.filter((o) => !recentDuplicate(o))].slice(0, MAX_OBSERVATIONS);
+async function saveObservation(observation: CartQuoteObservation): Promise<number> {
+  const { next, superseded } = mergeObservation(await getObservations(), observation, MAX_OBSERVATIONS);
   await chrome.storage.local.set({ observations: next });
+  return superseded.length;
+}
+
+/**
+ * Debounced messages can arrive out of order. Per tab, a snapshot older than
+ * the newest one already processed is ignored.
+ */
+const latestCaptureByTab = new Map<number, number>();
+function isOutOfOrder(snapshot: PageSnapshot, tabId: number | undefined): boolean {
+  if (tabId === undefined) return false;
+  const at = Date.parse(snapshot.capturedAt);
+  const latest = latestCaptureByTab.get(tabId) ?? 0;
+  if (at < latest) return true;
+  latestCaptureByTab.set(tabId, at);
+  return false;
 }
 
 async function uploadObservation(observation: MarketObservation, settings: ExtensionSettings) {
@@ -78,20 +86,33 @@ const EMPTY_SUMMARY: MarketSummary = summarizeMarket([], {
   now: new Date(0)
 });
 
-async function handleRecord(snapshot: PageSnapshot): Promise<MarketView> {
+async function handleRecord(snapshot: PageSnapshot, tabId: number | undefined): Promise<MarketView> {
+  if (isOutOfOrder(snapshot, tabId)) {
+    log.info("snapshot.out_of_order_ignored", { snapshotId: snapshot.snapshotId, capturedAt: snapshot.capturedAt });
+    return { summary: EMPTY_SUMMARY, comparison: null, observation: null, notRecordedReason: "older snapshot ignored (page changed since)" };
+  }
   const settings = await getSettings();
   const observerId = await getObserverId();
   const built = snapshotToObservation(snapshot, settings, observerId);
   if (!built.ok) {
-    log.info("observation.not_recorded", { context: snapshot.detection.context, reason: built.reason });
+    log.info("observation.not_recorded", {
+      snapshotId: snapshot.snapshotId,
+      capturedAt: snapshot.capturedAt,
+      context: snapshot.detection.context,
+      reason: built.reason
+    });
     return { summary: EMPTY_SUMMARY, comparison: null, observation: null, notRecordedReason: built.reason };
   }
   const observation = built.observation;
-  await saveObservation(observation);
+  const superseded = await saveObservation(observation);
   log.info("observation.recorded", {
     id: observation.id,
+    snapshotId: snapshot.snapshotId,
+    observedAt: observation.observedAt,
     stage: observation.quote.stage,
-    totalCents: observation.quote.totalCents
+    quantity: observation.quote.lines.reduce((sum, line) => sum + line.quantity, 0),
+    totalCents: observation.quote.totalCents,
+    supersededPreviousStates: superseded
   });
   void uploadObservation(observation, settings);
 
@@ -119,7 +140,8 @@ async function handlePlan(request: string, snapshot: PageSnapshot | null): Promi
   const settings = await getSettings();
   const observerId = await getObserverId();
   const now = new Date();
-  const current = snapshot ? snapshotToObservation(snapshot, settings, observerId) : null;
+  // Only a validated checkout is given to the decision engine.
+  const current = snapshot?.cart ? snapshotToObservation(snapshot, settings, observerId) : null;
   const plan = planPurchase(request, await marketData(settings, now), {
     now,
     policy: {
@@ -136,14 +158,17 @@ async function handlePlan(request: string, snapshot: PageSnapshot | null): Promi
     decision: plan.decision,
     intentError: plan.intent.ok ? null : plan.intent.reason,
     agentState: plan.agent.state,
-    notes: plan.intent.ok ? [...plan.intent.intent.parsing.notes, ...plan.intent.intent.parsing.missing.map((m) => `missing: ${m}`)] : []
+    notes: plan.intent.ok ? [...plan.intent.intent.parsing.notes, ...plan.intent.intent.parsing.missing.map((m) => `missing: ${m}`)] : [],
+    currentCheckout: current?.ok
+      ? { used: true, reason: null }
+      : { used: false, reason: current ? current.reason : "no checkout on this page" }
   };
 }
 
-async function handle(message: ExtensionMessage): Promise<ExtensionResponse> {
+async function handle(message: ExtensionMessage, tabId: number | undefined): Promise<ExtensionResponse> {
   switch (message.type) {
     case "RECORD_SNAPSHOT":
-      return { ok: true, type: "MARKET", market: await handleRecord(message.snapshot) };
+      return { ok: true, type: "MARKET", market: await handleRecord(message.snapshot, tabId) };
     case "PLAN_INTENT":
       return handlePlan(message.request, message.snapshot);
     case "GET_SETTINGS":
@@ -154,14 +179,19 @@ async function handle(message: ExtensionMessage): Promise<ExtensionResponse> {
     case "CLEAR_OBSERVATIONS":
       await chrome.storage.local.set({ observations: [] });
       return { ok: true, type: "DONE" };
+    case "GET_SNAPSHOT":
+    case "GET_DOM_CAPTURE":
+      return { ok: false, error: "handled by the content script" };
     default:
       return { ok: false, error: `unsupported message ${(message as { type: string }).type}` };
   }
 }
 
-chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse: (r: ExtensionResponse) => void) => {
-  if (message.type === "GET_SNAPSHOT") return false; // handled by the content script
-  handle(message)
+chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse: (r: ExtensionResponse) => void) => {
+  if (message.type === "GET_SNAPSHOT" || message.type === "GET_DOM_CAPTURE") return false; // content script
+  // Messages from the popup carry the tab id explicitly; content scripts via sender.
+  const tabId = message.type === "RECORD_SNAPSHOT" ? (message.tabId ?? sender.tab?.id) : sender.tab?.id;
+  handle(message, tabId)
     .then(sendResponse)
     .catch((error: unknown) => {
       log.error("message.failed", { type: message.type, error: errorMessage(error) });

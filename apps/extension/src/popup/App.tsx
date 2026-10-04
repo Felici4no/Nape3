@@ -28,7 +28,7 @@ function isMissingContentScript(error: unknown): boolean {
   return /receiving end does not exist|could not establish connection/i.test(errorMessage(error));
 }
 
-async function readActiveTab(): Promise<{ snapshot: PageSnapshot } | { error: PageError }> {
+async function readActiveTab(): Promise<{ snapshot: PageSnapshot; tabId: number } | { error: PageError }> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return { error: { kind: "other", message: "No active tab." } };
   if (!tab.url || !/^https:\/\/([a-z0-9-]+\.)*ifood\.com\.br\//i.test(tab.url)) return { error: { kind: "not-ifood" } };
@@ -36,7 +36,7 @@ async function readActiveTab(): Promise<{ snapshot: PageSnapshot } | { error: Pa
     const response = (await chrome.tabs.sendMessage(tab.id, { type: "GET_SNAPSHOT" } satisfies ExtensionMessage)) as ExtensionResponse;
     if (!response.ok) return { error: { kind: "other", message: response.error } };
     if (response.type !== "SNAPSHOT") return { error: { kind: "other", message: "Unexpected response." } };
-    return { snapshot: response.snapshot };
+    return { snapshot: response.snapshot, tabId: tab.id };
   } catch (error) {
     if (isMissingContentScript(error)) return { error: { kind: "needs-reload", tabId: tab.id } };
     return { error: { kind: "other", message: errorMessage(error) } };
@@ -181,6 +181,68 @@ function DecisionPanel({ decision, notes, intentError, agentState }: { decision:
   );
 }
 
+function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; market: MarketView | null; tabId: number | null }) {
+  const [capture, setCapture] = useState<string | null>(null);
+  const cart = snapshot.cart;
+  const time = (iso: string) => `${new Date(iso).toLocaleTimeString("pt-BR")} (${iso})`;
+  async function loadCapture() {
+    if (tabId === null) return;
+    try {
+      const response = (await chrome.tabs.sendMessage(tabId, { type: "GET_DOM_CAPTURE" } satisfies ExtensionMessage)) as ExtensionResponse;
+      setCapture(response.ok && response.type === "DOM_CAPTURE" ? response.capture : `error: ${response.ok ? "unexpected" : response.error}`);
+    } catch (error) {
+      setCapture(`error: ${errorMessage(error)}`);
+    }
+  }
+  return (
+    <details className="debug" open>
+      <summary>Debug</summary>
+      <div className="kv small"><span>Extracted at</span><span>{time(snapshot.capturedAt)}</span></div>
+      <div className="kv small"><span>Snapshot id</span><span>{snapshot.snapshotId}</span></div>
+      <div className="kv small">
+        <span>Observation</span>
+        <span>{market?.observation ? `${market.observation.id} · observedAt ${time(market.observation.observedAt)}` : market?.notRecordedReason ?? "—"}</span>
+      </div>
+      <p className="small">Context signals: {snapshot.detection.signals.join(" · ")}</p>
+      {cart && (
+        <>
+          <p className="small">
+            Summary containers: {cart.summarySelection.candidates} · chosen: {cart.summarySelection.chosen ?? "none"}
+          </p>
+          {cart.summarySelection.rejected.map((r) => (
+            <p className="small muted" key={r}>rejected {r}</p>
+          ))}
+          <p className="small">Validity: {cart.validity.valid ? "valid" : cart.validity.reasons.join("; ")}</p>
+          <ul className="small evidence">
+            {(
+              [
+                ["subtotal", cart.itemsSubtotalCents],
+                ["delivery", cart.deliveryFeeCents],
+                ["service", cart.serviceFeeCents],
+                ["discount", cart.discountCents],
+                ["total", cart.totalCents]
+              ] as Array<[string, Field<Cents>]>
+            ).map(([name, f]) => (
+              <li key={name}>{name}: {money(f.value)} [{f.confidence}] {f.evidence}</li>
+            ))}
+            {cart.lines.map((l) => (
+              <li key={l.sourceTitle}>line: {l.quantity}× {l.sourceTitle} {money(l.lineTotalCents)} {l.evidence}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      <button className="secondary" onClick={() => void loadCapture()}>Capture order DOM (for calibration)</button>
+      {capture && (
+        <>
+          <p className="small warn">Review before sharing: scrubbed automatically, but check for names or addresses.</p>
+          <textarea readOnly value={capture} rows={10} onFocus={(e) => e.currentTarget.select()} />
+          <button className="secondary" onClick={() => void navigator.clipboard.writeText(capture)}>Copy</button>
+        </>
+      )}
+    </details>
+  );
+}
+
 const REGIONS = ["", "BR-SP-sao-paulo", "BR-RJ-rio-de-janeiro", "BR-MG-belo-horizonte", "BR-DF-brasilia", "BR-PR-curitiba"];
 const MEMBERSHIPS: Membership[] = ["unknown", "none", "ifood-club", "rappi-prime", "other"];
 
@@ -209,6 +271,10 @@ function SettingsPanel({ settings, onSave, onClear }: { settings: ExtensionSetti
         </select>
       </label>
       <label className="inline">
+        <input type="checkbox" checked={draft.debug} onChange={(e) => setDraft({ ...draft, debug: e.target.checked })} />
+        Debug mode (timestamps, evidence, DOM capture)
+      </label>
+      <label className="inline">
         <input type="checkbox" checked={draft.includeFixtures} onChange={(e) => setDraft({ ...draft, includeFixtures: e.target.checked })} />
         Compare with synthetic fixtures (demo)
       </label>
@@ -229,6 +295,7 @@ function SettingsPanel({ settings, onSave, onClear }: { settings: ExtensionSetti
 
 export function App() {
   const [snapshot, setSnapshot] = useState<PageSnapshot | null>(null);
+  const [tabId, setTabId] = useState<number | null>(null);
   const [pageError, setPageError] = useState<PageError | null>(null);
   const [market, setMarket] = useState<MarketView | null>(null);
   const [settings, setSettings] = useState<ExtensionSettings | null>(null);
@@ -241,6 +308,9 @@ export function App() {
     setBusy(true);
     setNotice(null);
     setPlan(null);
+    // Never show the previous state next to a new extraction.
+    setSnapshot(null);
+    setMarket(null);
     try {
       const settingsResponse = await send({ type: "GET_SETTINGS" });
       if (settingsResponse.ok && settingsResponse.type === "SETTINGS") setSettings(settingsResponse.settings);
@@ -252,8 +322,9 @@ export function App() {
       }
       setPageError(null);
       setSnapshot(result.snapshot);
+      setTabId(result.tabId);
       if (result.snapshot.cart) {
-        const recorded = await send({ type: "RECORD_SNAPSHOT", snapshot: result.snapshot });
+        const recorded = await send({ type: "RECORD_SNAPSHOT", snapshot: result.snapshot, tabId: result.tabId });
         if (recorded.ok && recorded.type === "MARKET") setMarket(recorded.market);
         else if (!recorded.ok) setNotice(recorded.error);
       } else {
@@ -309,7 +380,9 @@ export function App() {
   }
 
   const context = snapshot?.detection.context;
-  const total = snapshot?.cart?.totalCents.value ?? snapshot?.pix?.amountCents.value ?? null;
+  const cartInvalid = snapshot?.cart ? !snapshot.cart.validity.valid : false;
+  // Only a validated cart total (or a Pix amount when there is no summary). Never an item price.
+  const total = snapshot?.cart ? (cartInvalid ? null : snapshot.cart.totalCents.value) : (snapshot?.pix?.amountCents.value ?? null);
 
   return (
     <main className="shell">
@@ -337,11 +410,21 @@ export function App() {
         <>
           <section className="current">
             <span className="label">Current checkout</span>
-            <strong className="price">{money(total)}</strong>
+            {cartInvalid ? (
+              <>
+                <strong className="price warn">Not validated</strong>
+                {snapshot.cart!.validity.reasons.map((r) => (
+                  <span className="warn small" key={r}>{r}</span>
+                ))}
+                <span className="muted small">Not recorded and not used by the agent.</span>
+              </>
+            ) : (
+              <strong className="price">{money(total)}</strong>
+            )}
             {snapshot.cart?.merchantName.value && <span className="muted small">{snapshot.cart.merchantName.value}</span>}
             {snapshot.cart && <Breakdown cart={snapshot.cart} />}
           </section>
-          <MarketPanel market={market} />
+          {!cartInvalid && <MarketPanel market={market} />}
         </>
       )}
 
@@ -410,7 +493,12 @@ export function App() {
         </button>
       </section>
 
+      {plan && !plan.currentCheckout.used && snapshot?.cart && (
+        <p className="small warn">Your checkout was not used by the agent: {plan.currentCheckout.reason}</p>
+      )}
       {plan && <DecisionPanel decision={plan.decision} notes={plan.notes} intentError={plan.intentError} agentState={plan.agentState} />}
+
+      {settings?.debug && snapshot && <DebugPanel snapshot={snapshot} market={market} tabId={tabId} />}
 
       {notice && <div className="status">{notice}</div>}
 

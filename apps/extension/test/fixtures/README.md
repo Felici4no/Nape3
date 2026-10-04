@@ -12,3 +12,11 @@ does not pick "the first R$ on the page".
 
 Calibrate against real pages before trusting live extraction; see
 `apps/extension/README.md`.
+
+## Regression fixtures
+
+- `checkout-stale-drawer.html` — checkout after a SPA transition where the
+  bag drawer is still mounted off-screen with the previous cart state.
+  Reconstructed from a reported symptom (expected R$27,79, observed R$21,88);
+  not a capture of real iFood markup. Replace or complement it with a real
+  capture (popup → debug → "Copy DOM capture") when available.

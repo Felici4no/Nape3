@@ -22,11 +22,18 @@ interface Rule {
 }
 
 export const LABELS = {
-  subtotal: /^subtotal$/i,
-  deliveryFee: /^(taxa de entrega|entrega|frete)$/i,
-  serviceFee: /^taxa de servi[cç]o$/i,
-  discount: /^(desconto|descontos|cupom|cupom de desconto|desconto do cupom)$/i,
-  total: /^total$/i
+  subtotal: /^subtotal:?$/i,
+  deliveryFee: /^(taxa de entrega|entrega|frete):?$/i,
+  serviceFee: /^taxa de servi[cç]o:?$/i,
+  // "Cupom", "Cupom IFOOD10", "Desconto do cupom", "Descontos" — but never a row that itself holds the amount text.
+  discount: /^(cupom|cupons|desconto|descontos)\b(?!.*R\$).{0,30}$/i,
+  total: /^total( a pagar| do pedido)?:?$/i
+} as const;
+
+/** Call-to-action labels that tell which flow an order summary belongs to. */
+export const CTA = {
+  checkout: /^((fazer|finalizar|confirmar) pedido|pagar( agora)?|fazer pedido e pagar)$/i,
+  cart: /^(escolher forma de pagamento|continuar|ir para (o )?pagamento|ver sacola)$/i
 } as const;
 
 function visiblePixPayload(doc: Document): string | null {

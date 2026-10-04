@@ -1,0 +1,38 @@
+<!doctype html><html><head><title>Finalizar pedido | iFood</title></head><body>
+<!--
+  REGRESSION: reconstructed from the reported symptom (not a capture of real iFood).
+  After a SPA transition bag → checkout, the bag drawer stays mounted, translated
+  off-screen, still showing the previous cart state (1x, R$15,90, R$4,99, R$21,88).
+  The visible checkout shows 2x, R$31,80, Grátis, R$0,99, Cupom -R$5,00, R$27,79.
+  Expected extraction: the checkout, total R$27,79.
+-->
+<aside class="k7" style="position: fixed; top: 0; transform: translateX(110vw)">
+  <h2>Sacola</h2>
+  <p>Seu pedido em <strong>Açaí do Bairro</strong></p>
+  <ul class="m1">
+    <li class="r9"><span>1x</span> <span>Açaí 500ml Tradicional</span> <span>R$ 15,90</span> <button>Editar</button></li>
+  </ul>
+  <div class="s0">
+    <div><span>Subtotal</span><span>R$ 15,90</span></div>
+    <div><span>Taxa de entrega</span><span>R$ 4,99</span></div>
+    <div><span>Total</span><span>R$ 21,88</span></div>
+  </div>
+  <button>Escolher forma de pagamento</button>
+</aside>
+<div class="banner">Ganhe R$ 10,00 no primeiro pedido</div>
+<main class="c0">
+  <section class="c1"><h2>Entrega</h2><p>Hoje, 25-35 min</p></section>
+  <section class="c2"><h3>Pagamento</h3><div><span>Pague pelo app</span> <span>Pix</span></div></section>
+  <section class="c3">
+    <p>Seu pedido em Açaí do Bairro</p>
+    <ul><li><span>2x</span> <span>Açaí 500ml Tradicional</span> <s>R$ 37,80</s> <span>R$ 31,80</span></li></ul>
+    <div class="t0">
+      <div><span>Subtotal</span><span>R$ 31,80</span></div>
+      <div><span>Taxa de entrega</span><s>R$ 7,99</s><span>Grátis</span></div>
+      <div><span>Taxa de serviço</span><span>R$ 0,99</span></div>
+      <div><span>Cupom</span><span>-R$ 5,00</span></div>
+      <div><span>Total</span><span>R$ 27,79</span></div>
+    </div>
+    <button>Fazer pedido</button>
+  </section>
+</main></body></html>

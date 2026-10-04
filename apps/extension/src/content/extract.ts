@@ -10,6 +10,7 @@ export function takeSnapshot(doc: Document, url: string, now: Date = new Date())
   const detection = detectPageContext(doc, url);
   const snapshot: PageSnapshot = {
     source: "ifood",
+    snapshotId: `${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     capturedAt: now.toISOString(),
     pageRef: `ifood:${detection.context.toLowerCase().replace(/_/g, "-")}`,
     detection

@@ -65,6 +65,18 @@ export interface CartSnapshot {
   paymentMethod: Field<string>;
   /** Displayed total vs subtotal + fees − discount. */
   reconciliation: { consistent: boolean; differenceCents: number } | null;
+  /**
+   * A quote is valid only if it comes from one unambiguous, on-screen order
+   * summary and subtotal + delivery + service − discount = total.
+   * Invalid quotes are never recorded nor passed to the decision engine.
+   */
+  validity: { valid: boolean; reasons: string[] };
+  /** How the order-summary container was chosen (debug). */
+  summarySelection: {
+    candidates: number;
+    chosen: string | null;
+    rejected: string[];
+  };
 }
 
 export interface PixSnapshot {
@@ -81,6 +93,9 @@ export interface PixSnapshot {
 
 export interface PageSnapshot {
   source: "ifood";
+  /** Unique per extraction; lets the UI prove the data is fresh. */
+  snapshotId: string;
+  /** Extraction timestamp. */
   capturedAt: string;
   /** Page kind only (e.g. "ifood:checkout"); never the URL, which can carry tokens. */
   pageRef: string;
@@ -103,11 +118,14 @@ export interface ExtensionSettings {
   includeFixtures: boolean;
   /** Optional observation network endpoint; nothing is uploaded when unset. */
   networkEndpoint?: string;
+  /** Show timestamps, evidence and container selection in the popup and badge. */
+  debug: boolean;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   membership: "unknown",
-  includeFixtures: true
+  includeFixtures: true,
+  debug: false
 };
 
 export interface MarketView {
@@ -120,7 +138,8 @@ export interface MarketView {
 
 export type ExtensionMessage =
   | { type: "GET_SNAPSHOT" }
-  | { type: "RECORD_SNAPSHOT"; snapshot: PageSnapshot }
+  | { type: "GET_DOM_CAPTURE" }
+  | { type: "RECORD_SNAPSHOT"; snapshot: PageSnapshot; tabId?: number }
   | { type: "PLAN_INTENT"; request: string; snapshot: PageSnapshot | null }
   | { type: "GET_SETTINGS" }
   | { type: "SAVE_SETTINGS"; settings: ExtensionSettings }
@@ -129,7 +148,17 @@ export type ExtensionMessage =
 export type ExtensionResponse =
   | { ok: true; type: "SNAPSHOT"; snapshot: PageSnapshot }
   | { ok: true; type: "MARKET"; market: MarketView }
-  | { ok: true; type: "PLAN"; decision: Decision | null; intentError: string | null; agentState: string; notes: string[] }
+  | {
+      ok: true;
+      type: "PLAN";
+      decision: Decision | null;
+      intentError: string | null;
+      agentState: string;
+      notes: string[];
+      /** Whether the page's checkout was given to the decision engine, and why not. */
+      currentCheckout: { used: boolean; reason: string | null };
+    }
   | { ok: true; type: "SETTINGS"; settings: ExtensionSettings }
   | { ok: true; type: "DONE" }
+  | { ok: true; type: "DOM_CAPTURE"; capture: string }
   | { ok: false; error: string };

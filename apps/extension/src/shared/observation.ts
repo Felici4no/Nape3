@@ -1,5 +1,6 @@
 import {
   normalizeTitle,
+  type MarketObservation,
   type CartQuoteObservation,
   type ProductRequirement
 } from "@nape3/domain";
@@ -22,6 +23,9 @@ export function snapshotToObservation(
 ): BuildResult {
   const cart = snapshot.cart;
   if (!cart) return { ok: false, reason: `no order summary in context ${snapshot.detection.context}` };
+  // Invalid quotes (ambiguous container, failed reconciliation, unreadable
+  // items) are never recorded and never reach the decision engine.
+  if (!cart.validity.valid) return { ok: false, reason: `checkout not validated: ${cart.validity.reasons.join("; ")}` };
   const required = {
     subtotal: cart.itemsSubtotalCents.value,
     total: cart.totalCents.value,
@@ -99,4 +103,29 @@ export function requirementFromObservation(
     requirement: { category: first.category, volumeMl: first.volumeMl },
     quantity: observation.quote.lines.reduce((sum, line) => sum + line.quantity, 0)
   };
+}
+
+/** Same cart = same observer, source and merchant within this window. */
+export const CART_SESSION_MS = 60 * 60_000;
+
+/**
+ * Adds a new observation and retires earlier states of the *same cart*
+ * (same observer, source and merchant, last 60 min). A cart that went from
+ * 1x to 2x with a coupon is one order, not two market observations; keeping
+ * the old state would feed stale prices to the market view and the agent.
+ */
+export function mergeObservation(
+  existing: readonly MarketObservation[],
+  observation: CartQuoteObservation,
+  max: number
+): { next: MarketObservation[]; superseded: MarketObservation[] } {
+  const sameCart = (o: MarketObservation) =>
+    o.kind === "cart-quote" &&
+    o.observerId === observation.observerId &&
+    o.source === observation.source &&
+    o.quote.merchant.name === observation.quote.merchant.name &&
+    Math.abs(Date.parse(o.observedAt) - Date.parse(observation.observedAt)) < CART_SESSION_MS;
+  const superseded = existing.filter(sameCart);
+  const kept = existing.filter((o) => !sameCart(o));
+  return { next: [observation, ...kept].slice(0, max), superseded };
 }

@@ -88,7 +88,10 @@ describe("extractCart", () => {
     const doc = load("cart");
     const total = Array.from(doc.querySelectorAll("span")).find((s) => s.textContent === "R$ 21,88")!;
     total.textContent = "R$ 22,88";
-    expect(extractCart(doc).reconciliation).toEqual({ consistent: false, differenceCents: 100 });
+    const cart = extractCart(doc);
+    expect(cart.reconciliation).toEqual({ consistent: false, differenceCents: 100 });
+    expect(cart.validity.valid).toBe(false);
+    expect(cart.validity.reasons[0]).toContain("reconciliation failed");
   });
 });
 

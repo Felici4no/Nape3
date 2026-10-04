@@ -39,6 +39,27 @@ export function isVisible(element: Element): boolean {
   return true;
 }
 
+/**
+ * Whether the element is on screen *now*. Off-canvas drawers (translated out
+ * of the viewport, opacity 0) keep layout boxes and stale content, so
+ * isVisible() is not enough to pick "the current" container. Without a
+ * layout engine (tests) this returns true and other signals decide.
+ */
+export function isOnScreen(element: Element): boolean {
+  if (!isVisible(element)) return false;
+  for (let el: Element | null = element; el; el = el.parentElement) {
+    if (el.hasAttribute("inert")) return false;
+    const style = el.ownerDocument.defaultView?.getComputedStyle(el);
+    if (style && style.opacity === "0") return false;
+  }
+  if (!HAS_LAYOUT) return true;
+  const view = element.ownerDocument.defaultView;
+  const rect = element.getBoundingClientRect();
+  if (!view || rect.width === 0 || rect.height === 0) return false;
+  // Horizontally outside the viewport = off-canvas. (Below the fold is fine.)
+  return rect.right > 0 && rect.left < view.innerWidth;
+}
+
 export function isStruckThrough(element: Element): boolean {
   for (let el: Element | null = element; el; el = el.parentElement) {
     if (el.tagName === "S" || el.tagName === "DEL" || el.tagName === "STRIKE") return true;
@@ -119,27 +140,6 @@ export function amountForLabel(
     }
   }
   return missing(`no amount bound to ${label}`);
-}
-
-/** Smallest visible element containing every pattern as some element's own text. */
-export function smallestContainerWith(root: Element, patterns: RegExp[]): Element | null {
-  const anchors = patterns.map((p) => findByOwnText(root, p));
-  if (anchors.some((list) => list.length === 0)) return null;
-  let best: Element | null = null;
-  let bestSize = Number.POSITIVE_INFINITY;
-  for (const start of anchors[0]!) {
-    for (let el: Element | null = start; el; el = el.parentElement) {
-      if (anchors.every((list) => list.some((a) => el!.contains(a)))) {
-        const size = el.querySelectorAll("*").length;
-        if (size < bestSize) {
-          best = el;
-          bestSize = size;
-        }
-        break;
-      }
-    }
-  }
-  return best;
 }
 
 export function parseEta(text: string): { min: number; max: number } | null {
