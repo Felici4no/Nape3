@@ -1,0 +1,30 @@
+.page { min-height: 70vh; padding: 40px 0 0; }
+.sheet { max-width: 640px; margin: 0 auto; border-radius: var(--radius-xl); padding: 28px; }
+.eyebrow { color: var(--night-ink-2); }
+.h1 { font-size: clamp(44px, 7vw, 84px); margin: 10px 0 8px; }
+.lede { color: var(--night-ink-2); margin: 0 0 22px; }
+.card { background: var(--night-2); border: 1px solid var(--night-line); border-radius: var(--radius-l); padding: 18px 20px; display: grid; gap: 2px; margin: 14px 0; }
+.card :global(.kv) { border-color: var(--night-line); }
+.strong { font-weight: 700; }
+.big { font-size: 36px; font-weight: 700; letter-spacing: -0.02em; }
+.state { display: inline-flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; padding: 6px 12px; border-radius: 999px; background: var(--night-2); border: 1px solid var(--night-line); }
+.state i { width: 8px; height: 8px; border-radius: 50%; background: #f6c445; }
+.state.ok i { background: #7bd389; }
+.state.off i { background: var(--night-ink-2); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.fine { font-size: 12px; color: var(--night-ink-2); }
+.status { font-size: 14px; padding: 10px 0; }
+.err { color: #ff8a7a; }
+.okText { color: #7bd389; }
+.stepper { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; list-style: none; padding: 0; margin: 18px 0; font-size: 12px; font-weight: 700; }
+.stepper li { padding: 8px 10px; border-radius: 10px; background: var(--night-2); color: var(--night-ink-2); }
+.stepper li.current { background: var(--night-ink); color: var(--night); }
+.stepper li.done { color: #7bd389; }
+.order { display: grid; gap: 4px; padding-bottom: 16px; border-bottom: 1px solid var(--night-line); }
+.total { font-family: var(--font-num); font-size: clamp(48px, 9vw, 72px); font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+.privacy { color: #7bd389; font-size: 14px; }
+.select { width: 100%; padding: 12px; border-radius: var(--radius-m); background: var(--night-2); color: var(--night-ink); border: 1px solid var(--night-line); font: inherit; }
+.details { margin-top: 18px; font-size: 13px; color: var(--night-ink-2); }
+.details summary { cursor: pointer; }
+.details input { width: 100%; margin-top: 6px; padding: 10px; border-radius: 10px; background: var(--night-2); color: var(--night-ink); border: 1px solid var(--night-line); font: inherit; }
+@media (max-width: 600px) { .sheet { padding: 20px; border-radius: var(--radius-l); } }

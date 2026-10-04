@@ -1,0 +1,26 @@
+.price { display: inline-flex; flex-direction: column; gap: 2px; }
+.price > span:first-child { font-weight: 700; line-height: 1; }
+.xl > span:first-child { font-size: clamp(44px, 7vw, 84px); letter-spacing: -0.03em; }
+.l > span:first-child { font-size: clamp(30px, 4vw, 44px); letter-spacing: -0.02em; }
+.m > span:first-child { font-size: 22px; }
+.usdc { font-size: 13px; opacity: 0.75; }
+
+.change { display: inline-flex; align-items: baseline; gap: 2px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.cheaper { color: var(--cheaper); }
+.pricier { color: var(--pricier); }
+.flat { color: inherit; opacity: 0.6; font-weight: 600; }
+.changeSub { font-weight: 500; opacity: 0.7; }
+
+.fresh { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; opacity: 0.85; white-space: nowrap; }
+.dotLive, .dotOff { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.dotLive { background: var(--cheaper); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cheaper) 25%, transparent); }
+.dotOff { background: var(--ink-3); }
+
+.range { display: grid; gap: 10px; }
+.track { position: relative; height: 12px; border-radius: 999px; background: color-mix(in srgb, currentColor 12%, transparent); margin-top: 22px; }
+.band { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: color-mix(in srgb, currentColor 35%, transparent); }
+.median { position: absolute; top: -5px; width: 4px; height: 22px; margin-left: -2px; border-radius: 2px; background: currentColor; }
+.marker { position: absolute; top: -8px; width: 16px; height: 28px; margin-left: -8px; border-radius: 6px; background: var(--burger-2); box-shadow: 0 0 0 3px var(--paper); }
+.marker span { position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; color: var(--burger-2); }
+.rangeLabels { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; opacity: 0.8; flex-wrap: wrap; }
+.rangeEmpty { font-size: 14px; opacity: 0.7; padding: 12px 0; }

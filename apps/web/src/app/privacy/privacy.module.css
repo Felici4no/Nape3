@@ -1,0 +1,21 @@
+.page { padding: 56px 0 24px; margin-bottom: -96px; }
+.h1 { font-size: clamp(52px, 7vw, 104px); max-width: 15ch; margin: 12px 0 20px; }
+.lede { font-size: 19px; max-width: 60ch; color: var(--night-ink-2); }
+.flow { list-style: none; padding: 0; margin: 48px 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.flow li { display: grid; gap: 8px; align-content: start; padding: 18px; border-radius: var(--radius-l); min-height: 170px; }
+.flow span:last-child { font-size: 13px; color: var(--night-ink-2); }
+.visible { background: var(--night-2); border: 1px solid var(--night-line); }
+.hidden { background: #24402f; border: 1px solid #3f6b4f; }
+.hidden span:last-child { color: #a9e3b4 !important; }
+.n { font-size: 13px; opacity: 0.6; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin: 40px 0; }
+.cols h2, .who h2 { font-size: clamp(36px, 5vw, 64px); margin-bottom: 12px; }
+.cols ul { padding-left: 18px; display: grid; gap: 10px; color: var(--night-ink-2); }
+.cols p { color: var(--night-ink-2); }
+.who { margin: 48px 0; max-width: 900px; }
+.who :global(.kv) { border-color: var(--night-line); padding: 14px 0; }
+@media (max-width: 900px) {
+  .flow { grid-template-columns: 1fr; }
+  .flow li { min-height: 0; }
+  .cols { grid-template-columns: 1fr; }
+}

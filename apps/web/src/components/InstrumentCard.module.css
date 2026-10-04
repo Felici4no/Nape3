@@ -1,0 +1,37 @@
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  border-radius: var(--radius-xl);
+  text-decoration: none;
+  overflow: hidden;
+  min-height: 300px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.card:hover { transform: translateY(-3px); box-shadow: 0 18px 40px rgba(23, 19, 14, 0.18); }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 8px; position: relative; z-index: 2; }
+.topRight { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.ticker { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; opacity: 0.8; }
+.art { position: absolute; right: -18px; top: 34px; width: 46%; max-width: 260px; height: auto; opacity: 0.98; z-index: 1; }
+.body { display: grid; gap: 10px; margin-top: auto; position: relative; z-index: 2; }
+.name { font-size: clamp(34px, 4vw, 52px); max-width: 70%; }
+.unit { font-size: 13px; opacity: 0.8; margin-top: -6px; }
+.priceRow { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.label { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.75; margin-bottom: 4px; }
+.insufficient { margin: 0; font-weight: 700; font-size: 18px; display: grid; gap: 4px; }
+.insufficient span { font-size: 13px; font-weight: 500; opacity: 0.8; }
+
+.xl { min-height: 560px; padding: 32px; }
+.xl .name { font-size: clamp(56px, 7vw, 104px); }
+.xl .art { width: 58%; max-width: 420px; top: 48px; right: -10px; }
+.l { min-height: 420px; }
+.s { min-height: 260px; }
+.s .name { font-size: 34px; }
+.s .art { width: 40%; top: 46px; }
+
+@media (max-width: 700px) {
+  .xl { min-height: 460px; padding: 24px; }
+  .art { width: 52%; }
+}

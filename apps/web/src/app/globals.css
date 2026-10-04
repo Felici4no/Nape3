@@ -1,0 +1,167 @@
+/* UPAY3FOOD.agent — Food Market visual system
+   food-first · editorial + market terminal · cream market / dark money surfaces */
+
+:root {
+  /* surfaces */
+  --cream: #f3ede1;
+  --paper: #fffbf3;
+  --paper-2: #f8f2e6;
+  --line: #e3d9c6;
+  --ink: #17130e;
+  --ink-2: #4a4237;
+  --ink-3: #8a7f70;
+  --night: #15120e;
+  --night-2: #221d17;
+  --night-line: #3a3229;
+  --night-ink: #f3ede1;
+  --night-ink-2: #b9ad9b;
+
+  /* food tones */
+  --acai: #4b1f6f;
+  --acai-2: #c9a6e8;
+  --acai-light: #7a3fa6;
+  --burger: #f2b705;
+  --burger-2: #d7322b;
+  --pizza: #d9412b;
+  --pizza-2: #f6c445;
+  --sushi: #1f4a3f;
+  --sushi-2: #f28c6b;
+
+  /* price movement, from the buyer's point of view */
+  --cheaper: #2f7d32;
+  --pricier: #c0392b;
+  --warn: #9a3b00;
+
+  --radius-xl: 32px;
+  --radius-l: 24px;
+  --radius-m: 16px;
+
+  --font-display: "Anton", "Impact", "Arial Narrow", sans-serif;
+  --font-body: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --gutter: clamp(16px, 4vw, 40px);
+  --max: 1280px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-x: hidden;
+}
+a { color: inherit; }
+button { font: inherit; }
+
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 var(--gutter); }
+
+/* type */
+.display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.005em;
+  line-height: 0.92;
+  margin: 0;
+}
+.eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.muted { color: var(--ink-3); }
+.small { font-size: 13px; }
+.cheaper { color: var(--cheaper); }
+.pricier { color: var(--pricier); }
+.warn { color: var(--warn); }
+
+/* surfaces */
+.paper { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-l); }
+.night {
+  background: var(--night);
+  color: var(--night-ink);
+  --ink: var(--night-ink);
+  --ink-2: var(--night-ink);
+  --ink-3: var(--night-ink-2);
+  --line: var(--night-line);
+  --paper: var(--night-2);
+  --paper-2: var(--night-2);
+  --cheaper: #7bd389;
+  --pricier: #ff8a7a;
+  --warn: #f6c445;
+}
+
+/* buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 22px;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+  background: var(--ink);
+  color: var(--paper);
+  transition: transform 0.12s ease;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.btn.ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.btn.light { background: var(--night-ink); color: var(--night); }
+.btn.block { width: 100%; }
+
+/* tags */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--paper-2);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.tag.synthetic { background: #fff3c4; border-color: #e9cf6b; color: #6b5200; }
+.night .tag.synthetic { background: #3b3115; border-color: #6b5a22; color: #f6d77a; }
+
+/* tones for food cards */
+.tone-acai { background: var(--acai); color: var(--cream); --accent: var(--acai-2); }
+.tone-acai-light { background: var(--acai-light); color: var(--cream); --accent: var(--acai-2); }
+.tone-burger { background: var(--burger); color: var(--ink); --accent: var(--burger-2); }
+.tone-pizza { background: var(--pizza); color: var(--cream); --accent: var(--pizza-2); }
+.tone-sushi { background: var(--sushi); color: var(--cream); --accent: var(--sushi-2); }
+
+/* forms */
+.field {
+  width: 100%;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius-m);
+  padding: 16px 18px;
+  font-size: 18px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.field:focus { outline: 3px solid var(--burger); outline-offset: 2px; }
+
+/* key/value rows */
+.kv { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.kv:last-child { border-bottom: 0; }
+.kv > span:last-child { text-align: right; }
+
+section { scroll-margin-top: 80px; }
