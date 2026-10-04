@@ -4,6 +4,7 @@ import { acaiFixtures } from "@nape3/fixtures";
 import { compareCheckout, summarizeMarket, type MarketSummary } from "@nape3/market";
 import { createLogger, errorMessage } from "../shared/log";
 import { isAllowedPayOrigin, parseWalletReport, payability, type PendingPayment, type WalletStatus } from "../shared/payment";
+import { mergeNetworkObservations } from "../shared/network";
 import { mergeObservation, requirementFromObservation, snapshotToObservation } from "../shared/observation";
 import {
   DEFAULT_SETTINGS,
@@ -75,10 +76,46 @@ async function uploadObservation(observation: MarketObservation, settings: Exten
   }
 }
 
-/** Market data = this browser's real observations (+ synthetic fixtures if enabled, flagged). */
+const NETWORK_CACHE_MS = 60_000;
+let networkCache: { endpoint: string; at: number; observations: unknown[] } | null = null;
+
+/** Recent real observations from the observer network (cached for a minute; empty on any failure). */
+async function networkObservations(settings: ExtensionSettings, now: Date): Promise<unknown[]> {
+  const endpoint = settings.networkEndpoint;
+  if (!endpoint) return [];
+  if (networkCache && networkCache.endpoint === endpoint && now.getTime() - networkCache.at < NETWORK_CACHE_MS) return networkCache.observations;
+  try {
+    const url = new URL("/v1/observations", endpoint);
+    url.searchParams.set("sinceMinutes", String(7 * 24 * 60));
+    const response = await fetch(url, {
+      credentials: "omit",
+      headers: settings.networkReadToken ? { authorization: `Bearer ${settings.networkReadToken}` } : {},
+      signal: AbortSignal.timeout(4_000)
+    });
+    if (!response.ok) {
+      log.warn("network.read_failed", { status: response.status });
+      return [];
+    }
+    const body = (await response.json()) as { observations?: unknown };
+    const observations = Array.isArray(body.observations) ? body.observations : [];
+    networkCache = { endpoint, at: now.getTime(), observations };
+    return observations;
+  } catch (error) {
+    log.warn("network.read_failed", { error: errorMessage(error) });
+    return [];
+  }
+}
+
+/**
+ * Market data = this browser's real observations + the observer network's
+ * real observations (when an endpoint is set). Synthetic fixtures are added
+ * only when the user explicitly enables them, and are then flagged.
+ */
 async function marketData(settings: ExtensionSettings, now: Date): Promise<MarketObservation[]> {
   const own = await getObservations();
-  return settings.includeFixtures ? [...own, ...acaiFixtures(now)] : own;
+  const { observations, dropped } = mergeNetworkObservations(own, await networkObservations(settings, now));
+  if (dropped > 0) log.warn("network.dropped", { dropped });
+  return settings.includeFixtures ? [...observations, ...acaiFixtures(now)] : observations;
 }
 
 const EMPTY_SUMMARY: MarketSummary = summarizeMarket([], {

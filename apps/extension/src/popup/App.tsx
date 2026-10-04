@@ -344,7 +344,7 @@ function SettingsPanel({ settings, onSave, onClear }: { settings: ExtensionSetti
       </label>
       <label className="inline">
         <input type="checkbox" checked={draft.includeFixtures} onChange={(e) => setDraft({ ...draft, includeFixtures: e.target.checked })} />
-        Compare with synthetic fixtures (demo)
+        Also compare with synthetic fixtures (demo, labelled)
       </label>
       <label>
         Private funding page
@@ -353,6 +353,10 @@ function SettingsPanel({ settings, onSave, onClear }: { settings: ExtensionSetti
       <label>
         Observation network endpoint (optional)
         <input placeholder="http://localhost:8787" value={draft.networkEndpoint ?? ""} onChange={(e) => setDraft({ ...draft, networkEndpoint: e.target.value || undefined })} />
+      </label>
+      <label>
+        Network read token (optional)
+        <input type="password" autoComplete="off" value={draft.networkReadToken ?? ""} onChange={(e) => setDraft({ ...draft, networkReadToken: e.target.value || undefined })} />
       </label>
       <p className="muted small">Only commercial data is stored or sent: items, fees, totals, ETA, coarse region. Never cookies, tokens, addresses or account data.</p>
       <div className="actions">

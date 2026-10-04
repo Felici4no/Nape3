@@ -115,10 +115,12 @@ export interface ExtensionSettings {
   /** Coarse region chosen by the user, e.g. "BR-SP-sao-paulo". */
   marketRegion?: string;
   membership: Membership;
-  /** Compare against synthetic fixtures when real data is insufficient (demo). */
+  /** Explicit opt-in: also compare against synthetic fixtures (demo, flagged). Off by default. */
   includeFixtures: boolean;
   /** Optional observation network endpoint; nothing is uploaded when unset. */
   networkEndpoint?: string;
+  /** Read token for the observer network (OBSERVER_READ_TOKEN); not needed for a local observer. */
+  networkReadToken?: string;
   /** Show timestamps, evidence and container selection in the popup and badge. */
   debug: boolean;
   /** On-page badge (experimental, off by default: injecting into iFood's React tree is risky). */
@@ -129,7 +131,7 @@ export interface ExtensionSettings {
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   membership: "unknown",
-  includeFixtures: true,
+  includeFixtures: false,
   debug: false,
   showBadge: false,
   fundingAppUrl: "http://localhost:3000/pay"
