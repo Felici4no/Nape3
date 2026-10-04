@@ -108,4 +108,39 @@ describe("decide — ranking", () => {
     expect(vague.selected!.observationId).toBe("fx-ifood-300");
     expect(vague.reasoning[0]).toContain("different sizes");
   });
+
+  it("follows the cart quantity when unstated and never compares savings across quantities", () => {
+    const base = fixtures.find((f) => f.id === "fx-ifood-1") as CartQuoteObservation;
+    const twoUnits: CartQuoteObservation = {
+      ...base,
+      id: "current-2x",
+      observerId: "me",
+      provenance: { method: "browser-extension", live: true, synthetic: false },
+      quote: {
+        ...base.quote,
+        lines: [{ ...base.quote.lines[0]!, quantity: 2, lineTotalCents: cents(3180) }],
+        itemsSubtotalCents: cents(3180),
+        deliveryFeeCents: cents(0),
+        serviceFeeCents: cents(99),
+        discountCents: cents(500),
+        totalCents: cents(2779)
+      }
+    };
+    const result = decide(intentOf("quero açaí até R$30"), fixtures, {
+      now: FIXTURE_NOW,
+      policy: { ...syntheticPolicy, observerId: "me" },
+      currentCheckout: twoUnits
+    });
+    expect(result.reasoning).toContain("Quantity not stated; using 2 from your current cart.");
+    expect(result.selected!.observationId).toBe("current-2x");
+    expect(result.totalCents).toBe(2779);
+    expect(result.bestExecutable!.observationId).toBe("current-2x");
+
+    const explicitOne = decide(intentOf("quero um açaí 500ml até R$30"), fixtures, {
+      now: FIXTURE_NOW,
+      policy: { ...syntheticPolicy, observerId: "me" },
+      currentCheckout: twoUnits
+    });
+    expect(explicitOne.savings.vsCurrentCheckoutCents).toBeNull();
+  });
 });

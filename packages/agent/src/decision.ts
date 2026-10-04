@@ -183,6 +183,16 @@ export function decide(intent: PurchaseIntent, observations: readonly MarketObse
     }
   }
 
+  // Quantity: same rule as volume — an unstated quantity follows the current cart.
+  let quantity = intent.product.quantity;
+  if (intent.parsing.missing.includes("product.quantity") && options.currentCheckout) {
+    const cartQuantity = options.currentCheckout.quote.lines.reduce((sum, line) => sum + line.quantity, 0);
+    if (cartQuantity > 0 && cartQuantity !== quantity) {
+      quantity = cartQuantity;
+      preamble.push(`Quantity not stated; using ${cartQuantity} from your current cart.`);
+    }
+  }
+
   const all = options.currentCheckout && !observations.some((o) => o.id === options.currentCheckout!.id)
     ? [options.currentCheckout, ...observations]
     : [...observations];
@@ -221,7 +231,7 @@ export function decide(intent: PurchaseIntent, observations: readonly MarketObse
       evaluation.rejections.push("item-only price; no cart total observed (ranking requires CartQuote.totalCents)");
       continue;
     }
-    const comparable = quoteMatchesRequirement(observation.quote, requirement, intent.product.quantity);
+    const comparable = quoteMatchesRequirement(observation.quote, requirement, quantity);
     if (!comparable.comparable) {
       evaluation.rejections.push(...comparable.reasons);
       continue;
@@ -303,12 +313,16 @@ export function decide(intent: PurchaseIntent, observations: readonly MarketObse
   const bestExecutable = accepted.find((e) => e.executability.executable) ?? null;
   const rejected = evaluations.filter((e) => !e.accepted);
   const marketMedian = medianCents(marketTotals);
-  const currentTotal = options.currentCheckout?.quote.totalCents ?? null;
+  // Savings vs the user's checkout only make sense if that checkout is comparable.
+  const currentComparable =
+    options.currentCheckout !== undefined &&
+    quoteMatchesRequirement(options.currentCheckout.quote, requirement, quantity).comparable;
+  const currentTotal = currentComparable ? options.currentCheckout!.quote.totalCents : null;
   const containsSynthetic = accepted.some((e) => e.provenance === "synthetic");
 
   const reasoning: string[] = [
     ...preamble,
-    `Intent: ${intent.product.quantity}× ${intent.product.category}` +
+    `Intent: ${quantity}× ${intent.product.category}` +
       (requirement.volumeMl ? ` ${requirement.volumeMl} ml` : "") +
       (intent.budget.maxCents !== undefined ? `, max ${formatBRL(intent.budget.maxCents)}` : ", no max budget"),
     `Evaluated ${evaluations.length} observation(s); ${accepted.length} passed hard constraints, ${rejected.length} rejected.`

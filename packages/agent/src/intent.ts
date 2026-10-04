@@ -75,7 +75,8 @@ export function parseIntent(request: string): ParseIntentResult {
     const raw = qty[1]!;
     quantity = NUMBER_WORDS[raw] ?? Number.parseInt(raw, 10);
   } else {
-    notes.push("quantity not stated; assuming 1");
+    missing.push("product.quantity");
+    notes.push("quantity not stated; assuming 1 unless a current cart says otherwise");
   }
 
   // Budget -----------------------------------------------------------------
