@@ -40,6 +40,8 @@ export interface OfframpProvider {
   payoutToPix(request: PixPayoutRequest): Promise<PixPayoutResult>;
 }
 
+export const SIMULATED_OFFRAMP_DEPOSIT_ADDRESS = "2VH5VUHmCpGXFj66qVLTpBWqFhDxJNWA53oG65i2mn56";
+
 /** Deterministic mock off-ramp. Simulated: it does not pay anything. */
 export class MockOfframp implements OfframpProvider {
   readonly providerId = "mock-offramp";
@@ -58,7 +60,9 @@ export class MockOfframp implements OfframpProvider {
       feeCents,
       rateCentsPerUsdc: this.rateCentsPerUsdc,
       usdcRequired: brlCentsToUsdcBaseUnits(brlAmountCents + feeCents, this.rateCentsPerUsdc),
-      depositAddress: "MockOfframpDeposit11111111111111111111111111",
+      // Valid base58 placeholder = sha256("upay3food:simulated-offramp-deposit"); nobody holds its key.
+      // Never send real funds here: the router blocks real funding to a simulated off-ramp.
+      depositAddress: SIMULATED_OFFRAMP_DEPOSIT_ADDRESS,
       expiresAt: new Date(now.getTime() + 5 * 60_000).toISOString()
     };
   }
