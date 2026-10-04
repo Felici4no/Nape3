@@ -1,21 +1,78 @@
-# Nape3
+# Nape3 · UPAY3FOOD.agent
 
-Nape3 is an experimental multi-delivery price discovery project built for the Crypto World's Fair hackathon.
+> Users should know when better prices exist before committing to a purchase.
 
-The project explores a simple thesis:
+UPAY3FOOD.agent observes the prices and commercial conditions a user **already
+sees** in their own delivery session (iFood first), compares their checkout
+with recent comparable observations, understands a purchase intent ("quero
+açaí 500ml até R$25") and prepares the best execution route — always with
+explicit user confirmation.
 
-> Delivery platforms organize commerce by merchant. Nape3 explores what happens when the market is organized by user intent and comparable offers.
+Built for the Crypto World's Fair hackathon. No affiliation with iFood,
+Rappi, 99Food, Colosseum, Superteam or any delivery platform.
 
-## Current status
+## Status (honest)
 
-Early-stage prototype and research. The repository is intentionally starting with product and architecture documentation before implementation.
+| Area | State |
+| --- | --- |
+| Domain model (integer cents, CartQuote, provenance) | implemented, tested |
+| Market aggregation (median, lowest, spread, freshness, variation) | implemented, tested |
+| Intent parser (pt-BR, deterministic) + decision engine + state machine | implemented, tested |
+| iFood context detection + extractors | implemented, tested on **synthetic** HTML; **not yet calibrated on real iFood pages** |
+| Extension popup + on-page badge | implemented; smoke-tested in Chromium against the synthetic pages |
+| Observation network API | local MVP (no auth, no anti-Sybil) |
+| Rappi / 99Food | **fixtures only** — no live connector |
+| Pix | BR Code parsing/validation of the visible payload; **no payment executed** |
+| Solana (wallet → USDC → off-ramp → Pix) | interfaces + mocks only; no real funds move |
+
+## Principles
+
+- **Money is integer cents** (`Cents` branded type). Never floats.
+- **Rank on the cart total** (`CartQuote.totalCents`), never on the item price.
+- **Provenance is explicit**: `browser-extension` / `manual` / `fixture` / `partner-api`,
+  with `live` and `synthetic` flags. Synthetic data is excluded unless opted in, and then flagged.
+- **An observation from another account is market intelligence, not an executable
+  offer.** Only the user's current checkout is executable.
+- **Read-only on the page**: the extension never edits iFood's DOM; its UI lives in a closed Shadow DOM.
+- **No credentials ever**: no cookies, tokens, passwords, addresses or account data are read, stored or sent.
+- **Observational language**: "Your checkout is R$24,90. Comparable observations range from R$19,90 to R$25,40." — never claims of discriminatory pricing.
+
+## Repository layout
+
+```
+apps/
+  extension/      Chrome MV3: context detection, extractors, badge, popup
+  observer-api/   observation network ingestion + aggregation (Node http)
+packages/
+  domain/         money, CartQuote, MarketObservation, provenance, normalization
+  market/         allowlist sanitizer, market summary, checkout comparison
+  agent/          intent parser, decision engine, agent state machine
+  fixtures/       deterministic synthetic açaí observations (iFood/Rappi/99Food)
+  payments/       pix/ (BR Code), solana/, offramp/, router/ — interfaces & mocks
+docs/             product, architecture, ADRs, hackathon
+```
+
+## Run
+
+Requires Node ≥ 20 and pnpm 10 (`corepack enable`).
+
+```bash
+pnpm install
+pnpm check            # typecheck + tests + extension build
+pnpm build:extension  # → apps/extension/dist (load unpacked in Chrome)
+pnpm dev:api          # observation API on http://localhost:8787 (optional)
+```
+
+## Demo
+
+See [docs/07-hackathon/demo.md](docs/07-hackathon/demo.md).
 
 ## Documentation
 
-Strategic documentation is developed in the `docs/agentic-commerce` branch before being consolidated into `main`.
+- [Overview](docs/00-overview/index.md) · [Problem](docs/01-problem/index.md) · [Product](docs/04-product/index.md)
+- [Architecture](docs/05-architecture/index.md) · [Observation network](docs/05-architecture/observation-network.md) · [Agent](docs/05-architecture/agent.md) · [Payments](docs/05-architecture/payments.md)
+- Decisions: [ADR-001](docs/decisions/ADR-001-delivery-first.md) · [ADR-002](docs/decisions/ADR-002-comparison-before-agency.md) · [ADR-003](docs/decisions/ADR-003-data-provenance.md) · [ADR-004](docs/decisions/ADR-004-rank-on-cart-total.md) · [ADR-005](docs/decisions/ADR-005-observation-is-not-an-offer.md) · [ADR-006](docs/decisions/ADR-006-payments-without-token.md)
 
-## Scope
+## License
 
-The initial vertical is food delivery. The first problem to prove is whether equivalent offers across fragmented delivery platforms can be normalized and compared by effective price.
-
-No affiliation with iFood, Rappi, 99Food, Colosseum, Superteam, or any delivery platform.
+MIT — see [LICENSE](LICENSE).

@@ -1,58 +1,45 @@
-# Canonical offer
+# Canonical offer and cart quote
 
-The canonical offer is the central product primitive.
+Different platforms describe equivalent offers differently. Nape3 maps source
+data into a common representation (`packages/domain/src/types.ts`).
 
-Different platforms may describe equivalent offers differently. Nape3 maps source data into a common representation.
+## Money
 
-## Draft model
+All amounts are **integer cents** with an explicit `currency: "BRL"`. The
+`Cents` type is branded so a bare `number` cannot be used as money.
+
+## Item vs order
+
+- `ProductOffer` — one item as listed (`unitPriceCents`, optional struck-through
+  `originalUnitPriceCents`). Useful context, **not** what the user pays.
+- `CartQuote` — the complete order:
 
 ```ts
-interface CanonicalOffer {
-  source: string
-  sourceOfferId?: string
-
-  merchant: {
-    name: string
-    sourceMerchantId?: string
-  }
-
-  product: {
-    category: string
-    name: string
-    volumeMl?: number
-    size?: string
-    attributes: Record<string, unknown>
-  }
-
-  pricing: {
-    itemPrice: number
-    deliveryFee: number
-    serviceFee: number
-    discount: number
-    effectivePrice: number
-  }
-
-  logistics: {
-    etaMinutes?: number
-  }
-
-  observedAt: string
-
-  normalization: {
-    confidence: number
-    method: string
-  }
+interface CartQuote {
+  source: "ifood" | "rappi" | "99food";
+  merchant: { name: string };
+  stage: "cart" | "checkout" | "pix-payment";
+  lines: CartLine[];
+  itemsSubtotalCents: Cents;
+  deliveryFeeCents: Cents;
+  serviceFeeCents: Cents;
+  discountCents: Cents;      // positive amount subtracted
+  totalCents: Cents;         // what the platform displays
+  currency: "BRL";
 }
 ```
 
-## Initial effective price
+## Effective price
 
 ```
-effectivePrice =
-itemPrice
-+ deliveryFee
-+ serviceFee
-- applicableDiscounts
+totalCents = itemsSubtotalCents + deliveryFeeCents + serviceFeeCents − discountCents
 ```
 
-This formula must evolve as real checkout behavior is observed.
+The displayed total is kept as-is and **reconciled** against this formula
+(`verifyCartQuote`). A mismatch is flagged (usually an unparsed fee), never
+silently corrected. Ranking always uses `CartQuote.totalCents` (ADR-004).
+
+## Canonical product
+
+`CanonicalProduct` = category + volume + attributes + normalization metadata
+(method, confidence, reasons). The original source title is always preserved.

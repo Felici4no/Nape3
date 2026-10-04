@@ -22,18 +22,26 @@ Draft:
 
 ## Repository
 
-https://github.com/Felici4no/Nape3
+https://github.com/Felici4no/Nape3-UPAY3FOOD
 
 ## Social profiles
 
 TBD.
 
-## Evidence still required
+## Evidence
 
-- real price-comparison observations;
-- defined initial category;
-- working prototype;
-- source transparency;
+Done:
+
+- defined initial category (açaí, 500 ml);
+- working prototype: extension (context detection, cart/checkout/Pix
+  extraction, market comparison, intent + decision engine) and observation API;
+- source transparency: provenance on every observation, synthetic data flagged;
+- Solana integration decision: wallet → USDC → off-ramp → Pix, interfaces and
+  mocks only (ADR-006).
+
+Still required:
+
+- real price-comparison observations captured on live iFood pages;
+- calibration of the extractors against real iFood DOM;
 - demo video;
-- product URL;
-- Solana integration decision, if submitted to a Solana-specific track.
+- product URL.
