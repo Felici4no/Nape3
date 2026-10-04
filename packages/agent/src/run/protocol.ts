@@ -49,3 +49,8 @@ export function resultFits(command: AgentBrowserCommand, result: BrowserResult):
       return true;
   }
 }
+
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
+/** A result before it is tied to a command id. */
+export type BrowserResultBody = DistributiveOmit<BrowserResult, "commandId">;

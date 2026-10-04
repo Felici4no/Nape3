@@ -158,7 +158,7 @@ describe("run reducer: happy path", () => {
     const lines = log.events.map((e) => describeEvent(e));
     expect(lines).toContain("Searching market…");
     expect(lines).toContain("Found 3 candidates (live market)");
-    expect(lines).toContain("Revalidating cheapest option in your session…");
+    expect(lines).toContain("Revalidating cheapest option…");
     expect(lines).toContain("Checkout confirmed at R$19,90");
     expect(lines).toContain("Waiting for wallet…");
     expect(lines).toContain("Ready to pay");

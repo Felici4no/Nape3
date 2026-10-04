@@ -1,0 +1,25 @@
+{
+  "name": "@nape3/agent-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Persistent agent runtime: runs, append-only events, orchestration, SSE",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nape3/agent": "workspace:*",
+    "@nape3/chain": "workspace:*",
+    "@nape3/domain": "workspace:*",
+    "@nape3/fixtures": "workspace:*",
+    "@nape3/market": "workspace:*",
+    "@nape3/payments": "workspace:*",
+    "@electric-sql/pglite": "^0.5.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "tsx": "^4.20.0"
+  }
+}

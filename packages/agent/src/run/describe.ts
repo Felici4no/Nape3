@@ -1,5 +1,6 @@
 import { describeRequirement, formatBRL } from "@nape3/domain";
 import type { RunEvent } from "./events";
+import { applyRunEvent } from "./reduce";
 import type { AgentRun } from "./types";
 
 /** "6,00 USDC" from base units (display only). */
@@ -35,19 +36,23 @@ export function describeEvent(event: RunEvent, run?: AgentRun): string {
       return c ? `Selected ${c.merchantName} on ${c.source}: observed ${formatBRL(c.observedTotalCents)}` : "Candidate selected";
     }
     case "REVALIDATION_REQUESTED":
-      return "Revalidating cheapest option in your session…";
+      return "Revalidating cheapest option…";
     case "REVALIDATION_STARTED":
       return "Browser is checking the price…";
     case "BROWSER_NEEDS_USER":
       return `Action needed in the browser: ${event.payload.reason}`;
     case "QUOTE_VALIDATED":
-      return `Price confirmed in your session: ${formatBRL(event.payload.quote.quote.totalCents)}`;
+      return event.payload.quote.pageRef.startsWith("simulated:")
+        ? `Price re-read by the simulated demo executor: ${formatBRL(event.payload.quote.quote.totalCents)}`
+        : `Price confirmed in your session: ${formatBRL(event.payload.quote.quote.totalCents)}`;
     case "CANDIDATE_REJECTED":
       return `Option rejected: ${event.payload.reasons.join("; ")}${run?.state === "CANDIDATES_NORMALIZED" ? ". Trying the next one" : ""}`;
     case "CHECKOUT_REQUESTED":
       return "Preparing checkout…";
     case "CHECKOUT_READY":
-      return `Checkout confirmed at ${formatBRL(event.payload.quote.quote.totalCents)}`;
+      return event.payload.quote.pageRef.startsWith("simulated:")
+        ? `Simulated checkout at ${formatBRL(event.payload.quote.quote.totalCents)} (demo)`
+        : `Checkout confirmed at ${formatBRL(event.payload.quote.quote.totalCents)}`;
     case "CHECKOUT_INVALIDATED":
       return `Checkout must be read again: ${event.payload.reason}`;
     case "PIX_REQUESTED":
@@ -92,4 +97,14 @@ export function describeEvent(event: RunEvent, run?: AgentRun): string {
     case "RUN_FAILED":
       return `Stopped: ${event.payload.reason}`;
   }
+}
+
+/** Describes a whole log, each event with the run as it was right after it. */
+export function describeLog(events: readonly RunEvent[]): Array<RunEvent & { message: string }> {
+  let run: AgentRun | null = null;
+  return events.map((event) => {
+    const result = applyRunEvent(run, event);
+    if (result.ok) run = result.run;
+    return { ...event, message: describeEvent(event, run ?? undefined) };
+  });
 }
