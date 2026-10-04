@@ -13,6 +13,15 @@ preference:
 Plus amount (payload or labelled value) and expiration ("Expira em 29:30").
 No API interception, no network inspection, no token access.
 
+## Private funding (Cloak)
+
+`payments/cloak` funds the route from the Cloak shielded USDC pool
+(`@cloak.dev/sdk`): shield ahead of time, then `partialWithdraw` to the
+off-ramp deposit address, so the deposit is not linked on-chain to the user's
+wallet. The router takes a `FundingSource`. `publicWalletFunding` is the
+default and `cloakFundingSource` the private one. Privacy scope, limits and
+the proof transaction are in [privacy-week.md](../privacy-week.md).
+
 ## Route (interfaces + mocks)
 
 ```

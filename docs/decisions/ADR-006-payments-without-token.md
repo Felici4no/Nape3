@@ -12,6 +12,10 @@ Accepted (interfaces only).
   providers can execute, and only with explicit authorization of the exact
   amount.
 
+Update (Privacy Week): the funding leg may come from the Cloak shielded
+pool instead of the public wallet (`payments/cloak`). Still no token and no
+contract of our own. Cloak's program is used through `@cloak.dev/sdk`.
+
 ## Consequences
 
 The hackathon demo shows route planning and Pix target detection, clearly

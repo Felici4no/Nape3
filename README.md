@@ -23,7 +23,8 @@ Rappi, 99Food, Colosseum, Superteam or any delivery platform.
 | Observation network API | local MVP (no auth, no anti-Sybil) |
 | Rappi / 99Food | **fixtures only** — no live connector |
 | Pix | BR Code parsing/validation of the visible payload; **no payment executed** |
-| Solana (wallet → USDC → off-ramp → Pix) | interfaces + mocks only; no real funds move |
+| Solana (wallet → USDC → off-ramp → Pix) | interfaces + mocks; off-ramp still simulated |
+| Private funding (Cloak, `@cloak.dev/sdk`) | shield / shielded balance / unshield implemented (`payments/cloak`, `pnpm cloak`, funding page); mainnet proof tx pending, see [privacy-week](docs/privacy-week.md) |
 
 ## Principles
 
@@ -43,12 +44,14 @@ Rappi, 99Food, Colosseum, Superteam or any delivery platform.
 apps/
   extension/      Chrome MV3: context detection, extractors, badge, popup
   observer-api/   observation network ingestion + aggregation (Node http)
+  cloak-cli/      private funding CLI: mainnet shield, balance, dry-run demo
+  funding-web/    wallet connection + Cloak shielded balance page
 packages/
   domain/         money, CartQuote, MarketObservation, provenance, normalization
   market/         allowlist sanitizer, market summary, checkout comparison
   agent/          intent parser, decision engine, agent state machine
   fixtures/       deterministic synthetic açaí observations (iFood/Rappi/99Food)
-  payments/       pix/ (BR Code), solana/, offramp/, router/ — interfaces & mocks
+  payments/       pix/ (BR Code), solana/, offramp/, router/, cloak/ (private funding)
 docs/             product, architecture, ADRs, hackathon
 ```
 
@@ -61,6 +64,8 @@ pnpm install
 pnpm check            # typecheck + tests + extension build
 pnpm build:extension  # → apps/extension/dist (load unpacked in Chrome)
 pnpm dev:api          # observation API on http://localhost:8787 (optional)
+pnpm demo:cloak       # private funding demo (simulated, no wallet)
+pnpm dev:funding      # private funding page on http://localhost:5174
 ```
 
 ## Demo

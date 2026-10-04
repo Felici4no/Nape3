@@ -19,3 +19,5 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build:extension
+      - run: pnpm --filter @nape3/funding-web build
+      - run: pnpm demo:cloak
