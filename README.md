@@ -26,7 +26,7 @@ Rappi, 99Food, Colosseum, Superteam or any delivery platform.
 | Pix | BR Code parsing/validation of the visible payload; **no payment executed** |
 | Solana (wallet → USDC → off-ramp → Pix) | interfaces + mocks; off-ramp still simulated |
 | Private funding (Cloak, `@cloak.dev/sdk`) | shield / shielded balance / unshield implemented (`payments/cloak`, `pnpm cloak`); mainnet proof tx pending, see [privacy-week](docs/privacy-week.md) |
-| Food Market website (`apps/web`) | market, product pages, agent, wallet, pay, privacy; **synthetic demo data**, labelled |
+| Food Market website (`apps/web`) | market, product pages, agent, wallet, pay, privacy; **live observations** from the observer API when configured, otherwise a labelled synthetic demo (never mixed) |
 | Pay with crypto (popup → UPAY3FOOD Pay) | wallet status in popup, Phantom/Solflare connection, funds check, shield required amount, confirmation; **settlement disabled** (no licensed off-ramp) |
 
 ## Principles
@@ -69,7 +69,7 @@ pnpm check            # typecheck + tests + extension build
 pnpm build:extension  # → apps/extension/dist (load unpacked in Chrome)
 pnpm dev:api          # observation API on http://localhost:8787 (optional)
 pnpm demo:cloak       # private funding demo (simulated, no wallet)
-pnpm dev:web          # Food Market website on http://localhost:3000 (incl. /pay)
+OBSERVER_API_URL=http://127.0.0.1:8787 pnpm dev:web  # Food Market on :3000, live market (without it: labelled demo)
 ```
 
 ## Demo

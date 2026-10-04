@@ -44,11 +44,30 @@ on that account's coupons, membership, address or timing. The agent marks it
 `market-reference` and never presents it as executable by the current user
 (ADR-005).
 
+## Read path
+
+```
+extension ──POST /v1/observations──► observer-api ──GET /v1/observations──► apps/web ──► quotes + agent
+                                      (rejects synthetic)   (token or loopback)     (live: real-only)
+```
+
+- `GET /v1/observations?sinceMinutes&limit&provenance=real|live&category&source&region`
+  returns real observations newest first, with provenance, freshness
+  (`observedAt`), platform, region and account context intact, and the
+  per-install `observerId` removed.
+- Reads (`/v1/observations`, `/v1/market/summary`, `/v1/market/compare`)
+  require `Authorization: Bearer $OBSERVER_READ_TOKEN` when that variable is
+  set; without it they are accepted from loopback only. Ingest stays open.
+- The website re-validates every observation and drops anything synthetic.
+  The extension, when a network endpoint is set, also reads the network and
+  merges it with its own observations (own copy wins on id collisions).
+  Its synthetic-fixture comparison is off by default.
+
 ## Current implementation and gaps
 
 `apps/observer-api` implements ingestion, summary and compare endpoints with
 JSONL storage and per-IP rate limiting. Before any public deployment it needs:
-authentication of clients, Sybil/poisoning resistance (e.g. per-observer
+authentication of writers, Sybil/poisoning resistance (e.g. per-observer
 weighting, outlier rejection, attestation), retention policy, and a privacy
 review. Merchant names are kept because they are public commercial data; if
 needed they can be hashed.
