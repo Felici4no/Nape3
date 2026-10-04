@@ -12,7 +12,8 @@ wallet ──shield──► Cloak USDC pool ──unshield (partialWithdraw)─
          visible        hidden: which note paid what          visible amount       not private
 ```
 
-Code: `packages/payments/src/cloak` (SDK port, keys, notes, funding),
+Code: `packages/payments/src/cloak` (SDK port, keys, notes, funding, public balances),
+`packages/agent` (wallet/funding states), `apps/funding-web` (UPAY3FOOD Pay),
 `packages/payments/src/router` (`FundingSource`), `apps/cloak-cli`,
 `apps/funding-web`, popup panel in `apps/extension`.
 
@@ -89,15 +90,19 @@ into the table above.
 
 ## 5. Two-minute demo script
 
+Product flow: find the cheapest valid purchase → detect Pix → connect wallet
+→ privately fund → confirm → settle (settlement disabled until a licensed
+off-ramp exists).
+
 | Time | Show | Say |
 | --- | --- | --- |
-| 0:00 | iFood checkout with 2× açaí, coupon applied | "UPAY3FOOD reads the checkout: R$27,79, reconciled field by field." |
-| 0:20 | Popup → "Find better option" | "The agent ranks comparable offers by total price and explains every rejection. This checkout is the one you can actually pay." |
-| 0:40 | Popup → Private funding panel | "Your purchase funding is shielded before settlement. Pix stays a normal Pix. What we hide is your wallet." |
-| 0:55 | "Fund R$27,79 privately" → funding page, connect Phantom, sign once | "One signature derives the Cloak key. Notes are encrypted on this device." |
-| 1:15 | Shielded balance, "Shield on mainnet" (or the CLI) | "USDC goes into the Cloak pool ahead of time. Here is the mainnet transaction on Solscan." |
-| 1:35 | Purchase box: USDC needed + Cloak fee | "To pay, the off-ramp is funded from the pool, not from this wallet. The fee is shown before you confirm." |
-| 1:50 | `pnpm demo:cloak` output (simulated route) | "The off-ramp is still simulated, so we don't fake the last step. The shield is real; the off-ramp leg is a mock until a licensed partner exists." |
+| 0:00 | iFood checkout with 2× açaí, coupon, Pix selected | "UPAY3FOOD reads the checkout: R$27,79, reconciled field by field." |
+| 0:20 | Popup → "Find better option" | "The agent ranks comparable offers by total price. This checkout is the one you can actually pay." |
+| 0:35 | Popup: Wallet "not connected" + **Pay R$27,79 with crypto** | "Your purchase funding is shielded before settlement. Pix stays a normal Pix; what we hide is your wallet." |
+| 0:45 | UPAY3FOOD Pay: Connect Phantom, then sign once (not a transaction) | "No seed phrase, no private key. One signature unlocks the private balance on this device." |
+| 1:00 | Step 2: public 25 USDC, shielded 0 → **Shield required amount (6,00 USDC)** | "Shield a round amount, ahead of time. Here is the mainnet transaction on Solscan." |
+| 1:20 | Step 3 confirmation: R$27,79 · funding 5,67 USDC · Cloak fee 0,47 · destination Pix via off-ramp | "Every number before you confirm. Funding leaves the shielded pool, not your wallet." |
+| 1:40 | Confirm → "authorized, not settled" · popup now shows the wallet, balances, agent state | "We don't fake the last mile: no licensed off-ramp yet, so nothing is spent. The shield is real." |
 
 ## Engineering rules followed
 

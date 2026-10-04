@@ -24,7 +24,8 @@ Rappi, 99Food, Colosseum, Superteam or any delivery platform.
 | Rappi / 99Food | **fixtures only** — no live connector |
 | Pix | BR Code parsing/validation of the visible payload; **no payment executed** |
 | Solana (wallet → USDC → off-ramp → Pix) | interfaces + mocks; off-ramp still simulated |
-| Private funding (Cloak, `@cloak.dev/sdk`) | shield / shielded balance / unshield implemented (`payments/cloak`, `pnpm cloak`, funding page); mainnet proof tx pending, see [privacy-week](docs/privacy-week.md) |
+| Private funding (Cloak, `@cloak.dev/sdk`) | shield / shielded balance / unshield implemented (`payments/cloak`, `pnpm cloak`); mainnet proof tx pending, see [privacy-week](docs/privacy-week.md) |
+| Pay with crypto (popup → UPAY3FOOD Pay) | wallet status in popup, Phantom/Solflare connection, funds check, shield required amount, confirmation; **settlement disabled** (no licensed off-ramp) |
 
 ## Principles
 
@@ -45,7 +46,7 @@ apps/
   extension/      Chrome MV3: context detection, extractors, badge, popup
   observer-api/   observation network ingestion + aggregation (Node http)
   cloak-cli/      private funding CLI: mainnet shield, balance, dry-run demo
-  funding-web/    wallet connection + Cloak shielded balance page
+  funding-web/    UPAY3FOOD Pay: wallet connection, private funds, confirmation
 packages/
   domain/         money, CartQuote, MarketObservation, provenance, normalization
   market/         allowlist sanitizer, market summary, checkout comparison
