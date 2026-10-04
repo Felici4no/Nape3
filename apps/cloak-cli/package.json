@@ -1,0 +1,21 @@
+{
+  "name": "@nape3/cloak-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "UPAY3FOOD.agent private funding (Cloak) — wallet, shielded balance, mainnet shield, dry-run demo",
+  "scripts": {
+    "cloak": "tsx src/main.ts",
+    "demo": "tsx src/main.ts demo",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@cloak.dev/sdk": "0.2.5",
+    "@nape3/domain": "workspace:*",
+    "@nape3/payments": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "tsx": "^4.20.0"
+  }
+}
