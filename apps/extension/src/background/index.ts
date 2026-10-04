@@ -123,7 +123,7 @@ async function handleRecord(snapshot: PageSnapshot, tabId: number | undefined): 
       summary: EMPTY_SUMMARY,
       comparison: null,
       observation,
-      notRecordedReason: "recorded, but the cart is not a single supported product (only açaí with a known volume is compared)"
+      notRecordedReason: "recorded, but the cart is not a single supported product (açaí by volume, pizza by size, sushi by pieces, burger)"
     };
   }
   const now = new Date();

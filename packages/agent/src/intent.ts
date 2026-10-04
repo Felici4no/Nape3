@@ -2,6 +2,8 @@ import {
   cents,
   normalizeText,
   parseReaisAmount,
+  parsePizzaSize,
+  parseSushiPieces,
   parseVolumeMl,
   subtractCents,
   type Cents,
@@ -24,7 +26,14 @@ export interface IntentFallbackParser {
   parse(request: string): Promise<ParseIntentResult>;
 }
 
-const CATEGORY_PATTERNS: Array<[RegExp, ProductCategory]> = [[/\bacai(s)?\b/, "acai"]];
+const CATEGORY_PATTERNS: Array<[RegExp, ProductCategory]> = [
+  [/\bacai(s)?\b/, "acai"],
+  [/\b(sushis?|combinados?)\b/, "sushi"],
+  [/\bpizzas?\b/, "pizza"],
+  [/\b(burgers?|hamburguer(es)?|hamburger|cheeseburger|smash|x[- ]?(burger|salada|bacon|tudo)|lanches?)\b/, "burger"]
+];
+
+const ITEM_NOUN = String.raw`(?:copos?\s+de\s+)?(?:acais?|pizzas?|sushis?|combinados?|burgers?|hamburgueres|hamburguer|lanches?|x[- ]?\w+)`;
 
 const NUMBER_WORDS: Record<string, number> = {
   um: 1,
@@ -58,19 +67,23 @@ export function parseIntent(request: string): ParseIntentResult {
 
   const category = CATEGORY_PATTERNS.find(([re]) => re.test(text))?.[1];
   if (!category) {
-    return { ok: false, reason: "category not supported yet (only açaí is supported in this MVP)" };
+    return { ok: false, reason: "category not supported yet (supported: açaí, burger, pizza, sushi)" };
   }
 
   const notes: string[] = [];
   const missing: string[] = [];
 
-  // Volume ---------------------------------------------------------------
-  const volumeMl = parseVolumeMl(request);
-  if (volumeMl === null) missing.push("product.volumeMl");
+  // Comparison key per category -------------------------------------------
+  const volumeMl = category === "acai" ? parseVolumeMl(request) : null;
+  const size = category === "pizza" ? parsePizzaSize(request) : null;
+  const pieces = category === "sushi" ? parseSushiPieces(request) : null;
+  if (category === "acai" && volumeMl === null) missing.push("product.volumeMl");
+  if (category === "pizza" && size === null) missing.push("product.size");
+  if (category === "sushi" && pieces === null) missing.push("product.pieces");
 
   // Quantity -------------------------------------------------------------
   let quantity = 1;
-  const qty = /\b(\d{1,2}|um|uma|dois|duas|tres|quatro|cinco)\s+(?:copos?\s+de\s+)?acais?\b/.exec(text);
+  const qty = new RegExp(String.raw`\b(\d{1,2}|um|uma|dois|duas|tres|quatro|cinco)\s+${ITEM_NOUN}\b`).exec(text);
   if (qty) {
     const raw = qty[1]!;
     quantity = NUMBER_WORDS[raw] ?? Number.parseInt(raw, 10);
@@ -122,7 +135,13 @@ export function parseIntent(request: string): ParseIntentResult {
 
   const intent: PurchaseIntent = {
     request,
-    product: { category, quantity, ...(volumeMl !== null ? { volumeMl } : {}) },
+    product: {
+      category,
+      quantity,
+      ...(volumeMl !== null ? { volumeMl } : {}),
+      ...(size !== null ? { size } : {}),
+      ...(pieces !== null ? { pieces } : {})
+    },
     budget: {
       currency: "BRL",
       ...(maxCents !== undefined ? { maxCents } : {}),

@@ -8,7 +8,12 @@ export const SOURCE_PLATFORMS: readonly SourcePlatform[] = ["ifood", "rappi", "9
 // Products
 // ---------------------------------------------------------------------------
 
-export type ProductCategory = "acai";
+export type ProductCategory = "acai" | "burger" | "pizza" | "sushi";
+
+export const PRODUCT_CATEGORIES: readonly ProductCategory[] = ["acai", "burger", "pizza", "sushi"];
+
+/** Pizza size as sold in Brazil (cm vary by shop; the name is what customers compare). */
+export type PizzaSize = "broto" | "media" | "grande" | "familia";
 
 /**
  * Normalized description of *what* is being bought, independent of the
@@ -16,8 +21,12 @@ export type ProductCategory = "acai";
  */
 export interface CanonicalProduct {
   category: ProductCategory;
-  /** Volume of one unit in millilitres, when the category is volume-defined. */
+  /** Volume of one unit in millilitres, when the category is volume-defined (açaí). */
   volumeMl?: number;
+  /** Pizza size. */
+  size?: PizzaSize;
+  /** Pieces in a sushi combo. */
+  pieces?: number;
   /** Free-form normalized attributes (e.g. toppings) kept for explainability. */
   attributes: Record<string, string | number | boolean>;
   normalization: {
@@ -157,6 +166,8 @@ export interface PurchaseIntent {
   product: {
     category: ProductCategory;
     volumeMl?: number;
+    size?: PizzaSize;
+    pieces?: number;
     quantity: number;
   };
   budget: {

@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { cents, type ProductCategory } from "@nape3/domain";
+import { cents, PRODUCT_CATEGORIES, type ProductCategory } from "@nape3/domain";
 import { compareCheckout, sanitizeObservation, summarizeMarket, type MarketSummary } from "@nape3/market";
 import type { ObservationStore } from "./store";
 
@@ -16,7 +16,8 @@ import type { ObservationStore } from "./store";
  */
 
 const MAX_BODY = 32 * 1024;
-const CATEGORIES: readonly ProductCategory[] = ["acai"];
+const CATEGORIES: readonly ProductCategory[] = PRODUCT_CATEGORIES;
+const PIZZA_SIZES = ["broto", "media", "grande", "familia"] as const;
 
 export interface AppOptions {
   now?: () => Date;
@@ -81,11 +82,22 @@ function publicSummary(summary: MarketSummary) {
 
 function query(params: URLSearchParams, now: Date) {
   const category = params.get("category") as ProductCategory | null;
-  if (!category || !CATEGORIES.includes(category)) throw new HttpError(400, "category must be one of: acai");
+  if (!category || !CATEGORIES.includes(category)) throw new HttpError(400, `category must be one of: ${CATEGORIES.join(", ")}`);
   const volumeMl = intParam(params, "volumeMl");
+  const pieces = intParam(params, "pieces");
+  const sizeParam = params.get("size");
+  if (sizeParam !== null && !PIZZA_SIZES.includes(sizeParam as (typeof PIZZA_SIZES)[number])) {
+    throw new HttpError(400, `size must be one of: ${PIZZA_SIZES.join(", ")}`);
+  }
+  const size = sizeParam as (typeof PIZZA_SIZES)[number] | null;
   const region = params.get("region") ?? undefined;
   return {
-    requirement: { category, ...(volumeMl !== undefined ? { volumeMl } : {}) },
+    requirement: {
+      category,
+      ...(volumeMl !== undefined ? { volumeMl } : {}),
+      ...(pieces !== undefined ? { pieces } : {}),
+      ...(size ? { size } : {})
+    },
     quantity: intParam(params, "quantity", 1)!,
     now,
     freshWithinMinutes: intParam(params, "freshMinutes", 60)!,
@@ -150,7 +162,7 @@ export function createApp(store: ObservationStore, options: AppOptions = {}) {
           throw new HttpError(400, "totalCents must be integer cents");
         }
         const params = new URLSearchParams();
-        for (const key of ["category", "volumeMl", "quantity", "region", "freshMinutes"]) {
+        for (const key of ["category", "volumeMl", "size", "pieces", "quantity", "region", "freshMinutes"]) {
           if (body[key] !== undefined) params.set(key, String(body[key]));
         }
         const summary = summarizeMarket(await store.all(), query(params, now()));

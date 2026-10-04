@@ -1,5 +1,6 @@
 import {
   ageMinutes,
+  describeRequirement,
   cents,
   formatBRL,
   medianCents,
@@ -36,6 +37,19 @@ export interface DecisionPolicy {
   /** When set, observations from other coarse regions are rejected. */
   marketRegion?: string;
 }
+
+const CATEGORY_KEY: Record<PurchaseIntent["product"]["category"], "volumeMl" | "size" | "pieces" | null> = {
+  acai: "volumeMl",
+  pizza: "size",
+  sushi: "pieces",
+  burger: null
+};
+
+const KEY_COPY = {
+  volumeMl: { name: "Volume", format: (v: unknown) => `${String(v)} ml`, example: "a volume (e.g. 500ml)" },
+  size: { name: "Size", format: (v: unknown) => String(v), example: "a size (e.g. pizza grande)" },
+  pieces: { name: "Piece count", format: (v: unknown) => `${String(v)} pieces`, example: "a piece count (e.g. 20 peças)" }
+} as const;
 
 export const DEFAULT_POLICY: DecisionPolicy = {
   staleAfterMinutes: 60,
@@ -168,18 +182,24 @@ export function decide(intent: PurchaseIntent, observations: readonly MarketObse
   const policy: DecisionPolicy = { ...DEFAULT_POLICY, ...options.policy };
   const requirement: ProductRequirement = { category: intent.product.category };
   const preamble: string[] = [];
-  if (intent.product.volumeMl !== undefined) {
-    requirement.volumeMl = intent.product.volumeMl;
-  } else {
-    // Different sizes are not equivalent offers. Without a stated volume we use
-    // the size in the user's current cart, and say so; otherwise we warn.
-    const cartVolumes = new Set(options.currentCheckout?.quote.lines.map((line) => line.product?.volumeMl));
-    const [cartVolume] = [...cartVolumes];
-    if (cartVolumes.size === 1 && cartVolume !== undefined) {
-      requirement.volumeMl = cartVolume;
-      preamble.push(`Volume not stated; using ${cartVolume} ml from your current cart.`);
+  // Different sizes are not equivalent offers. Each category has one key
+  // (açaí volume, pizza size, sushi pieces). Without a stated key we use the
+  // one in the user's current cart, and say so; otherwise we warn.
+  const key = CATEGORY_KEY[intent.product.category];
+  if (key) {
+    const stated = intent.product[key];
+    if (stated !== undefined) {
+      (requirement as unknown as Record<string, unknown>)[key] = stated;
     } else {
-      preamble.push("Volume not stated: candidates of different sizes are being compared. State a volume (e.g. 500ml) for an equivalent comparison.");
+      const cartValues = new Set(options.currentCheckout?.quote.lines.map((line) => line.product?.[key]));
+      const [cartValue] = [...cartValues];
+      const k = KEY_COPY[key];
+      if (cartValues.size === 1 && cartValue !== undefined) {
+        (requirement as unknown as Record<string, unknown>)[key] = cartValue;
+        preamble.push(`${k.name} not stated; using ${k.format(cartValue)} from your current cart.`);
+      } else {
+        preamble.push(`${k.name} not stated: candidates of different sizes are being compared. State ${k.example} for an equivalent comparison.`);
+      }
     }
   }
 
@@ -322,8 +342,7 @@ export function decide(intent: PurchaseIntent, observations: readonly MarketObse
 
   const reasoning: string[] = [
     ...preamble,
-    `Intent: ${quantity}× ${intent.product.category}` +
-      (requirement.volumeMl ? ` ${requirement.volumeMl} ml` : "") +
+    `Intent: ${quantity}× ${describeRequirement(requirement)}` +
       (intent.budget.maxCents !== undefined ? `, max ${formatBRL(intent.budget.maxCents)}` : ", no max budget"),
     `Evaluated ${evaluations.length} observation(s); ${accepted.length} passed hard constraints, ${rejected.length} rejected.`
   ];

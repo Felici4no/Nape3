@@ -37,7 +37,8 @@ export function parsePackQuantity(text: string): number {
   const normalized = normalizeText(text);
   const patterns = [
     /\b(\d+)\s*x\b(?!\s*\d)/,
-    /\b(?:combo|kit|pack)\s*(?:com\s*)?(\d+)\b/,
+    // "combo 2 açaís" is a pack; "combo 20 peças" / "8 fatias" / "500 ml" are not.
+    /\b(?:combo|kit|pack)\s*(?:com\s*)?(\d+)\b(?!\s*(?:pecas|peca|pcs|pc|fatias|ml|l|litros?|g|kg)\b)/,
     /\b(\d+)\s*(?:unidades|copos)\b/
   ];
   for (const pattern of patterns) {

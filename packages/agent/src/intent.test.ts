@@ -53,7 +53,26 @@ describe("parseIntent", () => {
   });
 
   it("refuses unsupported categories", () => {
-    const result = parseIntent("quero uma pizza grande");
+    const result = parseIntent("quero um churrasco");
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("parseIntent: burger, pizza, sushi", () => {
+  it.each([
+    ["quero uma pizza grande até 60 reais", { category: "pizza", size: "grande", quantity: 1 }, 6000],
+    ["combinado 20 peças até R$70", { category: "sushi", pieces: 20 }, 7000],
+    ["dois x-burger até 50", { category: "burger", quantity: 2 }, 5000],
+    ["quero um hambúrguer até R$35", { category: "burger", quantity: 1 }, 3500]
+  ])("%s", (request, product, max) => {
+    const intent = ok(request);
+    expect(intent.product).toMatchObject(product);
+    expect(intent.budget.maxCents).toBe(max);
+  });
+
+  it("reports the missing comparison key per category", () => {
+    expect(ok("quero uma pizza até 50").parsing.missing).toContain("product.size");
+    expect(ok("sushi até 80").parsing.missing).toContain("product.pieces");
+    expect(ok("um burger até 40").parsing.missing).not.toContain("product.volumeMl");
   });
 });

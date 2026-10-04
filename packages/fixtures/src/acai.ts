@@ -21,7 +21,7 @@ import {
 
 export const FIXTURE_NOW = new Date("2026-10-04T12:00:00.000Z");
 
-interface CartSpec {
+export interface CartSpec {
   id: string;
   source: SourcePlatform;
   merchant: string;
@@ -40,7 +40,7 @@ function at(minutesAgo: number, now: Date): string {
   return new Date(now.getTime() - minutesAgo * 60_000).toISOString();
 }
 
-function cartObservation(spec: CartSpec, now: Date): CartQuoteObservation {
+export function cartObservation(spec: CartSpec, now: Date): CartQuoteObservation {
   const lines = spec.lines.map((line) => {
     const quantity = line.quantity ?? 1;
     return {

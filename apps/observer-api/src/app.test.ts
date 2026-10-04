@@ -62,7 +62,9 @@ describe("observer API", () => {
   });
 
   it("validates query parameters", async () => {
-    expect((await fetch(`${base}/v1/market/summary?category=pizza`)).status).toBe(400);
+    expect((await fetch(`${base}/v1/market/summary?category=churrasco`)).status).toBe(400);
+    expect((await fetch(`${base}/v1/market/summary?category=pizza&size=enorme`)).status).toBe(400);
+    expect((await fetch(`${base}/v1/market/summary?category=pizza&size=grande`)).status).toBe(200);
     expect((await post("/v1/market/compare", { totalCents: 24.9, category: "acai" })).status).toBe(400);
   });
 });

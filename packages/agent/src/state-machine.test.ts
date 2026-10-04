@@ -136,7 +136,7 @@ describe("agent state machine", () => {
   });
 
   it("goes to ERROR on unsupported intent", () => {
-    const bad = planPurchase("quero pizza", [], { now: FIXTURE_NOW });
+    const bad = planPurchase("quero um churrasco", [], { now: FIXTURE_NOW });
     expect(bad.agent.state).toBe("ERROR");
   });
 });

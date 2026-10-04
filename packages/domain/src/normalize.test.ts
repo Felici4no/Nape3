@@ -46,7 +46,7 @@ describe("normalizeTitle", () => {
   it("rejects non-comparable açaí products with a reason", () => {
     expect(normalizeTitle("Polpa de açaí 1kg").product).toBeNull();
     expect(normalizeTitle("Picolé de açaí").product).toBeNull();
-    expect(normalizeTitle("Hambúrguer artesanal").product).toBeNull();
+    expect(normalizeTitle("Coca-Cola 2L").product).toBeNull();
   });
 });
 
@@ -72,5 +72,39 @@ describe("equivalence", () => {
     const res = matchesRequirement(c300, { category: "acai", volumeMl: 500 });
     expect(res.equivalent).toBe(false);
     expect(res.reasons[0]).toContain("300");
+  });
+});
+
+describe("burger, pizza and sushi", () => {
+  it("normalizes pizza by size and excludes slices", () => {
+    expect(normalizeTitle("Pizza Grande Calabresa (8 fatias)").product).toMatchObject({ category: "pizza", size: "grande" });
+    expect(normalizeTitle("Pizza broto mussarela").product).toMatchObject({ size: "broto" });
+    expect(normalizeTitle("Pizza família portuguesa").product).toMatchObject({ size: "familia" });
+    expect(normalizeTitle("Pizza calabresa").product!.normalization.confidence).toBeLessThan(0.5);
+    expect(normalizeTitle("Fatia de pizza").product).toBeNull();
+  });
+
+  it("normalizes sushi combos by piece count and excludes temaki", () => {
+    expect(normalizeTitle("Combinado 20 peças").product).toMatchObject({ category: "sushi", pieces: 20 });
+    expect(normalizeTitle("Sushi combo 30 pcs salmão").product).toMatchObject({ pieces: 30 });
+    // "combo 20 pcs" is a piece count, not a pack of 20
+    expect(normalizeTitle("Sushi combo 20 pcs").product!.attributes.packQuantity).toBeUndefined();
+    expect(normalizeTitle("Temaki salmão").product).toBeNull();
+  });
+
+  it("normalizes single burgers and excludes combos with sides", () => {
+    expect(normalizeTitle("X-Burger artesanal").product).toMatchObject({ category: "burger" });
+    expect(normalizeTitle("Smash burger duplo").product!.normalization.confidence).toBe(0.6);
+    expect(normalizeTitle("Combo X-Salada + batata + refri").product).toBeNull();
+  });
+
+  it("matches the category key", () => {
+    const grande = normalizeTitle("Pizza grande margherita").product;
+    expect(matchesRequirement(grande, { category: "pizza", size: "grande" }).equivalent).toBe(true);
+    expect(matchesRequirement(grande, { category: "pizza", size: "media" }).reasons[0]).toBe("size grande ≠ required media");
+    const sushi20 = normalizeTitle("Combinado 20 peças").product;
+    expect(matchesRequirement(sushi20, { category: "sushi", pieces: 30 }).reasons[0]).toBe("piece count 20 pieces ≠ required 30 pieces");
+    expect(areEquivalent(sushi20, normalizeTitle("Sushi 20 pcs").product).equivalent).toBe(true);
+    expect(areEquivalent(normalizeTitle("X-Burger").product, normalizeTitle("Cheeseburger").product).equivalent).toBe(true);
   });
 });

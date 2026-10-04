@@ -1,5 +1,7 @@
 import {
+  matchesRequirement,
   normalizeTitle,
+  requirementOf,
   type MarketObservation,
   type CartQuoteObservation,
   type ProductRequirement
@@ -97,12 +99,17 @@ export function requirementFromObservation(
 ): { requirement: ProductRequirement; quantity: number } | null {
   const products = observation.quote.lines.map((line) => line.product ?? normalizeTitle(line.sourceTitle).product);
   const first = products[0];
-  if (!first || products.some((p) => !p || p.category !== first.category || p.volumeMl !== first.volumeMl)) return null;
-  if (first.volumeMl === undefined) return null;
-  return {
-    requirement: { category: first.category, volumeMl: first.volumeMl },
-    quantity: observation.quote.lines.reduce((sum, line) => sum + line.quantity, 0)
-  };
+  if (!first) return null;
+  const requirement = requirementOf(first);
+  // Every line must be the same comparable product (same category and key).
+  if (products.some((p) => !p || !matchesRequirement(p, requirement).equivalent)) return null;
+  // Keyed categories need their key (açaí volume, pizza size, sushi pieces).
+  const keyMissing =
+    (first.category === "acai" && first.volumeMl === undefined) ||
+    (first.category === "pizza" && first.size === undefined) ||
+    (first.category === "sushi" && first.pieces === undefined);
+  if (keyMissing) return null;
+  return { requirement, quantity: observation.quote.lines.reduce((sum, line) => sum + line.quantity, 0) };
 }
 
 /** Same cart = same observer, source and merchant within this window. */
