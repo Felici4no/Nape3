@@ -118,12 +118,20 @@ export class JsonRpcSolanaProvider implements SolanaRpcProvider {
       });
     } catch (error) {
       // Never echo the URL: it may carry the API key.
-      throw new RpcError(`${this.name} ${method}: network error (${error instanceof Error ? error.name : "unknown"})`);
+      // The low-level cause code (ENOTFOUND, CERT_*, ...) is safe and tells DNS from TLS from timeout.
+      const cause = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+      const detail = [error instanceof Error ? error.name : "unknown", typeof cause === "string" ? cause : null].filter(Boolean).join(" ");
+      throw new RpcError(`${this.name} ${method}: network error (${detail})`);
     }
     if (!response.ok) throw new RpcError(`${this.name} ${method}: HTTP ${response.status}`, response.status);
     const envelope = (await response.json()) as RpcEnvelope;
     if (envelope.error) throw new RpcError(`${this.name} ${method}: ${envelope.error.message ?? "error"}`, envelope.error.code);
     return envelope.result as T;
+  }
+
+  /** Raw read-only JSON-RPC call, for diagnostics such as `rpc:check`. */
+  request<T>(method: string, params: unknown[] = []): Promise<T> {
+    return this.call<T>(method, params);
   }
 
   async getSolBalance(address: string): Promise<bigint> {
@@ -150,7 +158,7 @@ export class JsonRpcSolanaProvider implements SolanaRpcProvider {
       blockTime: number | null;
       meta: { err: unknown; preTokenBalances?: unknown; postTokenBalances?: unknown } | null;
       transaction: { message: { accountKeys: Array<{ pubkey: string; signer: boolean } | string> } };
-    } | null>("getTransaction", [signature, { encoding: "jsonParsed", commitment, maxSupportedTransactionVersion: 0 }]);
+    } | null>("getTransaction", [signature, { encoding: "jsonParsed", commitment, maxSupportedTransactionVersion: 1 }]);
     if (!tx) return null;
     const keys = tx.transaction.message.accountKeys;
     return {
