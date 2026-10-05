@@ -47,12 +47,12 @@ export function setRpcUrl(url: string): void {
 }
 
 /** One signature (not a transaction): derives the Cloak key and the local note-encryption key. */
-async function unlock(wallet: ConnectedWallet): Promise<{ funding: CloakFunding; balance: PrivateBalance }> {
+async function unlock(wallet: ConnectedWallet, rpcUrl: string = getRpcUrl()): Promise<{ funding: CloakFunding; balance: PrivateBalance }> {
   const signature = await wallet.signMessage(derivationMessageBytes());
   const keys = await CloakKeys.fromSeed(await seedFromWalletSignature(signature));
   const funding = new CloakFunding({
     sdk: realCloakSdk,
-    connection: createCloakRpc(getRpcUrl()),
+    connection: createCloakRpc(rpcUrl),
     signer: wallet.cloakSigner(),
     keys,
     store: await EncryptedLocalNoteStore.create(wallet.address, signature),
@@ -97,22 +97,49 @@ export function createPaymentFlow(request: PaymentRequest): PaymentFlow {
 // Standalone shield (no purchase): the first real Cloak shield from /shield.
 // ---------------------------------------------------------------------------
 
-/** Host of the configured RPC, for display. The path and query (which may carry an API key) are never shown. */
-export function rpcHost(): string {
-  try {
-    return new URL(getRpcUrl()).hostname;
-  } catch {
-    return "invalid RPC url";
-  }
+/** Same-origin Solana RPC proxy (apps/web). It forwards to the RPC Fast endpoint held in server-side env. */
+export const SOLANA_RPC_PROXY_PATH = "/api/solana-rpc";
+
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === "localhost" || hostname.endsWith(".localhost") || hostname === "[::1]" || /^127\./.test(hostname);
 }
 
+export interface ShieldRpc {
+  url: string;
+  /** true: the deployed site's server-side RPC Fast proxy. false: local development fallback. */
+  viaProxy: boolean;
+  /** Safe to display: never includes a path or query that could carry a key. */
+  label: string;
+}
+
+/**
+ * RPC used by /shield. On the deployed site it is always the same-origin proxy,
+ * so nothing is pasted and no key reaches the browser. The Cloak SDK refuses an
+ * RPC served by this machine, so on localhost the proxy cannot be used and the
+ * manual endpoint (or the public default) applies, for development only.
+ */
+export function shieldRpc(): ShieldRpc {
+  if (!isLoopbackHostname(location.hostname)) {
+    return { url: `${location.origin}${SOLANA_RPC_PROXY_PATH}`, viaProxy: true, label: `${location.host}${SOLANA_RPC_PROXY_PATH}` };
+  }
+  let host = "invalid RPC url";
+  try {
+    host = new URL(getRpcUrl()).hostname;
+  } catch {
+    /* keep the placeholder */
+  }
+  return { url: getRpcUrl(), viaProxy: false, label: host };
+}
+
+/** "rpc-fast" only through the proxy, which can only reach the configured RPC Fast endpoint. */
 function rpcProviderLabel(): string {
-  return /(^|\.)rpcfast\.com$/.test(rpcHost()) ? "rpc-fast" : "custom";
+  const rpc = shieldRpc();
+  return rpc.viaProxy || /(^|\.)rpcfast\.com$/.test(rpc.label) ? "rpc-fast" : "custom";
 }
 
 /** Read-only JSON-RPC call. Errors never include the URL. */
 async function rpcCall<T>(method: string, params: unknown[]): Promise<T> {
-  const response = await fetch(getRpcUrl(), {
+  const response = await fetch(shieldRpc().url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
@@ -133,10 +160,10 @@ export function createShieldOperation(): ShieldOperation {
       connected = await connectWallet({ silent });
       return connected;
     },
-    readPublicBalances: (owner) => readPublicBalances(createCloakRpc(getRpcUrl()), address(owner), USDC),
+    readPublicBalances: (owner) => readPublicBalances(createCloakRpc(shieldRpc().url), address(owner), USDC),
     unlock: async () => {
       if (!connected) throw new Error("wallet not connected");
-      const { funding } = await unlock(connected);
+      const { funding } = await unlock(connected, shieldRpc().url);
       return {
         shieldedUsdc: async () => (await funding.shieldedBalance()).total,
         shield: async (amount, options) => {

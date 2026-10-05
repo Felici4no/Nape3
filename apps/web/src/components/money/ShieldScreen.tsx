@@ -9,8 +9,9 @@ import {
   formatSol9,
   formatUsdc6,
   getRpcUrl,
-  rpcHost,
   setRpcUrl,
+  shieldRpc,
+  type ShieldRpc,
   type ShieldState,
   type ShieldView
 } from "@nape3/pay";
@@ -37,7 +38,7 @@ export default function ShieldScreen() {
   const op = useMemo(() => createShieldOperation(), []);
   const [view, setView] = useState<ShieldView>(op.state);
   const [rpc, setRpc] = useState("");
-  const [host, setHost] = useState("");
+  const [rpcInfo, setRpcInfo] = useState<ShieldRpc | null>(null);
   const [copied, setCopied] = useState(false);
   const wallet = typeof window === "undefined" ? null : findWallet();
   const inFlight = IN_FLIGHT.includes(view.state);
@@ -45,7 +46,7 @@ export default function ShieldScreen() {
   useEffect(() => op.subscribe(setView), [op]);
   useEffect(() => {
     setRpc(getRpcUrl());
-    setHost(rpcHost());
+    setRpcInfo(shieldRpc());
     void op.connect(true); // silent: only if this site is already trusted
   }, [op]);
 
@@ -187,27 +188,36 @@ export default function ShieldScreen() {
           ))}
         </ol>
 
-        <details className={styles.details}>
-          <summary>RPC endpoint {host && `· ${host}`}</summary>
-          <p>
-            Mainnet reads and the final broadcast go through this endpoint. Paste your RPC Fast URL; it stays in this browser only and is never
-            shown or logged.{" "}
-            {host === PUBLIC_DEFAULT && <span className={styles.err}>The public endpoint is rate-limited and often refuses browser calls.</span>}
+        {rpcInfo?.viaProxy ? (
+          <p className={styles.fine}>
+            Network access: {rpcInfo.label}, forwarded to RPC Fast by the server. No endpoint or API key is ever sent to this browser. Your wallet signs
+            locally and only the signed transaction is broadcast.
           </p>
-          <input
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="https://…"
-            disabled={inFlight}
-            value={rpc}
-            onChange={(e) => setRpc(e.target.value)}
-            onBlur={() => {
-              setRpcUrl(rpc);
-              setHost(rpcHost());
-            }}
-          />
-        </details>
+        ) : (
+          rpcInfo && (
+            <details className={styles.details} open>
+              <summary>Local development · RPC endpoint · {rpcInfo.label}</summary>
+              <p>
+                The Cloak SDK refuses an RPC served by this machine, so the same-origin proxy only works on the deployed site. For local testing,
+                paste an https RPC endpoint; it stays in this browser only and is never shown.{" "}
+                {rpcInfo.label === PUBLIC_DEFAULT && <span className={styles.err}>The public endpoint is rate-limited and often refuses browser calls.</span>}
+              </p>
+              <input
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="https://…"
+                disabled={inFlight}
+                value={rpc}
+                onChange={(e) => setRpc(e.target.value)}
+                onBlur={() => {
+                  setRpcUrl(rpc);
+                  setRpcInfo(shieldRpc());
+                }}
+              />
+            </details>
+          )
+        )}
 
         <p className={styles.fine}>
           UPAY3FOOD never asks for your seed phrase or private key. <Link href="/wallet">Wallet</Link> · <Link href="/privacy">What stays private →</Link>
