@@ -33,12 +33,14 @@ region and keep *Compare with synthetic fixtures (demo)* on.
    reason. Fixture/other-account options are labelled *market reference —
    verify in <platform>*; your current checkout is the only executable option.
 8. **Pix + Solana**: on the Pix screen, the popup shows the detected Copia e
-   Cola payload (CRC valid), amount and expiry. The payments package plans
-   wallet → USDC → off-ramp → Pix **in simulation only**.
+   Cola payload (CRC valid), amount and expiry. The **Cloak shield is real on
+   Solana mainnet** (1.000000 USDC confirmed); the off-ramp → Pix settlement
+   remains disabled until a licensed provider is integrated. Show the
+   [mainnet proof](../08-proofs/2026-10-05-mainnet-shield.md).
 
 ## Limits to state during the demo
 
 - Extractors were developed against synthetic HTML modelled on iFood; real
   pages may need selector/label calibration.
 - Rappi and 99Food data are synthetic fixtures.
-- No payment is executed.
+- No merchant Pix settlement is executed. The privacy funding step (Cloak shield) is real on Solana mainnet.
