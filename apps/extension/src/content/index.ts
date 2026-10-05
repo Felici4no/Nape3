@@ -154,7 +154,7 @@ chrome.runtime.onMessage.addListener(
     if (message.type !== "GET_SNAPSHOT" && message.type !== "GET_DOM_CAPTURE" && message.type !== "GET_PAGE_CAPTURE") return false;
     try {
       if (message.type === "GET_PAGE_CAPTURE") {
-        const capture = capturePage(document, takeSnapshot(document, location.href), { redactions: message.redactions });
+        const capture = capturePage(document, takeSnapshot(document, location.href), { redactions: message.redactions, structureOnly: message.structureOnly ?? false });
         sendResponse({ ok: true, type: "PAGE_CAPTURE", capture });
         return false;
       }

@@ -113,12 +113,25 @@ function isRepetitiveList(children: Element[]): boolean {
   return Math.max(...counts.values()) / children.length >= 0.8;
 }
 
+/** A machine token (role, type, test id, generated id), not user text. */
+const TOKEN = /^[\w:.-]{0,40}$/;
+
+/** Widget state a UI automation would rely on (address picker, autocomplete, tabs). Values are short tokens, never user text. */
+const WIDGET_ATTRS = ["aria-expanded", "aria-haspopup", "aria-controls", "aria-autocomplete", "aria-selected", "aria-activedescendant", "aria-current", "aria-busy", "autocomplete", "id"];
+
 interface PageCaptureOptions {
   /** Extra words to remove (the user's name, street…), typed in the popup; used once, never stored. */
   redactions?: readonly string[];
+  /**
+   * Structure only: every text node and label outside the interface
+   * vocabulary becomes its length, on the whole page (not just the chrome).
+   * For states that show the user's own address (the picker, autocomplete).
+   */
+  structureOnly?: boolean;
 }
 
 function serializePage(el: Element, depth: number, out: string[], redact: readonly string[], chrome = false): void {
+  // (chrome = structure-only for this subtree)
   if (out.length >= MAX_LINES) return;
   const tag = el.tagName.toLowerCase();
   if (SKIP_TAGS.has(tag)) return;
@@ -136,7 +149,13 @@ function serializePage(el: Element, depth: number, out: string[], redact: readon
   if (firstClass) attrs.push(`class="${firstClass.slice(0, 40)}"`);
   for (const name of KEEP_ATTRS) {
     const value = el.getAttribute(name);
-    if (value !== null) attrs.push(`${name}="${text(value).slice(0, 60)}"`);
+    // role, data-testid, hidden… are machine tokens; only aria-label carries words.
+    if (value !== null) attrs.push(`${name}="${(name === "aria-label" ? text(value) : TOKEN.test(value) ? value : text(value)).slice(0, 60)}"`);
+  }
+  for (const name of WIDGET_ATTRS) {
+    const value = el.getAttribute(name);
+    // Ids and references are kept only when they look like generated tokens, not words.
+    if (value !== null && TOKEN.test(value)) attrs.push(`${name}="${value}"`);
   }
   if (tag === "a") {
     // Route shape only: ids and query values are dropped.
@@ -148,7 +167,7 @@ function serializePage(el: Element, depth: number, out: string[], redact: readon
     const value = (el as HTMLInputElement).value ?? "";
     for (const name of ["type", "name", "placeholder"]) {
       const v = el.getAttribute(name);
-      if (v) attrs.push(`${name}="${text(v).slice(0, 40)}"`);
+      if (v) attrs.push(`${name}="${(name !== "placeholder" && TOKEN.test(v) ? v : text(v)).slice(0, 40)}"`);
     }
     attrs.push(`value-length="${value.length}"`);
     if (/^000201/.test(value)) attrs.push('value-kind="pix-payload"');
@@ -160,7 +179,7 @@ function serializePage(el: Element, depth: number, out: string[], redact: readon
       style.display === "none" ? "display:none" : "",
       style.visibility === "hidden" ? "visibility:hidden" : "",
       style.opacity === "0" ? "opacity:0" : "",
-      style.transform !== "none" ? `transform:${style.transform}` : "",
+      style.transform && style.transform !== "none" ? `transform:${style.transform}` : "",
       style.position === "fixed" ? "fixed" : ""
     ].filter(Boolean);
     if (flags.length) attrs.push(`data-computed="${flags.join(";")}"`);
@@ -222,16 +241,19 @@ function snapshotSummary(snapshot: PageSnapshot, redact: readonly string[]): str
  */
 export function capturePage(doc: Document, snapshot: PageSnapshot, options: PageCaptureOptions = {}): string {
   const redact = options.redactions ?? [];
+  const structureOnly = options.structureOnly ?? false;
   const view = doc.defaultView;
+  // SPA or full reload: a reload resets the page clock; an SPA transition does not.
+  const nav = view?.performance?.getEntriesByType?.("navigation")?.[0] as PerformanceNavigationTiming | undefined;
+  const pageAgeSeconds = view?.performance ? Math.round(view.performance.now() / 1000) : null;
   const path = doc.location.pathname.replace(/[0-9a-f-]{16,}/gi, "[id]");
   const queryKeys = Array.from(new URLSearchParams(doc.location.search).entries()).map(([key, value]) => `${key}=${valueShape(value)}`);
   const out: string[] = [
     `<!-- UPAY3FOOD page capture · ${new Date().toISOString()} · ${doc.location.hostname}${scrub(path, redact)}${queryKeys.length ? ` · query: ${queryKeys.join(", ")}` : ""} -->`,
     `<!-- viewport ${view?.innerWidth ?? "?"}x${view?.innerHeight ?? "?"} · detected ${snapshot.detection.context} (confidence ${snapshot.detection.confidence}) -->`,
+    `<!-- page loaded ${pageAgeSeconds ?? "?"} s ago · navigation type ${nav?.type ?? "unknown"} · history length ${view?.history?.length ?? "?"}${structureOnly ? " · STRUCTURE ONLY" : ""} -->`,
     "<!-- Review before sharing: header/nav/footer and input values are not included, and text was scrubbed, but check for your name or address. -->",
-    "<!-- EXTRACTION",
-    snapshotSummary(snapshot, redact),
-    "-->"
+    ...(structureOnly ? ["<!-- EXTRACTION omitted (structure only) -->"] : ["<!-- EXTRACTION", snapshotSummary(snapshot, redact), "-->"])
   ];
   // Roots: the main content plus anything floating above it (dialogs, drawers, fixed panels) that is not inside it.
   const main = doc.querySelector("main, [role=main]") ?? doc.body;
@@ -245,7 +267,7 @@ export function capturePage(doc: Document, snapshot: PageSnapshot, options: Page
   ];
   for (const [i, [root, label]] of roots.entries()) {
     out.push(`<!-- root ${i + 1}: ${label} -->`);
-    serializePage(root, 0, out, redact);
+    serializePage(root, 0, out, redact, structureOnly);
   }
   if (out.length >= MAX_LINES) out.push(`<!-- truncated at ${MAX_LINES} lines -->`);
   return out.join("\n");

@@ -187,6 +187,7 @@ function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; marke
   const [capture, setCapture] = useState<string | null>(null);
   const [pageCapture, setPageCapture] = useState<string | null>(null);
   const [redactions, setRedactions] = useState("");
+  const [structureOnly, setStructureOnly] = useState(false);
   const cart = snapshot.cart;
   const time = (iso: string) => `${new Date(iso).toLocaleTimeString("pt-BR")} (${iso})`;
   async function loadCapture() {
@@ -202,7 +203,7 @@ function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; marke
     if (tabId === null) return;
     const words = redactions.split(",").map((w) => w.trim()).filter((w) => w.length >= 3);
     try {
-      const response = (await chrome.tabs.sendMessage(tabId, { type: "GET_PAGE_CAPTURE", redactions: words } satisfies ExtensionMessage)) as ExtensionResponse;
+      const response = (await chrome.tabs.sendMessage(tabId, { type: "GET_PAGE_CAPTURE", redactions: words, structureOnly } satisfies ExtensionMessage)) as ExtensionResponse;
       setPageCapture(response.ok && response.type === "PAGE_CAPTURE" ? response.capture : `error: ${response.ok ? "unexpected" : response.error}`);
     } catch (error) {
       setPageCapture(`error: ${errorMessage(error)}`);
@@ -261,6 +262,10 @@ function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; marke
       <label className="small">
         Extra words to remove (comma-separated: your name, street…). Used once, never stored.
         <input type="text" autoComplete="off" spellCheck={false} value={redactions} onChange={(e) => setRedactions(e.target.value)} />
+      </label>
+      <label className="small">
+        <input type="checkbox" checked={structureOnly} onChange={(e) => setStructureOnly(e.target.checked)} /> Structure only: hide all text except
+        interface words (use it while the address picker or its suggestions are open)
       </label>
       <button className="secondary" onClick={() => void loadPageCapture()}>Capture this page ({snapshot.detection.context})</button>
       {pageCapture && (

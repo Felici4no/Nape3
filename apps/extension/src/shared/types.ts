@@ -150,7 +150,7 @@ export interface MarketView {
 export type ExtensionMessage =
   | { type: "GET_SNAPSHOT" }
   | { type: "GET_DOM_CAPTURE" }
-  | { type: "GET_PAGE_CAPTURE"; redactions: string[] }
+  | { type: "GET_PAGE_CAPTURE"; redactions: string[]; structureOnly?: boolean }
   | { type: "RECORD_SNAPSHOT"; snapshot: PageSnapshot; tabId?: number }
   | { type: "PLAN_INTENT"; request: string; snapshot: PageSnapshot | null }
   | { type: "GET_SETTINGS" }

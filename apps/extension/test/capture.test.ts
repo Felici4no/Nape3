@@ -91,6 +91,40 @@ describe("delivery-context spike: address picker and URL shapes", () => {
   });
 });
 
+describe("delivery-context spike: structure-only capture of the address picker", () => {
+  const doc = page(`
+    <main><h1>Restaurantes</h1></main>
+    <div role="dialog" aria-modal="true">
+      <h2>Endereço de entrega</h2>
+      <input type="text" role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="sugg-list" autocomplete="off" placeholder="Buscar endereço e número" value="Rua Augusta 15" />
+      <ul id="sugg-list" role="listbox">
+        <li role="option" aria-selected="true" id="opt-0">Rua Augusta, 1500 - Consolação, São Paulo</li>
+        <li role="option" id="opt-1">Rua Augusta, 150 - Cerqueira César</li>
+      </ul>
+      <button>Usar minha localização</button>
+      <button>Confirmar localização</button>
+    </div>`);
+  const capture = capturePage(doc, takeSnapshot(doc, doc.location.href), { structureOnly: true });
+
+  it("keeps the widget mechanics an automation needs", () => {
+    expect(capture).toMatch(/<input[^>]*role="combobox"[^>]*aria-expanded="true"[^>]*aria-controls="sugg-list"[^>]*aria-autocomplete="list"/);
+    expect(capture).toMatch(/<li[^>]*role="option"[^>]*aria-selected="true"[^>]*id="opt-0"/);
+    expect(capture).toContain('"Confirmar localização"');
+    expect(capture).toContain('"Usar minha localização"');
+    expect(capture).toContain("STRUCTURE ONLY");
+  });
+
+  it("exports no address text at all: not the typed value, not the suggestions, not the extraction", () => {
+    for (const secret of ["Augusta", "1500", "Consolação", "Cerqueira", "São Paulo"]) expect(capture).not.toContain(secret);
+    expect(capture).toContain("<!-- EXTRACTION omitted (structure only) -->");
+    expect(capture).toMatch(/"\[text \d+ chars\]"/);
+  });
+
+  it("reports how the page was reached (SPA vs reload)", () => {
+    expect(capture).toMatch(/page loaded \d+ s ago · navigation type \w+ · history length \d+/);
+  });
+});
+
 describe("calibration capture shape", () => {
   it("collapses long lists (search results, menus) after the first few", () => {
     const items = Array.from({ length: 30 }, (_, i) => `<li><a href="/delivery/x/loja-${i}/[id]">Loja ${i}</a><span>R$ ${i},90</span></li>`).join("");
