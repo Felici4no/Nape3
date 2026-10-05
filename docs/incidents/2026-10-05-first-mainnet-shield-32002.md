@@ -141,3 +141,25 @@ Per table, signed by the wallet (authority): `DeactivateLookupTable`, then
 after the deactivation slot leaves SlotHashes (~512 slots, ~3.5 min)
 `CloseLookupTable` with recipient = wallet. `/shield/diagnose` shows the plan
 and the lamports each table holds.
+
+## Follow-up: SOL cost measurement and the Transaction V1 signing test
+
+`/shield/diagnose` now does both of these. Neither one sends a transaction.
+
+- **"Simulate as Transaction V1"** measures the SOL requirement around the same simulate-only run:
+  1. The simulation is asked for the post-state of every writable account (`accounts`) and for the inner instructions (`innerInstructions: true`).
+  2. The same accounts are read now with `getMultipleAccounts`.
+  3. The fee for the exact compiled message comes from `getFeeForMessage`.
+  4. The priority fee comes from the v1 header (`priorityFeeLamports`).
+  5. The wallet's rent-exempt floor comes from `getMinimumBalanceForRentExemption(0)`.
+  6. The System Program `createAccount`/`transfer` instructions are decoded with their lamports, and each target is marked new or existing.
+  7. The panel reports the estimated total, a recommended minimum (total + rent-exempt floor + max(10%, 0.0005 SOL)) and whether the current balance covers it (`packages/pay/src/shield-cost.ts`).
+- **"Transaction V1 signing test"** (`packages/pay/src/v1-signing-test.ts`):
+  - Phantom is asked, with `signTransaction` only, to sign a 0-lamport transfer from the wallet to itself as a v1 message.
+  - The signature is verified locally (ed25519 over the bytes built here, with the connected key), then discarded.
+  - While the test runs, a guard makes the following throw: JSON-RPC send methods over fetch/XHR, relay submit URLs, and the provider's sign-and-send methods.
+- **Finding:** `@solana/web3.js` 1.99 can *deserialize* a v1 transaction, but `MessageV1.serialize()` throws "Serialization of version 1 transaction messages is not supported". The Cloak SDK's `signerFromWalletAdapter` calls `signed.serialize()` on the wallet's result. Depending on what Phantom returns, that path can fail in the page even when Phantom signs correctly. The test therefore reports two things separately:
+  - `sdkAdapterPathWorks`;
+  - a fallback over raw bytes (`provider.request({ method: "signTransaction" })`), used only when the failure happened in the page before the wallet saw the transaction.
+
+  The simulate-only run uses a zero-signature kit signer, so it never reaches this path.

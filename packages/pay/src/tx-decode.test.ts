@@ -9,6 +9,7 @@ import {
   getAddressEncoder,
   pipe,
   setTransactionMessageComputeUnitLimit,
+  setTransactionMessagePriorityFeeLamports,
   setTransactionMessageFeePayer,
   setTransactionMessageLifetimeUsingBlockhash,
   AccountRole,
@@ -75,13 +76,13 @@ describe("decodeTransaction", () => {
   });
 
   it("reads a Transaction V1 deposit: no lookup tables, every account static, compute config in the header", () => {
-    const msg = setTransactionMessageComputeUnitLimit(
+    const msg = setTransactionMessagePriorityFeeLamports(120_000n, setTransactionMessageComputeUnitLimit(
       1_200_000,
       appendTransactionMessageInstructions(
         [{ programAddress: address(CLOAK_PROGRAM_ID), accounts: [{ address: POOL, role: AccountRole.WRITABLE }, { address: EXTRA, role: AccountRole.READONLY }], data: new Uint8Array(900) }],
         v1Base()
       )
-    );
+    ));
     const bytes = wire(msg);
     const d = decodeTransaction(bytes);
     expect(d.version).toBe(1);
@@ -90,7 +91,10 @@ describe("decodeTransaction", () => {
     expect(d.programIds).toEqual([CLOAK_PROGRAM_ID]);
     expect(d.staticKeys).toEqual(expect.arrayContaining([PAYER, POOL, EXTRA, CLOAK_PROGRAM_ID]));
     expect(d.lookupTables).toEqual([]);
-    expect(Object.values(d.config ?? {})).toContain(1_200_000);
+    expect(d.config).toEqual({ priorityFeeLamports: "120000", computeUnitLimit: 1_200_000 });
+    expect(d.priorityFeeLamports).toBe(120_000n);
+    expect(d.computeUnitLimit).toBe(1_200_000);
+    expect(d.writableKeys).toEqual([PAYER, POOL]);
   });
 
   it("rejects truncated bytes instead of guessing", () => {
@@ -101,7 +105,7 @@ describe("decodeTransaction", () => {
 describe("shieldVerdict: never 'would succeed' without the Cloak program", () => {
   const ok = diagnosticFromRpcError({ code: 0, message: "Simulation succeeded", data: { err: null, logs: [] } });
   const failed = diagnosticFromRpcError({ code: -32002, message: "failed", data: { err: { InstructionError: [3, { Custom: 4272 }] }, logs: [] } });
-  const tx = (programIds: string[], altInstructions: string[] = []) => ({ version: 0, size: 900, signatures: 1, staticKeys: [], instructions: [], programIds, lookupTables: [], extendedAddresses: [], altInstructions, config: null });
+  const tx = (programIds: string[], altInstructions: string[] = []) => ({ version: 0, size: 900, signatures: 1, staticKeys: [], instructions: [], programIds, lookupTables: [], extendedAddresses: [], altInstructions, config: null, writableKeys: [], priorityFeeLamports: 0n, computeUnitLimit: null });
   const altSetup: SimulationOutcome = { ok: true, rpcRejected: false, diagnostic: ok, transaction: tx([ALT_PROGRAM], ["CreateLookupTable", "ExtendLookupTable"]) };
 
   it("a successful ALT setup simulation is NOT_A_SHIELD_SIMULATION", () => {

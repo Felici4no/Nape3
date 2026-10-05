@@ -10,6 +10,7 @@ interface InjectedWallet {
   disconnect?(): Promise<void>;
   signTransaction(tx: unknown): Promise<unknown>;
   signMessage(message: Uint8Array, display?: "utf8" | "hex"): Promise<{ signature: Uint8Array } | Uint8Array>;
+  request?(args: { method: string; params?: unknown }): Promise<unknown>;
 }
 
 declare global {
@@ -33,6 +34,8 @@ export interface ConnectedWallet {
   address: Address;
   signMessage(message: Uint8Array): Promise<Uint8Array>;
   cloakSigner(): CloakSigner;
+  /** The injected provider, for the Transaction V1 signing test only (signTransaction; never sends). */
+  provider: InjectedWallet;
 }
 
 /**
@@ -58,6 +61,7 @@ export async function connectWallet(options: { silent?: boolean } = {}): Promise
     },
     address: walletAddress,
     signMessage,
+    provider: found.wallet,
     cloakSigner: () => ({
       kind: "wallet",
       signer: signerFromWalletAdapter(

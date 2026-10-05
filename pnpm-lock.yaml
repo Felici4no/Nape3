@@ -241,6 +241,9 @@ importers:
       '@nape3/payments':
         specifier: workspace:*
         version: link:../payments
+      '@noble/curves':
+        specifier: 1.9.7
+        version: 1.9.7
       '@solana/kit':
         specifier: 8.3.0
         version: 8.3.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)

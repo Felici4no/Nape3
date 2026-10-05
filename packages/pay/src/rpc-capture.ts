@@ -1,7 +1,16 @@
 import type { CloakRpc } from "@cloak.dev/sdk";
 import { diagnosticFromRpcError, type RpcFailureDiagnostic } from "@nape3/payments/cloak";
 import { base64ToBytes, decodeTransaction, type DecodedTransaction } from "./tx-decode";
-import { createDefaultRpcTransport, createSolanaRpcFromTransport, type RpcTransport, type TransactionPartialSigner, type Address } from "@solana/kit";
+import { shieldCost, systemMovements, type InnerInstruction, type ShieldCost, type SystemMovement } from "./shield-cost";
+import {
+  createDefaultRpcTransport,
+  createSolanaRpcFromTransport,
+  getBase64Decoder,
+  getTransactionDecoder,
+  type RpcTransport,
+  type TransactionPartialSigner,
+  type Address
+} from "@solana/kit";
 
 /**
  * RPC client for /shield that keeps what the Cloak SDK throws away.
@@ -27,6 +36,10 @@ export interface SimulationOutcome {
   diagnostic: RpcFailureDiagnostic;
   /** Public summary of the simulated transaction (programs, lookup tables); null if it could not be decoded. */
   transaction: DecodedTransaction | null;
+  /** SOL requirement measured around the simulation (when `measureCost` is on); null if it could not be measured. */
+  cost?: ShieldCost | null;
+  /** Why the cost could not be measured. */
+  costError?: string;
 }
 
 function decodeWire(wire: unknown, encoding: string | undefined): DecodedTransaction | null {
@@ -41,6 +54,13 @@ function decodeWire(wire: unknown, encoding: string | undefined): DecodedTransac
 export interface CaptureHooks {
   onFailure?(diagnostic: RpcFailureDiagnostic, method: string): void;
   onSimulation?(outcome: SimulationOutcome): void;
+  /**
+   * simulate-only: also ask the simulation for the post-state of every
+   * writable account and its inner instructions, read the same accounts' current
+   * balances, the cluster fee for the exact message and the payer's rent-exempt
+   * minimum, and attach a SOL cost breakdown. Reads only.
+   */
+  measureCost?: boolean;
 }
 
 /** Error code returned to the SDK in simulate-only mode (outside the Solana-reserved range it decodes). */
@@ -70,27 +90,37 @@ export function captureTransport(base: BaseTransport, mode: CaptureMode, hooks: 
 
     if (mode === "simulate-only" && method === "sendTransaction") {
       const [wire, options] = (payload.params ?? []) as [string, { encoding?: string; preflightCommitment?: string } | undefined];
-      const simulation = (await base({
-        ...config,
-        payload: {
-          jsonrpc: "2.0",
-          id: payload.id,
-          method: "simulateTransaction",
-          params: [wire, { encoding: options?.encoding ?? "base64", sigVerify: false, replaceRecentBlockhash: false, commitment: options?.preflightCommitment ?? "confirmed" }]
-        }
-      })) as JsonRpcResponse;
       const transaction = decodeWire(wire, options?.encoding);
+      const commitment = options?.preflightCommitment ?? "confirmed";
+      const measure = !!hooks.measureCost && transaction !== null && transaction.writableKeys.length > 0;
+      const simulateOptions: Record<string, unknown> = { encoding: options?.encoding ?? "base64", sigVerify: false, replaceRecentBlockhash: false, commitment };
+      if (measure) {
+        simulateOptions.accounts = { addresses: transaction.writableKeys, encoding: "base64" };
+        simulateOptions.innerInstructions = true;
+      }
+      const simulation = (await base({ ...config, payload: { jsonrpc: "2.0", id: payload.id, method: "simulateTransaction", params: [wire, simulateOptions] } })) as JsonRpcResponse;
       if (simulation.error) {
         hooks.onSimulation?.({ ok: false, rpcRejected: true, diagnostic: diagnosticFromRpcError(simulation.error), transaction });
       } else {
         const value = ((simulation.result as { value?: Record<string, unknown> } | undefined)?.value ?? {}) as Record<string, unknown>;
         const ok = value.err === null || value.err === undefined;
-        hooks.onSimulation?.({
+        // The diagnostic keeps what it always had; post-state accounts can be large and are summarized by the cost instead.
+        const { accounts: postAccounts, innerInstructions, ...diagnosticData } = value;
+        const outcome: SimulationOutcome = {
           ok,
           rpcRejected: false,
-          diagnostic: diagnosticFromRpcError({ code: ok ? 0 : -32002, message: ok ? "Simulation succeeded (not broadcast)" : "Transaction simulation failed (not broadcast)", data: value }),
+          diagnostic: diagnosticFromRpcError({ code: ok ? 0 : -32002, message: ok ? "Simulation succeeded (not broadcast)" : "Transaction simulation failed (not broadcast)", data: { ...diagnosticData, accounts: null } }),
           transaction
-        });
+        };
+        if (measure) {
+          try {
+            outcome.cost = await measureCost(base, config.signal, wire, transaction, postAccounts, innerInstructions, commitment);
+          } catch (error) {
+            outcome.cost = null;
+            outcome.costError = error instanceof Error ? error.message : String(error);
+          }
+        }
+        hooks.onSimulation?.(outcome);
       }
       return { jsonrpc: "2.0", id: payload.id, error: { code: DRY_RUN_ERROR_CODE, message: DRY_RUN_MESSAGE } };
     }
@@ -107,6 +137,78 @@ export function captureTransport(base: BaseTransport, mode: CaptureMode, hooks: 
     }
     return response;
   };
+}
+
+let readId = 0;
+
+async function read<T>(base: BaseTransport, signal: AbortSignal | undefined, method: string, params: unknown[]): Promise<T> {
+  const response = (await base({ ...(signal ? { signal } : {}), payload: { jsonrpc: "2.0", id: `cost-${++readId}`, method, params } })) as JsonRpcResponse;
+  if (response.error) throw new Error(`${method}: ${String(response.error.message ?? response.error.code)}`);
+  return response.result as T;
+}
+
+function lamportsOf(account: unknown): bigint | null {
+  if (!account || typeof account !== "object") return null;
+  const l = (account as { lamports?: unknown }).lamports;
+  return typeof l === "number" || typeof l === "bigint" ? BigInt(l) : null;
+}
+
+interface UiInner {
+  index: number;
+  instructions: Array<InnerInstruction | { programId: string; parsed?: { type?: string; info?: Record<string, unknown> } }>;
+}
+
+/** Inner System createAccount/transfer from either compiled or parsed simulation output. */
+function movementsFrom(inner: unknown, accountKeys: string[], before: Map<string, bigint | null>): SystemMovement[] {
+  if (!Array.isArray(inner)) return [];
+  const compiled: InnerInstruction[] = [];
+  const parsed: SystemMovement[] = [];
+  for (const group of inner as UiInner[]) {
+    for (const ix of group.instructions ?? []) {
+      if ("programIdIndex" in ix) compiled.push(ix);
+      else if (ix.programId === "11111111111111111111111111111111" && ix.parsed?.info) {
+        const info = ix.parsed.info;
+        const to = String(info.newAccount ?? info.destination ?? "?");
+        const lamports = BigInt(String(info.lamports ?? 0));
+        const existed = (before.get(to) ?? null) !== null;
+        if (ix.parsed.type === "createAccount") {
+          parsed.push({ kind: "createAccount", from: String(info.source), to, lamports, space: BigInt(String(info.space ?? 0)), owner: String(info.owner ?? ""), toExistedBefore: existed });
+        } else if (ix.parsed.type === "transfer") {
+          parsed.push({ kind: "transfer", from: String(info.source), to, lamports, toExistedBefore: existed });
+        }
+      }
+    }
+  }
+  return [...systemMovements(compiled, accountKeys, before), ...parsed];
+}
+
+async function measureCost(
+  base: BaseTransport,
+  signal: AbortSignal | undefined,
+  wire: string,
+  transaction: DecodedTransaction,
+  postAccounts: unknown,
+  inner: unknown,
+  commitment: string
+): Promise<ShieldCost> {
+  const keys = transaction.writableKeys;
+  const messageBase64 = getBase64Decoder().decode(getTransactionDecoder().decode(base64ToBytes(wire)).messageBytes);
+  const [pre, fee, rentMin] = await Promise.all([
+    read<{ value: unknown[] }>(base, signal, "getMultipleAccounts", [keys, { encoding: "base64", dataSlice: { offset: 0, length: 0 }, commitment }]),
+    read<{ value: number | null }>(base, signal, "getFeeForMessage", [messageBase64, { commitment }]).catch(() => ({ value: null })),
+    read<number>(base, signal, "getMinimumBalanceForRentExemption", [0, { commitment }])
+  ]);
+  const post = Array.isArray(postAccounts) ? postAccounts : [];
+  const accounts = keys.map((address, i) => ({ address, before: lamportsOf(pre.value[i]), after: lamportsOf(post[i]) }));
+  const before = new Map(accounts.map((a) => [a.address, a.before] as const));
+  return shieldCost({
+    feePayer: transaction.staticKeys[0]!,
+    accounts,
+    movements: movementsFrom(inner, transaction.staticKeys, before),
+    networkFee: fee.value === null || fee.value === undefined ? null : BigInt(fee.value),
+    priorityFee: transaction.priorityFeeLamports,
+    payerRentExemptMinimum: BigInt(rentMin)
+  });
 }
 
 /** Same shape as the SDK's `createCloakRpc` (an `endpoint` property the SDK checks), with capture. */

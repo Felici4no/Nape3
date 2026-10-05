@@ -22,6 +22,7 @@ import { CLOAK_PROGRAM_ID, diagnoseShieldChain, type ShieldChainDiagnosis } from
 import { LocalIntentStore } from "./shield-intent";
 import { displayError, SHIELD_AMOUNT_USDC, ShieldOperation, type ShieldDeps } from "./shield-op";
 import { connectWallet, type ConnectedWallet } from "./wallet";
+import { runV1SigningTest, type V1SigningResult } from "./v1-signing-test";
 
 /**
  * Real wiring of UPAY3FOOD Pay: injected wallet (Phantom/Solflare), Solana
@@ -202,6 +203,12 @@ export interface ShieldSession {
    * in memory only, and the shield intent record is not touched.
    */
   simulate(lookupTables: string[], options?: { transactionVersion?: 0 | 1 }): Promise<ShieldSimulation>;
+  /**
+   * Asks the wallet to sign (signTransaction only) a harmless Transaction V1
+   * (0-lamport transfer to itself), verifies the signature locally and
+   * discards it. Never broadcast: a guard makes every send path throw.
+   */
+  testV1Signing(): Promise<V1SigningResult>;
 }
 
 /** Exactly 1 USDC into the Cloak pool, signed by the injected wallet. Nothing is sent without confirm(). */
@@ -284,7 +291,7 @@ export function createShieldSession(): ShieldSession {
       const url = shieldRpc().url;
       const dryFunding = new CloakFunding({
         sdk: realCloakSdk,
-        connection: createCapturingCloakRpc(url, "simulate-only", { onSimulation: (o) => attempts.push(o) }),
+        connection: createCapturingCloakRpc(url, "simulate-only", { onSimulation: (o) => attempts.push(o), measureCost: true }),
         signer: { kind: "wallet", signer: dryRunSigner(connected.address), signMessage: connected.signMessage, address: connected.address },
         keys,
         store: new MemoryNoteStore(),
@@ -302,6 +309,23 @@ export function createShieldSession(): ShieldSession {
         if (attempts.length === 0) stoppedBy = displayError(error);
       }
       return { ...shieldVerdict(attempts), transactionVersion, stages, attempts, stoppedBy, lookupTables };
+    },
+    async testV1Signing() {
+      if (!connected) throw new Error("connect the wallet first");
+      const provider = connected.provider;
+      return runV1SigningTest({
+        wallet: {
+          publicKey: provider.publicKey,
+          signTransaction: (tx) => provider.signTransaction(tx),
+          ...(provider.request ? { request: (args: { method: string; params?: unknown }) => provider.request!(args) } : {})
+        },
+        guardTarget: window as never,
+        guardWallet: provider,
+        latestBlockhash: async () => {
+          const r = await rpcCall<{ value: { blockhash: string; lastValidBlockHeight: number } }>("getLatestBlockhash", [{ commitment: "confirmed" }]);
+          return r.value;
+        }
+      });
     }
   };
 }

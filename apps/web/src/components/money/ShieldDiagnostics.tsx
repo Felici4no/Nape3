@@ -1,7 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { altCleanupPlan, CLOAK_PROGRAM_ID, formatSol9, formatUsdc6, type ShieldSession, type ShieldSimulation } from "@nape3/pay";
+import {
+  altCleanupPlan,
+  CLOAK_PROGRAM_ID,
+  formatSol9,
+  formatUsdc6,
+  type ShieldCost,
+  type ShieldSession,
+  type ShieldSimulation,
+  type V1SigningResult
+} from "@nape3/pay";
 import { diagnosticFromMessage, formatDiagnostic, type RpcFailureDiagnostic } from "@nape3/payments/cloak";
 import styles from "./money.module.css";
 
@@ -66,6 +75,34 @@ const VERDICT_LABEL: Record<ShieldSimulation["verdict"], string> = {
   NOT_A_SHIELD_SIMULATION: "NOT_A_SHIELD_SIMULATION: the Cloak deposit was not simulated"
 };
 
+const sol = (l: bigint | null) => (l === null ? "unknown" : `${formatSol9(l)} SOL (${l.toString()} lamports)`);
+
+function costText(c: ShieldCost): string {
+  const created = c.movements.filter((m) => m.kind === "createAccount");
+  return [
+    "SOL requirement (measured from this simulation; nothing was sent):",
+    `  Fee payer: ${c.feePayer}`,
+    `  Network fee for this exact message (getFeeForMessage): ${sol(c.networkFee)}`,
+    `    base (signature) fee: ${sol(c.baseFee)}`,
+    `    priority fee (from the transaction's compute config): ${sol(c.priorityFee)}`,
+    ...(c.networkFee === null ? ["    (the RPC returned no fee for this message; the total assumes 2 signatures × 5,000 lamports + the priority fee)"] : []),
+    `  System Program movements during execution (${c.movements.length}; ${created.length} account creations):`,
+    ...c.movements.map(
+      (m) =>
+        `    ${m.kind} ${m.from === c.feePayer ? "wallet" : m.from} → ${m.to}: ${sol(m.lamports)}${m.space !== undefined ? `, ${m.space} bytes, owner ${m.owner}` : ""}; ${m.toExistedBefore ? "account already existed" : "NEW account"}`
+    ),
+    `  Rent into newly created accounts (paid by the wallet): ${sol(c.rentIntoNewAccounts)}`,
+    `  Other wallet debits not explained by the fee or System movements: ${sol(c.otherDebits)}`,
+    `  Simulated post-balance already had the fee deducted: ${c.simulationIncludesFee === null ? "could not tell" : c.simulationIncludesFee ? "yes" : "no"}`,
+    `  ESTIMATED TOTAL SOL SPENT BY THE WALLET: ${sol(c.estimatedTotal)}`,
+    `  Wallet must also keep its rent-exempt minimum: ${sol(c.payerRentExemptMinimum)}`,
+    `  RECOMMENDED MINIMUM BALANCE (total + rent-exempt minimum + margin max(10%, 0.0005 SOL)): ${sol(c.recommendedMinimum)}`,
+    `  Current wallet balance: ${sol(c.walletBalance)} → ${c.sufficient ? "SUFFICIENT" : "NOT SUFFICIENT"} (short by ${c.sufficient ? "0" : formatSol9(c.recommendedMinimum - c.walletBalance)} SOL)`,
+    "  Writable accounts (balance now → simulated after):",
+    ...c.accounts.map((a) => `    ${a.address}: ${a.before === null ? "does not exist" : a.before.toString()} → ${a.after === null ? "n/a" : a.after.toString()}`)
+  ].join("\n");
+}
+
 function simulationText(s: ShieldSimulation): string {
   const lines = [`Verdict: ${VERDICT_LABEL[s.verdict]}`, `Requested message version: ${s.transactionVersion === 1 ? "Transaction V1 (no lookup tables)" : "v0 + lookup tables"}`];
   if (s.verdictReason) lines.push(`Reason: ${s.verdictReason}`);
@@ -85,17 +122,44 @@ function simulationText(s: ShieldSimulation): string {
         ...t.instructions.map((ix) => `    #${ix.index} ${ix.programId} (${ix.accounts} accounts, ${ix.dataLength} data bytes)`)
       );
       if (t.config) lines.push(`  v1 compute config: ${JSON.stringify(t.config)}`);
+      lines.push(`  writable accounts: ${t.writableKeys.length}; priority fee requested: ${t.priorityFeeLamports.toString()} lamports; compute unit limit: ${t.computeUnitLimit ?? "default"}`);
       if (t.lookupTables.length) lines.push(`  lookup tables referenced: ${t.lookupTables.map((l) => `${l.table} (w${l.writable}/r${l.readonly})`).join(", ")}`);
       if (t.extendedAddresses.length) lines.push(`  addresses this ALT would add (${t.extendedAddresses.length}):`, ...t.extendedAddresses.map((x) => `    ${x}`));
     }
     lines.push(formatDiagnostic(a.diagnostic));
+    if (a.cost) lines.push(costText(a.cost));
+    else if (a.costError) lines.push(`SOL requirement could not be measured: ${a.costError}`);
   });
   return lines.join("\n");
+}
+
+const V1_OUTCOME_LABEL: Record<V1SigningResult["outcome"], string> = {
+  PHANTOM_V1_SIGNING_SUPPORTED: "PHANTOM_V1_SIGNING_SUPPORTED",
+  PHANTOM_V1_SIGNING_UNSUPPORTED: "PHANTOM_V1_SIGNING_UNSUPPORTED",
+  INCONCLUSIVE_USER_REJECTED: "INCONCLUSIVE: the request was rejected in the wallet"
+};
+
+function v1SigningText(r: V1SigningResult): string {
+  return [
+    `Outcome: ${V1_OUTCOME_LABEL[r.outcome]}`,
+    `Detail: ${r.detail}`,
+    `Wallet: ${r.wallet}`,
+    `Path used: ${r.path ?? "-"}`,
+    `Wallet returned a signed result: ${r.checks.walletReturned}`,
+    `Message unchanged: ${r.checks.messageUnchanged ?? "-"}`,
+    `Still Transaction V1: ${r.checks.stillVersion1 ?? "-"}`,
+    `Signature valid for the message and the connected public key: ${r.checks.signatureValid ?? "-"}`,
+    `Cloak SDK wallet path usable (signed.serialize()): ${r.sdkAdapterPathWorks === null ? "-" : r.sdkAdapterPathWorks}`,
+    ...r.inPageErrors.map((e) => `In-page error (not the wallet): ${e}`),
+    `Broadcast attempts blocked by the guard: ${r.blockedBroadcasts}`,
+    "The signed transaction was verified locally, then discarded. It was not sent and is not stored."
+  ].join("\n");
 }
 
 export function ShieldDiagnostics({ session, diagnostic }: { session: ShieldSession; diagnostic?: RpcFailureDiagnostic }) {
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [simulation, setSimulation] = useState<ShieldSimulation | null>(null);
+  const [v1Signing, setV1Signing] = useState<V1SigningResult | null>(null);
   const [pasted, setPasted] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -152,7 +216,40 @@ export function ShieldDiagnostics({ session, diagnostic }: { session: ShieldSess
       {simulation && (
         <p className={`${styles.status} ${simulation.verdict === "WOULD_SUCCEED" ? "" : styles.err}`}>{VERDICT_LABEL[simulation.verdict]}</p>
       )}
+      {simulation?.outcome?.cost && (
+        <p className={`${styles.status} ${simulation.outcome.cost.sufficient ? "" : styles.err}`}>
+          SOL needed: {formatSol9(simulation.outcome.cost.estimatedTotal)} spent, {formatSol9(simulation.outcome.cost.recommendedMinimum)} recommended minimum balance;
+          wallet has {formatSol9(simulation.outcome.cost.walletBalance)}: {simulation.outcome.cost.sufficient ? "sufficient" : "not sufficient"}.
+        </p>
+      )}
       {simulation && <Block title="Simulation (not broadcast)" text={simulationText(simulation)} />}
+
+      <div className={styles.diag}>
+        <span className="eyebrow">Transaction V1 signing test</span>
+        <p className={styles.fine}>
+          This asks Phantom to sign a harmless Transaction V1.
+          <br />
+          It will not be broadcast and cannot move funds.
+        </p>
+        <p className={styles.fine}>
+          The transaction is a 0-lamport transfer from your wallet to itself. Only “sign” is requested (never “sign and send”); the signature is checked
+          here and then discarded. While the test runs, any attempt to broadcast is blocked.
+        </p>
+        <div className={styles.row}>
+          <button
+            className="btn ghost"
+            style={{ color: "var(--night-ink)", boxShadow: "inset 0 0 0 1.5px var(--night-ink)" }}
+            disabled={busy !== null}
+            onClick={() => void run("v1-signing", async () => setV1Signing(await session.testV1Signing()))}
+          >
+            {busy === "v1-signing" ? "Waiting for Phantom (sign only)…" : "Run Transaction V1 signing test"}
+          </button>
+        </div>
+        {v1Signing && (
+          <p className={`${styles.status} ${v1Signing.outcome === "PHANTOM_V1_SIGNING_SUPPORTED" ? "" : styles.err}`}>{V1_OUTCOME_LABEL[v1Signing.outcome]}</p>
+        )}
+        {v1Signing && <Block title="Transaction V1 signing test (nothing sent)" text={v1SigningText(v1Signing)} />}
+      </div>
 
       <details className={styles.details}>
         <summary>Decode a console error</summary>
