@@ -70,8 +70,12 @@ R$27,79 order.
 | Cloak program | `zh1eLd6rSphLejbFfJEneUwzHRfMKxgzrgkfwA6qRkW` |
 | SDK | `@cloak.dev/sdk` 0.2.5 |
 | Flow | Shield (USDC deposit into the Cloak pool) |
-| Signature | **PENDING: not executed yet** |
-| Explorer | `https://solscan.io/tx/<signature>` |
+| Amount | **1.000000 USDC** |
+| Signature | `4xa8vKZLHQfZF6GzvK4SAqQwRrQUN9H7UBmT5cvnc6BKjiMdQ2RMJKnRVqgq7HtG4tAyUeFbcXjWXWfZ1v4asQfx` |
+| Slot | `453687294` |
+| Confirmed | `2026-10-05T20:32:11.000Z` |
+| Explorer | https://solscan.io/tx/4xa8vKZLHQfZF6GzvK4SAqQwRrQUN9H7UBmT5cvnc6BKjiMdQ2RMJKnRVqgq7HtG4tAyUeFbcXjWXWfZ1v4asQfx |
+| Canonical proof | [docs/08-proofs/2026-10-05-mainnet-shield.md](08-proofs/2026-10-05-mainnet-shield.md) |
 
 The mainnet transaction must be signed by the project's own wallet. It cannot
 be run from the CI or agent environment, which has no funds and no access to
