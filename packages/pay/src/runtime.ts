@@ -173,6 +173,12 @@ export interface ShieldSimulation {
 
 export interface ShieldSession {
   operation: ShieldOperation;
+  /** Connects the wallet for diagnosis only (no balance checks, no shield state machine). */
+  connectForDiagnosis(silent: boolean): Promise<string>;
+  /** The connected wallet's address, if any. */
+  diagnosisWallet(): string | null;
+  /** Whether Cloak keys are available (the derivation message was signed in this page). */
+  unlocked(): boolean;
   /** Read-only: balances, latest signatures, lookup-table transaction and account, Cloak deposits. */
   diagnose(): Promise<ShieldChainDiagnosis & { privateUsdc: bigint | null }>;
   /**
@@ -230,25 +236,42 @@ export function createShieldSession(): ShieldSession {
   };
   const operation = new ShieldOperation(deps, SHIELD_AMOUNT_USDC);
 
+  /** One message signature (not a transaction) when the keys are not loaded yet. */
+  const ensureUnlocked = async () => {
+    if (unlocked) return unlocked;
+    if (!connected) throw new Error("connect the wallet first");
+    const url = shieldRpc().url;
+    const { funding, keys } = await unlock(connected, url, createCapturingCloakRpc(url, "live", capture));
+    unlocked = { funding, keys };
+    return unlocked;
+  };
+
   return {
     operation,
+    async connectForDiagnosis(silent) {
+      connected = await connectWallet({ silent });
+      return connected.address;
+    },
+    diagnosisWallet: () => connected?.address ?? operation.state.wallet?.address ?? null,
+    unlocked: () => unlocked !== null,
     async diagnose() {
-      const wallet = operation.state.wallet;
-      if (!wallet) throw new Error("connect the wallet first");
-      const chain = await diagnoseShieldChain(rpcCall, wallet.address, USDC);
+      const walletAddress = connected?.address ?? operation.state.wallet?.address;
+      if (!walletAddress) throw new Error("connect the wallet first");
+      const chain = await diagnoseShieldChain(rpcCall, walletAddress, USDC);
       let privateUsdc: bigint | null = null;
       if (unlocked) privateUsdc = (await unlocked.funding.reconcileWithChain()).total;
       return { ...chain, privateUsdc };
     },
     async simulate(lookupTables) {
-      if (!connected || !unlocked) throw new Error("unlock Cloak first (one message signature, not a transaction)");
+      if (!connected) throw new Error("connect the wallet first");
+      const keys = (await ensureUnlocked()).keys;
       const attempts: SimulationOutcome[] = [];
       const url = shieldRpc().url;
       const dryFunding = new CloakFunding({
         sdk: realCloakSdk,
         connection: createCapturingCloakRpc(url, "simulate-only", { onSimulation: (o) => attempts.push(o) }),
         signer: { kind: "wallet", signer: dryRunSigner(connected.address), signMessage: connected.signMessage, address: connected.address },
-        keys: unlocked.keys,
+        keys,
         store: new MemoryNoteStore(),
         mint: USDC,
         log

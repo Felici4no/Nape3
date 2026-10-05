@@ -50,3 +50,8 @@ has been sent.
 Decode the console line of the failed attempt (`pnpm cloak decode` or the
 panel) **or** run "Simulate shield (no transaction)". Do not press "Check on
 chain" first: with public USDC unchanged it clears the attempt record.
+
+Use `/shield/diagnose` for this: it has no shield action, works on any
+deployment URL (the blocking record is per-origin `localStorage`, so another
+preview URL would not see it), and unlocks Cloak on demand with the
+derivation message only.
