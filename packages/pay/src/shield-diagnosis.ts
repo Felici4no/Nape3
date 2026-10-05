@@ -47,8 +47,11 @@ export interface ShieldChainDiagnosis {
   publicUsdc: bigint;
   solLamports: bigint;
   signatures: SignatureSummary[];
+  /** Most recent lookup-table transaction and its table (kept for display). */
   lookupTableTransaction: SignatureSummary | null;
   lookupTable: LookupTableState | null;
+  /** Every table created/extended by this wallet's recent transactions, newest first. */
+  lookupTables: LookupTableState[];
   /** Signatures of transactions that invoked the Cloak program (a shield/deposit would be one). */
   cloakTransactions: string[];
 }
@@ -131,7 +134,9 @@ export async function diagnoseShieldChain(rpc: RpcCall, wallet: string, usdcMint
     signatures.push(summarize(s.signature, s.slot, s.blockTime, tx, s.err));
   }
   const lookupTableTransaction = signatures.find((s) => s.kind === "lookup-table" && s.lookupTable) ?? null;
-  const lookupTable = lookupTableTransaction?.lookupTable ? await readLookupTable(rpc, lookupTableTransaction.lookupTable.address, slot) : null;
+  const tableAddresses = [...new Set(signatures.map((s) => s.lookupTable?.address).filter((a): a is string => !!a))];
+  const lookupTables = await Promise.all(tableAddresses.map((a) => readLookupTable(rpc, a, slot)));
+  const lookupTable = lookupTables.find((t) => t.address === lookupTableTransaction?.lookupTable?.address) ?? null;
   return {
     wallet,
     currentSlot: slot,
@@ -140,6 +145,7 @@ export async function diagnoseShieldChain(rpc: RpcCall, wallet: string, usdcMint
     signatures,
     lookupTableTransaction,
     lookupTable,
+    lookupTables,
     cloakTransactions: signatures.filter((s) => s.kind === "cloak").map((s) => s.signature)
   };
 }

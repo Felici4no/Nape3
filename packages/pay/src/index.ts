@@ -6,3 +6,4 @@ export { connectedToExtension, loadPaymentRequest, notifyRunStarted, reportDisco
 export { findWallet } from "./wallet";
 export * from "./shield-diagnosis";
 export { captureTransport, createCapturingCloakRpc, dryRunSigner, DRY_RUN_ERROR_CODE, DRY_RUN_MESSAGE, type CaptureMode, type SimulationOutcome } from "./rpc-capture";
+export { decodeTransaction, base64ToBytes, ALT_PROGRAM, type DecodedTransaction } from "./tx-decode";

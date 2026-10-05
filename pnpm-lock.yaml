@@ -235,6 +235,9 @@ importers:
       '@nape3/agent':
         specifier: workspace:*
         version: link:../agent
+      '@nape3/chain':
+        specifier: workspace:*
+        version: link:../chain
       '@nape3/domain':
         specifier: workspace:*
         version: link:../domain

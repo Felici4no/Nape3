@@ -55,3 +55,31 @@ Use `/shield/diagnose` for this: it has no shield action, works on any
 deployment URL (the blocking record is per-origin `localStorage`, so another
 preview URL would not see it), and unlocks Cloak on demand with the
 derivation message only.
+
+## Update: the first simulation did not simulate the deposit
+
+The read-only diagnosis showed no Cloak transaction (the shield did not
+land), public USDC 6.062919, SOL 0.008265410, and an active, warmed-up
+table `GLVcKLgw5rRsa6eWNXwNqMzP4tX8zXgfEMCx9837aan3` (8 addresses).
+
+The simulation then simulated an ALT `CreateLookupTable + ExtendLookupTable`,
+not the deposit. Cause, from the SDK source:
+
+- `altAddresses` (plus the relay's `/health` tables) only replaces the
+  *first* table (`acquireDepositAlt`). `planDirectV0Submission` then measures
+  the deposit with those tables and, if the minimal set still exceeds 1232
+  bytes, calls `createSupplementalAlt`, which (without `relaySupplementalAlt`)
+  creates and extends a depositor-signed table. Simulate-only intercepted that
+  transaction, simulated it and stopped the SDK: the deposit was never built.
+- So the original attempt most likely created two tables (common, then
+  supplemental): two identical SOL drops of 2,315,200 lamports
+  (0.012895810 → 0.010580610 → 0.008265410).
+- The relay path (`resolveRelaySupplementalAlt`) waits for
+  `lastExtendedSlot < currentSlot`; the depositor path (`createEphemeralALT`)
+  does not check the slot at all.
+
+Fix: the simulation now passes every active table of the wallet, decodes each
+simulated transaction from its bytes (program ids, referenced tables,
+addresses an extension would add) and only reports WOULD_SUCCEED / WOULD_FAIL
+for a transaction that invokes the Cloak program; otherwise
+NOT_A_SHIELD_SIMULATION with the reason.

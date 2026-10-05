@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatSol9, formatUsdc6, type ShieldSession, type ShieldSimulation } from "@nape3/pay";
+import { CLOAK_PROGRAM_ID, formatSol9, formatUsdc6, type ShieldSession, type ShieldSimulation } from "@nape3/pay";
 import { diagnosticFromMessage, formatDiagnostic, type RpcFailureDiagnostic } from "@nape3/payments/cloak";
 import styles from "./money.module.css";
 
@@ -30,8 +30,15 @@ function Block({ title, text }: { title: string; text: string }) {
   );
 }
 
+function tableLines(t: Diagnosis["lookupTables"][number]): string[] {
+  return [
+    `Lookup table ${t.address}: ${t.exists ? "exists" : "MISSING"}, owner ${t.owner ?? "-"}, ${t.active ? "active" : `deactivation slot ${t.deactivationSlot}`}`,
+    `  authority ${t.authority ?? "-"}, ${t.addresses.length} addresses, last extended at slot ${t.lastExtendedSlot} (start index ${t.lastExtendedSlotStartIndex}); warmed up now: ${t.warmedUp}`,
+    ...t.addresses.map((a, i) => `  [${i}] ${a}`)
+  ];
+}
+
 function diagnosisText(d: Diagnosis): string {
-  const t = d.lookupTable;
   return [
     `Wallet: ${d.wallet}`,
     `Current slot (confirmed): ${d.currentSlot}`,
@@ -39,23 +46,41 @@ function diagnosisText(d: Diagnosis): string {
     `SOL: ${formatSol9(d.solLamports)}`,
     `Private (Cloak) USDC: ${d.privateUsdc === null ? "unknown (unlock Cloak to read)" : formatUsdc6(d.privateUsdc)}`,
     `Cloak program transactions (a shield would be one): ${d.cloakTransactions.length ? d.cloakTransactions.join(", ") : "none"}`,
-    `Lookup-table transaction: ${d.lookupTableTransaction ? `${d.lookupTableTransaction.signature} (slot ${d.lookupTableTransaction.slot}, ${d.lookupTableTransaction.failed ? "failed" : "succeeded"}, ${d.lookupTableTransaction.lookupTable?.actions.join(" + ")})` : "none found"}`,
-    ...(t
-      ? [
-          `Lookup table ${t.address}: ${t.exists ? "exists" : "MISSING"}, owner ${t.owner ?? "-"}, ${t.active ? "active" : `deactivation slot ${t.deactivationSlot}`}`,
-          `  authority ${t.authority ?? "-"}, ${t.addresses.length} addresses, last extended at slot ${t.lastExtendedSlot} (start index ${t.lastExtendedSlotStartIndex}); warmed up now: ${t.warmedUp}`,
-          ...t.addresses.map((a, i) => `  [${i}] ${a}`)
-        ]
-      : []),
+    `Lookup tables found in recent transactions: ${d.lookupTables.length}`,
+    ...d.lookupTables.flatMap(tableLines),
     "Latest signatures:",
-    ...d.signatures.map((s) => `  ${s.slot} ${s.failed ? "FAILED" : "ok"} ${s.kind.padEnd(12)} ${s.signature}`)
+    ...d.signatures.map(
+      (s) => `  ${s.slot} ${s.failed ? "FAILED" : "ok"} ${s.kind.padEnd(12)} ${s.signature}${s.lookupTable ? ` (${s.lookupTable.actions.join(" + ")} ${s.lookupTable.address})` : ""}`
+    )
   ].join("\n");
 }
 
+const VERDICT_LABEL: Record<ShieldSimulation["verdict"], string> = {
+  WOULD_SUCCEED: "SHIELD WOULD SUCCEED (Cloak deposit simulated)",
+  WOULD_FAIL: "SHIELD WOULD FAIL (Cloak deposit simulated)",
+  NOT_A_SHIELD_SIMULATION: "NOT_A_SHIELD_SIMULATION: the Cloak deposit was not simulated"
+};
+
 function simulationText(s: ShieldSimulation): string {
-  const lines = [`Lookup tables used: ${s.lookupTables.join(", ") || "none (SDK would create one: simulated only)"}`];
+  const lines = [`Verdict: ${VERDICT_LABEL[s.verdict]}`];
+  if (s.verdictReason) lines.push(`Reason: ${s.verdictReason}`);
+  lines.push(`Lookup tables given to the SDK: ${s.lookupTables.join(", ") || "none"}`);
   if (s.stoppedBy) lines.push(`SDK stopped before any transaction was built: ${s.stoppedBy}`);
-  s.attempts.forEach((a, i) => lines.push("", `Simulated transaction ${i + 1}/${s.attempts.length}: ${a.ok ? "WOULD SUCCEED" : "WOULD FAIL"}`, formatDiagnostic(a.diagnostic)));
+  if (s.stages.length) lines.push("SDK progress:", ...s.stages.map((st) => `  ${st}`));
+  s.attempts.forEach((a, i) => {
+    const t = a.transaction;
+    const isShield = !!t?.programIds.includes(CLOAK_PROGRAM_ID);
+    lines.push(
+      "",
+      `Simulated transaction ${i + 1}/${s.attempts.length}: ${isShield ? "Cloak deposit" : t?.altInstructions.length ? `lookup-table setup (${t.altInstructions.join(" + ")})` : "not a Cloak deposit"}: ${a.ok ? "simulation ok" : "simulation failed"}`
+    );
+    if (t) {
+      lines.push(`  version ${t.version}, ${t.instructions.length} instructions:`, ...t.instructions.map((ix) => `    #${ix.index} ${ix.programId} (${ix.dataLength} bytes)`));
+      if (t.lookupTables.length) lines.push(`  lookup tables referenced: ${t.lookupTables.map((l) => `${l.table} (w${l.writable}/r${l.readonly})`).join(", ")}`);
+      if (t.extendedAddresses.length) lines.push(`  addresses this ALT would add (${t.extendedAddresses.length}):`, ...t.extendedAddresses.map((x) => `    ${x}`));
+    }
+    lines.push(formatDiagnostic(a.diagnostic));
+  });
   return lines.join("\n");
 }
 
@@ -66,6 +91,8 @@ export function ShieldDiagnostics({ session, diagnostic }: { session: ShieldSess
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const decoded = pasted.trim() ? diagnosticFromMessage(pasted) : null;
+  /** Every existing, active table of this wallet: the deposit may need more than the most recent one. */
+  const activeTables = (diagnosis?.lookupTables ?? []).filter((t) => t.exists && t.active).map((t) => t.address);
 
   async function run(name: string, fn: () => Promise<void>) {
     setBusy(name);
@@ -95,15 +122,18 @@ export function ShieldDiagnostics({ session, diagnostic }: { session: ShieldSess
         <button
           className="btn ghost"
           style={{ color: "var(--night-ink)", boxShadow: "inset 0 0 0 1.5px var(--night-ink)" }}
-          disabled={busy !== null || !diagnosis?.lookupTable?.exists}
-          title={diagnosis?.lookupTable?.exists ? "" : "Read on-chain state first: the simulation reuses the existing lookup table"}
-          onClick={() => void run("simulate", async () => setSimulation(await session.simulate([diagnosis!.lookupTable!.address])))}
+          disabled={busy !== null || !activeTables.length}
+          title={activeTables.length ? "" : "Read on-chain state first: the simulation reuses the existing lookup tables"}
+          onClick={() => void run("simulate", async () => setSimulation(await session.simulate(activeTables)))}
         >
           {busy === "simulate" ? "Simulating (no broadcast)…" : "Simulate shield (no transaction)"}
         </button>
       </div>
       {error && <p className={`${styles.status} ${styles.err}`}>{error}</p>}
       {diagnosis && <Block title="On-chain state" text={diagnosisText(diagnosis)} />}
+      {simulation && (
+        <p className={`${styles.status} ${simulation.verdict === "WOULD_SUCCEED" ? "" : styles.err}`}>{VERDICT_LABEL[simulation.verdict]}</p>
+      )}
       {simulation && <Block title="Simulation (not broadcast)" text={simulationText(simulation)} />}
 
       <details className={styles.details}>

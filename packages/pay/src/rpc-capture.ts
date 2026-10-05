@@ -1,5 +1,6 @@
 import type { CloakRpc } from "@cloak.dev/sdk";
 import { diagnosticFromRpcError, type RpcFailureDiagnostic } from "@nape3/payments/cloak";
+import { base64ToBytes, decodeTransaction, type DecodedTransaction } from "./tx-decode";
 import { createDefaultRpcTransport, createSolanaRpcFromTransport, type RpcTransport, type TransactionPartialSigner, type Address } from "@solana/kit";
 
 /**
@@ -22,6 +23,17 @@ export type CaptureMode = "live" | "simulate-only";
 export interface SimulationOutcome {
   ok: boolean;
   diagnostic: RpcFailureDiagnostic;
+  /** Public summary of the simulated transaction (programs, lookup tables); null if it could not be decoded. */
+  transaction: DecodedTransaction | null;
+}
+
+function decodeWire(wire: unknown, encoding: string | undefined): DecodedTransaction | null {
+  if (typeof wire !== "string" || (encoding ?? "base64") !== "base64") return null;
+  try {
+    return decodeTransaction(base64ToBytes(wire));
+  } catch {
+    return null;
+  }
 }
 
 export interface CaptureHooks {
@@ -65,14 +77,16 @@ export function captureTransport(base: BaseTransport, mode: CaptureMode, hooks: 
           params: [wire, { encoding: options?.encoding ?? "base64", sigVerify: false, replaceRecentBlockhash: false, commitment: options?.preflightCommitment ?? "confirmed" }]
         }
       })) as JsonRpcResponse;
+      const transaction = decodeWire(wire, options?.encoding);
       if (simulation.error) {
-        hooks.onSimulation?.({ ok: false, diagnostic: diagnosticFromRpcError(simulation.error) });
+        hooks.onSimulation?.({ ok: false, diagnostic: diagnosticFromRpcError(simulation.error), transaction });
       } else {
         const value = ((simulation.result as { value?: Record<string, unknown> } | undefined)?.value ?? {}) as Record<string, unknown>;
         const ok = value.err === null || value.err === undefined;
         hooks.onSimulation?.({
           ok,
-          diagnostic: diagnosticFromRpcError({ code: ok ? 0 : -32002, message: ok ? "Simulation succeeded (not broadcast)" : "Transaction simulation failed (not broadcast)", data: value })
+          diagnostic: diagnosticFromRpcError({ code: ok ? 0 : -32002, message: ok ? "Simulation succeeded (not broadcast)" : "Transaction simulation failed (not broadcast)", data: value }),
+          transaction
         });
       }
       return { jsonrpc: "2.0", id: payload.id, error: { code: DRY_RUN_ERROR_CODE, message: DRY_RUN_MESSAGE } };

@@ -18,7 +18,7 @@ import { reportToExtension } from "./bridge";
 import { EncryptedLocalNoteStore } from "./encrypted-store";
 import { PaymentFlow, settlementUnavailable, type PaymentRequest, type PrivateBalance } from "./flow";
 import { createCapturingCloakRpc, dryRunSigner, type SimulationOutcome } from "./rpc-capture";
-import { diagnoseShieldChain, type ShieldChainDiagnosis } from "./shield-diagnosis";
+import { CLOAK_PROGRAM_ID, diagnoseShieldChain, type ShieldChainDiagnosis } from "./shield-diagnosis";
 import { LocalIntentStore } from "./shield-intent";
 import { displayError, SHIELD_AMOUNT_USDC, ShieldOperation, type ShieldDeps } from "./shield-op";
 import { connectWallet, type ConnectedWallet } from "./wallet";
@@ -161,9 +161,21 @@ async function rpcCall<T>(method: string, params: unknown[]): Promise<T> {
   return envelope.result as T;
 }
 
+/**
+ * WOULD_SUCCEED / WOULD_FAIL only for a transaction that invokes the Cloak
+ * program. Anything else (e.g. the SDK asking for another lookup table) is
+ * NOT_A_SHIELD_SIMULATION, whatever its own result.
+ */
+export type ShieldSimulationVerdict = "WOULD_SUCCEED" | "WOULD_FAIL" | "NOT_A_SHIELD_SIMULATION";
+
 export interface ShieldSimulation {
-  /** Simulation of the shield (deposit) transaction; null if the SDK stopped before building it. */
+  verdict: ShieldSimulationVerdict;
+  /** Why the verdict is NOT_A_SHIELD_SIMULATION. */
+  verdictReason: string | null;
+  /** Simulation of the shield (deposit) transaction: the attempt that invokes the Cloak program. */
   outcome: SimulationOutcome | null;
+  /** SDK progress text during the run (public), e.g. "creating supplemental ALT". */
+  stages: string[];
   /** Every transaction the SDK tried to send, simulated in order (a lookup-table creation would appear here too). */
   attempts: SimulationOutcome[];
   /** What stopped the SDK when no simulation was reached (proof, quote, RPC). */
@@ -277,15 +289,29 @@ export function createShieldSession(): ShieldSession {
         log
       });
       let stoppedBy: string | null = null;
+      const stages: string[] = [];
       try {
-        await dryFunding.shield(SHIELD_AMOUNT_USDC, { lookupTables });
+        await dryFunding.shield(SHIELD_AMOUNT_USDC, { lookupTables, onProgress: (stage) => stages.push(stage.slice(0, 200)) });
         stoppedBy = "the SDK reported success without a broadcast (unexpected)";
       } catch (error) {
         if (attempts.length === 0) stoppedBy = displayError(error);
       }
-      return { outcome: attempts.at(-1) ?? null, attempts, stoppedBy, lookupTables };
+      return { ...shieldVerdict(attempts), stages, attempts, stoppedBy, lookupTables };
     }
   };
+}
+
+/** Only a transaction that invokes the Cloak program counts as a shield simulation. */
+export function shieldVerdict(attempts: SimulationOutcome[]): Pick<ShieldSimulation, "verdict" | "verdictReason" | "outcome"> {
+  const shield = attempts.find((a) => a.transaction?.programIds.includes(CLOAK_PROGRAM_ID));
+  if (shield) return { verdict: shield.ok ? "WOULD_SUCCEED" : "WOULD_FAIL", verdictReason: null, outcome: shield };
+  const alt = attempts.find((a) => a.transaction?.altInstructions.length);
+  const reason = alt
+    ? `the SDK tried to ${alt.transaction!.altInstructions.join(" + ")} first (the given lookup tables do not make the deposit fit in a transaction); it stopped there and never built the deposit`
+    : attempts.length
+      ? "no simulated transaction invoked the Cloak program"
+      : "the SDK stopped before building any transaction";
+  return { verdict: "NOT_A_SHIELD_SIMULATION", verdictReason: reason, outcome: null };
 }
 
 /** Backwards-compatible: the operation alone. */

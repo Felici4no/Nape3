@@ -228,6 +228,7 @@ describe("read-only chain diagnosis", () => {
     expect(d.solLamports).toBe(10_580_610n);
     expect(d.lookupTableTransaction).toMatchObject({ signature: "SigAlt", kind: "lookup-table", lookupTable: { address: ALT, actions: ["createLookupTable", "extendLookupTable"] } });
     expect(d.lookupTable).toMatchObject({ exists: true, active: true, addresses: [CLOAK_PROGRAM_ID, CU], lastExtendedSlot: 330_000_000, warmedUp: true });
+    expect(d.lookupTables.map((t) => t.address)).toEqual([ALT]);
     expect(d.cloakTransactions).toEqual([]);
   });
 });
