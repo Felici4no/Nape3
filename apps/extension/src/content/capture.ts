@@ -84,8 +84,20 @@ export function captureOrderDom(doc: Document): string {
 // Whole-page calibration capture (any context)
 // ---------------------------------------------------------------------------
 
-/** Page chrome that carries the user's identity or address, never the order: skipped entirely. */
-const SKIP_TAGS = new Set(["header", "nav", "footer", "script", "style", "noscript", "template", "iframe", "canvas", "video", "picture"]);
+/** Never serialized. */
+const SKIP_TAGS = new Set(["script", "style", "noscript", "template", "iframe", "canvas", "video", "picture"]);
+/**
+ * Page chrome (account menu, the delivery-address picker): serialized as
+ * structure only. Text survives only when it is interface vocabulary;
+ * anything else (the address itself, the user's name) becomes its length.
+ */
+const CHROME_TAGS = new Set(["header", "nav", "footer"]);
+const UI_WORDS =
+  /^(entrega|entregar( em| para)?|endere[cç]o( de entrega)?|retirada|retirar|alterar|trocar|escolher|selecionar|buscar|busca|pesquisar|in[ií]cio|restaurantes|mercados|farm[aá]cias?|bebidas|pets|shopping|perfil|conta|entrar|sair|pedidos|meus pedidos|sacola|cupons?|ajuda|favoritos|notifica[cç][oõ]es|pagamento|agora|agendar|casa|trabalho|outro|novo endere[cç]o|usar minha localiza[cç][aã]o|confirmar( localiza[cç][aã]o)?|salvar|voltar|fechar)[:.!?]?$/i;
+
+function chromeText(text: string): string {
+  return UI_WORDS.test(text) ? text : `[text ${text.length} chars]`;
+}
 const LEAF_TAGS = new Set(["svg", "img"]);
 /** A list with more element children than this keeps only the first few (search results, menus). */
 const LIST_KEEP = 6;
@@ -106,14 +118,17 @@ interface PageCaptureOptions {
   redactions?: readonly string[];
 }
 
-function serializePage(el: Element, depth: number, out: string[], redact: readonly string[]): void {
+function serializePage(el: Element, depth: number, out: string[], redact: readonly string[], chrome = false): void {
   if (out.length >= MAX_LINES) return;
   const tag = el.tagName.toLowerCase();
   if (SKIP_TAGS.has(tag)) return;
+  if (CHROME_TAGS.has(tag)) chrome = true;
+  /** Inside page chrome nothing free-form survives, only interface words. */
+  const text = (value: string) => (chrome ? chromeText(value) : scrub(value, redact));
   const pad = "  ".repeat(Math.min(depth, 40));
   if (LEAF_TAGS.has(tag)) {
     const label = el.getAttribute("aria-label") ?? el.getAttribute("alt");
-    out.push(`${pad}<${tag}${label ? ` label=${JSON.stringify(scrub(label, redact).slice(0, 60))}` : ""}/>`);
+    out.push(`${pad}<${tag}${label ? ` label=${JSON.stringify(text(label).slice(0, 60))}` : ""}/>`);
     return;
   }
   const attrs: string[] = [];
@@ -121,19 +136,19 @@ function serializePage(el: Element, depth: number, out: string[], redact: readon
   if (firstClass) attrs.push(`class="${firstClass.slice(0, 40)}"`);
   for (const name of KEEP_ATTRS) {
     const value = el.getAttribute(name);
-    if (value !== null) attrs.push(`${name}="${scrub(value, redact).slice(0, 60)}"`);
+    if (value !== null) attrs.push(`${name}="${text(value).slice(0, 60)}"`);
   }
   if (tag === "a") {
     // Route shape only: ids and query values are dropped.
     const href = (el.getAttribute("href") ?? "").split("?")[0]!.replace(/[0-9a-f-]{16,}/gi, "[id]");
-    if (href) attrs.push(`href="${scrub(href, redact).slice(0, 80)}"`);
+    if (href) attrs.push(`href="${scrub(href, redact).slice(0, 80)}"`); // a route shape, never free text
   }
   if (tag === "input" || tag === "textarea" || tag === "select") {
     // Values are never exported, only their shape.
     const value = (el as HTMLInputElement).value ?? "";
     for (const name of ["type", "name", "placeholder"]) {
       const v = el.getAttribute(name);
-      if (v) attrs.push(`${name}="${scrub(v, redact).slice(0, 40)}"`);
+      if (v) attrs.push(`${name}="${text(v).slice(0, 40)}"`);
     }
     attrs.push(`value-length="${value.length}"`);
     if (/^000201/.test(value)) attrs.push('value-kind="pix-payload"');
@@ -158,15 +173,25 @@ function serializePage(el: Element, depth: number, out: string[], redact: readon
   for (const node of children) {
     if (out.length >= MAX_LINES) break;
     if (node.nodeType === 3) {
-      const text = (node.textContent ?? "").replace(/\s+/g, " ").trim();
-      if (text) out.push(`${pad}  ${JSON.stringify(scrub(text, redact).slice(0, 200))}`);
+      const value = (node.textContent ?? "").replace(/\s+/g, " ").trim();
+      if (value) out.push(`${pad}  ${JSON.stringify(text(value).slice(0, 200))}`);
     } else if (node.nodeType === 1) {
       if (repetitive && keptElements >= LIST_KEEP) continue;
       keptElements++;
-      serializePage(node as Element, depth + 1, out, redact);
+      serializePage(node as Element, depth + 1, out, redact, chrome);
     }
   }
   if (repetitive) out.push(`${pad}  <!-- … ${elementChildren.length - LIST_KEEP} more similar children omitted -->`);
+}
+
+/** What kind of value a query parameter holds, never the value (coordinates and ids would locate or identify). */
+export function valueShape(value: string): string {
+  if (value === "") return "empty";
+  if (/^-?\d+$/.test(value)) return `integer(${value.replace("-", "").length} digits)`;
+  if (/^-?\d+\.\d+$/.test(value)) return `number(${value.split(".")[1]!.length} decimals)`;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) return "uuid";
+  if (/^-?\d+\.\d+,-?\d+\.\d+$/.test(value)) return "coordinate-pair";
+  return `text(${value.length})`;
 }
 
 function snapshotSummary(snapshot: PageSnapshot, redact: readonly string[]): string {
@@ -199,9 +224,9 @@ export function capturePage(doc: Document, snapshot: PageSnapshot, options: Page
   const redact = options.redactions ?? [];
   const view = doc.defaultView;
   const path = doc.location.pathname.replace(/[0-9a-f-]{16,}/gi, "[id]");
-  const queryKeys = Array.from(new URLSearchParams(doc.location.search).keys());
+  const queryKeys = Array.from(new URLSearchParams(doc.location.search).entries()).map(([key, value]) => `${key}=${valueShape(value)}`);
   const out: string[] = [
-    `<!-- UPAY3FOOD page capture · ${new Date().toISOString()} · ${doc.location.hostname}${scrub(path, redact)}${queryKeys.length ? ` · query keys: ${queryKeys.join(",")}` : ""} -->`,
+    `<!-- UPAY3FOOD page capture · ${new Date().toISOString()} · ${doc.location.hostname}${scrub(path, redact)}${queryKeys.length ? ` · query: ${queryKeys.join(", ")}` : ""} -->`,
     `<!-- viewport ${view?.innerWidth ?? "?"}x${view?.innerHeight ?? "?"} · detected ${snapshot.detection.context} (confidence ${snapshot.detection.confidence}) -->`,
     "<!-- Review before sharing: header/nav/footer and input values are not included, and text was scrubbed, but check for your name or address. -->",
     "<!-- EXTRACTION",
@@ -210,9 +235,16 @@ export function capturePage(doc: Document, snapshot: PageSnapshot, options: Page
   ];
   // Roots: the main content plus anything floating above it (dialogs, drawers, fixed panels) that is not inside it.
   const main = doc.querySelector("main, [role=main]") ?? doc.body;
-  const floating = Array.from(doc.body.querySelectorAll('[role="dialog"], [aria-modal="true"], aside')).filter((el) => !main.contains(el));
-  for (const [i, root] of [main, ...floating].entries()) {
-    out.push(`<!-- root ${i + 1}: ${root === main ? "main content" : "dialog/drawer outside main"} -->`);
+  const outside = (el: Element) => el !== main && !main.contains(el) && !el.parentElement?.closest("header, nav, footer, [role=dialog], [aria-modal=true], aside");
+  const chrome = main === doc.body ? [] : Array.from(doc.body.querySelectorAll("header, nav, footer")).filter(outside);
+  const floating = Array.from(doc.body.querySelectorAll('[role="dialog"], [aria-modal="true"], aside')).filter(outside);
+  const roots: Array<[Element, string]> = [
+    ...chrome.map((el): [Element, string] => [el, `page chrome <${el.tagName.toLowerCase()}> (structure only)`]),
+    [main, "main content"],
+    ...floating.map((el): [Element, string] => [el, "dialog/drawer outside main"])
+  ];
+  for (const [i, [root, label]] of roots.entries()) {
+    out.push(`<!-- root ${i + 1}: ${label} -->`);
     serializePage(root, 0, out, redact);
   }
   if (out.length >= MAX_LINES) out.push(`<!-- truncated at ${MAX_LINES} lines -->`);

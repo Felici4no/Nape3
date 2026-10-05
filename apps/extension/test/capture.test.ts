@@ -30,10 +30,12 @@ describe("calibration capture never exports personal data", () => {
     <footer>Maria Silva · CNPJ</footer>`);
   const capture = capturePage(doc, takeSnapshot(doc, doc.location.href), { redactions: ["Maria Silva", "Maria"] });
 
-  it("drops header, nav and footer (account menu, delivery address)", () => {
+  it("keeps header/nav/footer as structure only: interface words survive, the address and name do not", () => {
     expect(capture).not.toContain("Rua das Flores");
-    expect(capture).not.toContain("Perfil");
+    expect(capture).not.toContain("Perfil de Maria");
     expect(capture).not.toContain("CNPJ");
+    expect(capture).toMatch(/<header>/);
+    expect(capture).toMatch(/\[text \d+ chars\]/);
   });
 
   it("scrubs addresses, CEPs, e-mails, phones, CPFs, the user's own words and Pix payloads", () => {
@@ -53,7 +55,7 @@ describe("calibration capture never exports personal data", () => {
     expect(capture).toContain('href="/delivery/sao-paulo-sp/loja/[id]"');
     expect(capture).not.toContain("0f8fad5b");
     expect(capture).not.toContain("xyz");
-    expect(capture).toContain("query keys: utm,id");
+    expect(capture).toContain("query: utm=text(3), id=integer(3 digits)");
     expect(capture).not.toContain("abc");
   });
 
@@ -62,6 +64,30 @@ describe("calibration capture never exports personal data", () => {
     expect(capture).toContain('"R$ 27,79"');
     expect(capture).toContain("<!-- EXTRACTION");
     expect(capture).toMatch(/"context": "\w+"/);
+  });
+});
+
+describe("delivery-context spike: address picker and URL shapes", () => {
+  it("shows where the address picker is without its content", () => {
+    const doc = page(`<header><button aria-label="Endereço de entrega"><span>Entregar em</span><span>Rua Augusta, 1500</span></button><button>Alterar</button></header><main></main>`);
+    const capture = capturePage(doc, takeSnapshot(doc, doc.location.href));
+    expect(capture).toContain('aria-label="Endereço de entrega"');
+    expect(capture).toContain('"Entregar em"');
+    expect(capture).toContain('"Alterar"');
+    expect(capture).not.toContain("Augusta");
+    expect(capture).toContain('"[text 17 chars]"');
+  });
+
+  it("describes query values by shape only (coordinates never leak)", async () => {
+    const { valueShape } = await import("../src/content/capture");
+    expect(valueShape("-23.561414")).toBe("number(6 decimals)");
+    expect(valueShape("-23.56,-46.65")).toBe("coordinate-pair");
+    expect(valueShape("0f8fad5b-d9cb-469f-a165-70867728950e")).toBe("uuid");
+    expect(valueShape("acai")).toBe("text(4)");
+    const doc = page("<main></main>", "https://www.ifood.com.br/busca?q=acai&latitude=-23.561414&longitude=-46.655881");
+    const capture = capturePage(doc, takeSnapshot(doc, doc.location.href));
+    expect(capture).toContain("query: q=text(4), latitude=number(6 decimals), longitude=number(6 decimals)");
+    expect(capture).not.toContain("23.56");
   });
 });
 
