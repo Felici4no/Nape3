@@ -82,7 +82,7 @@ function quoteHex(fetchMs: number, expiresInSec: number): string {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function guardWithQuote(now: { t: number }, expiresInSec = 120, mode: "live" | "dry-run" | "relay-test" = "live") {
+function guardWithQuote(now: { t: number }, expiresInSec = 599, mode: "live" | "dry-run" | "relay-test" = "live") {
   const guard = new RelayShieldGuard({ mode, now: () => now.t });
   guard.quote = inspectRangeQuote(quoteHex(now.t, expiresInSec), now.t);
   return guard;
@@ -178,7 +178,7 @@ describe("invariant: a wallet-funded lookup table can never be signed or sent", 
     const now = Date.now();
     return vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes("/range-quote")) return new Response(JSON.stringify({ message: quoteHex(now, 120), signature: "x", signer_pubkey: "y" }));
+      if (url.includes("/range-quote")) return new Response(JSON.stringify({ message: quoteHex(now, 599), signature: "x", signer_pubkey: "y" }));
       if (url.includes("/supplemental-alt")) return relayOk ? new Response(JSON.stringify({ table: RELAY_TABLE })) : new Response("relay down", { status: 500 });
       return new Response("{}");
     });
@@ -287,16 +287,24 @@ describe("risk-quote freshness", () => {
 
   it("too close to expiry after the wallet returns: aborted before the SDK can send", async () => {
     const now = { t: 1_791_000_000_000 };
-    const guard = guardWithQuote(now, 45);
-    const inner = { address: WALLET, modifyAndSignTransactions: vi.fn(async (txs: readonly KitTx[]) => ((now.t += 40_000), txs)) };
+    const guard = guardWithQuote(now, 150); // 150 s left at the prompt (≥ 120 s)
+    const inner = { address: WALLET, modifyAndSignTransactions: vi.fn(async (txs: readonly KitTx[]) => ((now.t += 100_000), txs)) }; // 50 s left after (< 60 s)
     await expect(guard.wrapSigner(inner).modifyAndSignTransactions([depositTx()])).rejects.toMatchObject({ violation: "RISK_QUOTE_STALE", beforeBroadcast: true });
     expect(inner.modifyAndSignTransactions).toHaveBeenCalledOnce();
+  });
+
+  it("the measured relay quote (599 s) leaves minutes for the approval", () => {
+    const fetched = 1_791_000_000_000;
+    const q = inspectRangeQuote(quoteHex(fetched, 599), fetched);
+    expect(quoteFreshness(q, fetched + 2_740, "prompt").fresh).toBe(true); // observed: 2.7 s from quote to prompt
+    expect(quoteFreshness(q, fetched + 4 * 60_000, "send").fresh).toBe(true); // a 4-minute approval still sends
+    expect(quoteFreshness(q, fetched + 6 * 60_000, "send").fresh).toBe(false); // past the send limit: abort, nothing broadcast
   });
 
   it("no quote observed counts as stale; a fresh one passes", () => {
     expect(quoteFreshness(null, 0, "prompt").fresh).toBe(false);
     const fetched = 1_791_000_000_000;
-    expect(quoteFreshness(inspectRangeQuote(quoteHex(fetched, 120), fetched), fetched + 5_000, "prompt")).toMatchObject({ fresh: true, ageMs: 5_000 });
+    expect(quoteFreshness(inspectRangeQuote(quoteHex(fetched, 599), fetched), fetched + 5_000, "prompt")).toMatchObject({ fresh: true, ageMs: 5_000 });
   });
 });
 

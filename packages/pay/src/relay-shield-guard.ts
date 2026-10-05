@@ -138,14 +138,17 @@ export interface FreshnessPolicy {
 }
 
 /**
- * Provisional until the dry run measures the relay's quote TTL. A stale
- * quote only aborts the attempt before broadcast (no SOL, no USDC moves).
+ * Measured on mainnet (first relay test, 2026-10-05): the relay's deposit
+ * quote carries an expiry 599 s after it is issued, and the relay table was
+ * usable 2.7 s after the quote (597 s left at the wallet prompt). These
+ * limits leave the user minutes to approve while staying well inside that
+ * window. A stale quote only aborts the attempt before broadcast.
  */
 export const DEFAULT_FRESHNESS: FreshnessPolicy = {
-  maxAgeAtPromptMs: 30_000,
-  minRemainingAtPromptMs: 30_000,
-  maxAgeAtSendMs: 90_000,
-  minRemainingAtSendMs: 10_000
+  maxAgeAtPromptMs: 60_000,
+  minRemainingAtPromptMs: 120_000,
+  maxAgeAtSendMs: 300_000,
+  minRemainingAtSendMs: 60_000
 };
 
 export function quoteFreshness(

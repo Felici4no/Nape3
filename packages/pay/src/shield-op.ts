@@ -52,6 +52,8 @@ export const SHIELD_AMOUNT_USDC = 1_000_000n;
  * The relay pays for the lookup table. An estimate, not a quote.
  */
 export const SOL_RECOMMENDED_LAMPORTS = 3_500_000n;
+/** What one shield is expected to spend (measured, see above): fees + rent of the 3 accounts the deposit creates. */
+export const SOL_ESTIMATED_SPEND_LAMPORTS = 2_090_880n;
 
 /** Progress lines `relay:<STAGE>` emitted by the relay lookup-table path. */
 const RELAY_STAGE_TEXT: Partial<Record<ShieldState, string>> = {
@@ -98,6 +100,12 @@ export interface ShieldSummary {
   solBalance: string;
   /** Estimate of the SOL needed for network fees and lookup-table rent. */
   solRecommended: string;
+  /** Expected SOL spent by this shield (measured in simulation). */
+  solEstimatedSpend: string;
+  /** Wallet transactions to approve. */
+  walletApprovals: 1;
+  /** Who pays for the lookup table the deposit needs. */
+  lookupTablePaidBy: "Cloak relay";
 }
 
 export interface ShieldFailure {
@@ -332,7 +340,10 @@ export class ShieldOperation {
         amountUsdc: formatUsdc6(this.amount),
         publicUsdc: formatUsdc6(balances.publicUsdc),
         solBalance: formatSol9(balances.solLamports),
-        solRecommended: formatSol9(this.solRecommended)
+        solRecommended: formatSol9(this.solRecommended),
+        solEstimatedSpend: formatSol9(SOL_ESTIMATED_SPEND_LAMPORTS),
+        walletApprovals: 1,
+        lookupTablePaidBy: "Cloak relay"
       };
       this.go("SHIELD_PREPARED", null, { summary });
       this.go("USER_CONFIRMATION_REQUIRED", "Review the summary. Nothing is sent until you confirm here and approve in your wallet.");

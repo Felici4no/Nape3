@@ -267,3 +267,26 @@ The SDK already does the closest correct thing: it fetches the quote and request
   - the deposit with it is only simulated, through the zero-signature signer and the simulate-only transport.
 
 `/shield` keeps its state machine. Its "Confirm and open wallet" button stays **disabled** (`REAL_SHIELD_ENABLED = false`) until the relay test passes and a real shield is approved.
+
+### First real relay lookup-table test, and enabling the real shield
+
+Relay test result (mainnet, deposit only simulated):
+- `RELAY_ALT_DEPOSIT_WOULD_SUCCEED` using relay table `G4r37pdrkv69i9bZx8jYQyDUp98Uz6fMMX727Y2bwUaE`, created and paid by the relay. The deposit also referenced the relay's pre-built table `329p1x7i…`.
+- The v0 deposit is 1192 bytes (limit 1232). Simulation: `err: null`, 209,317 CU, and the Cloak and Token programs succeeded.
+- Guard: no violation, and exactly one wallet signature was requested. The final `-32099` is this app's own simulate-only stop, not a relay or deposit failure.
+- Risk quote: a 146-byte deposit message with one timestamp field at offset 1, about 599 s after the fetch (the expiry). The relay table was usable 2.7 s after the quote, with 597 s left at the wallet prompt.
+  - Freshness limits are now set from this measurement: before the prompt, age ≤ 60 s and ≥ 120 s left; before sending, age ≤ 300 s and ≥ 60 s left.
+  - With a ~10-minute quote, quote expiry explains the original `-32002` only if the old two-ALT flow took close to 10 minutes. **The historical root cause stays undetermined.**
+- Measured wallet cost is unchanged: 2,090,880 lamports (130,000 fees + 1,960,880 rent).
+
+The real shield is enabled in a separate commit (`REAL_SHIELD_ENABLED = true` in `ShieldScreen.tsx`). It is the same relay path, with every guard on and two explicit refusals added:
+- a wallet other than Phantom;
+- an amount other than exactly 1 USDC.
+
+The path is forced to v0. The confirmation shows:
+- Shield 1.000000 USDC;
+- ~0.00209 SOL;
+- one Phantom transaction approval;
+- relay pays the lookup table.
+
+The final button reads "Broadcast real mainnet shield of 1.000000 USDC", and the text above it says it WILL broadcast a real mainnet transaction. The blocked intent from the first failure is handled exactly as before: it is never cleared except by "Check on chain".

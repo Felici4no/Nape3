@@ -326,12 +326,17 @@ export function createShieldSession(): ShieldSession {
         shieldedUsdc: async () => (await funding.shieldedBalance()).total,
         // Plan B: v0 + relay-paid supplemental table, one wallet approval, no wallet-paid table ever.
         shield: async (amount, options) => {
+          if (amount !== SHIELD_AMOUNT_USDC) throw new Error(`refused: this shield moves exactly ${SHIELD_AMOUNT_USDC} base units of USDC`);
+          if (connected?.name !== "Phantom") {
+            throw new Error(`refused: the relay lookup-table shield is enabled for Phantom only (connected: ${connected?.name ?? "none"})`);
+          }
           const guard = new RelayShieldGuard({ mode: "live", onStage: (stage) => options.onProgress(`relay:${stage}`) });
           activeGuard = guard;
           const restore = guard.installFetchObserver(window);
           try {
             const result = await funding.shield(amount, {
               relaySupplementalAlt: true,
+              transactionVersion: 0, // Phantom declares ["legacy", 0]; the guard also refuses anything but a v0 Cloak deposit
               onProgress: (stage) => {
                 guard.onProgress(stage);
                 options.onProgress(stage);

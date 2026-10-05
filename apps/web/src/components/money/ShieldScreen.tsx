@@ -45,11 +45,13 @@ const IN_FLIGHT: ShieldState[] = [
   "CONFIRMING"
 ];
 /**
- * The real shield (v0 + relay-paid lookup table) stays off until the first
- * relay lookup-table test on /shield/diagnose has passed and the owner has
- * approved a real shield. Everything up to the confirmation still works.
+ * The real shield: v0 + relay-paid lookup table (plan B). Enabled after the
+ * first real relay lookup-table test passed on mainnet (2026-10-05: relay
+ * table G4r37pdrkv69i9bZx8jYQyDUp98Uz6fMMX727Y2bwUaE, 1192-byte v0 deposit,
+ * simulation err: null, quote 597 s from expiry at the prompt, guard
+ * violation none). Every guard of relay-shield-guard stays on.
  */
-const REAL_SHIELD_ENABLED = false;
+const REAL_SHIELD_ENABLED = true;
 const ghost = { color: "var(--night-ink)", boxShadow: "inset 0 0 0 1.5px var(--night-ink)" };
 const PUBLIC_DEFAULT = "api.mainnet-beta.solana.com";
 
@@ -137,9 +139,12 @@ export default function ShieldScreen() {
               <div className="kv"><span>Network</span><span>Solana {summary.network}</span></div>
               <div className="kv"><span>Wallet</span><span className="num" title={summary.wallet}>{shortAddress(summary.wallet)}</span></div>
               <div className="kv"><span>Operation</span><span>{summary.operation}</span></div>
-              <div className={`kv ${styles.strong}`}><span>Amount</span><span className="num">{summary.amountUsdc} USDC</span></div>
-              <div className="kv"><span>SOL needed (estimate)</span><span className="num">≈ {summary.solRecommended} SOL</span></div>
+              <div className={`kv ${styles.strong}`}><span>Shield</span><span className="num">{summary.amountUsdc} USDC</span></div>
+              <div className="kv"><span>Estimated SOL cost</span><span className="num">~{Number(summary.solEstimatedSpend).toFixed(5)} SOL</span></div>
+              <div className="kv small"><span>· fees + rent of the 3 accounts the deposit creates; keep at least</span><span className="num">{summary.solRecommended} SOL</span></div>
               <div className="kv small"><span>· you have</span><span className="num">{summary.solBalance} SOL</span></div>
+              <div className="kv"><span>Wallet approvals</span><span>{summary.walletApprovals === 1 ? "One Phantom transaction approval" : summary.walletApprovals}</span></div>
+              <div className="kv"><span>Lookup table</span><span>Relay pays lookup-table infrastructure</span></div>
             </div>
             <p className={styles.fine}>
               Your wallet approves exactly one transaction: the 1 USDC deposit. The lookup table it needs is created and paid by the Cloak relay; your
@@ -151,9 +156,15 @@ export default function ShieldScreen() {
                 The real shield is switched off until the first relay lookup-table test passes. Run it on <Link href="/shield/diagnose">/shield/diagnose</Link>.
               </p>
             )}
+            {REAL_SHIELD_ENABLED && (
+              <p className={`${styles.status} ${styles.err}`}>
+                The button below WILL broadcast a real Solana mainnet transaction: {summary.amountUsdc} USDC leaves your public wallet for the Cloak pool
+                once you approve it in Phantom. It cannot be undone, and nothing retries automatically.
+              </p>
+            )}
             <div className={styles.row}>
               <button className="btn light" disabled={!REAL_SHIELD_ENABLED || view.state !== "USER_CONFIRMATION_REQUIRED"} onClick={() => void op.confirm()}>
-                Confirm and open wallet
+                Broadcast real mainnet shield of {summary.amountUsdc} USDC
               </button>
               <button className="btn ghost" style={ghost} disabled={view.state !== "USER_CONFIRMATION_REQUIRED"} onClick={() => op.cancel()}>Cancel</button>
             </div>

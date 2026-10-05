@@ -76,7 +76,10 @@ describe("ShieldOperation: happy path", () => {
       amountUsdc: "1.000000",
       publicUsdc: "6.062919",
       solBalance: "0.012895810",
-      solRecommended: "0.003500000"
+      solRecommended: "0.003500000",
+      solEstimatedSpend: "0.002090880",
+      walletApprovals: 1,
+      lookupTablePaidBy: "Cloak relay"
     });
     expect(shieldCalls).toEqual([]); // nothing sent before confirm
 
