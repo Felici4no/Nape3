@@ -185,3 +185,85 @@ and the lamports each table holds.
   - Refuses a changed message or a signature that does not verify.
   - No web3.js round trip, and no hand-rebuilt message.
   - Not wired into the production shield yet.
+
+## Final V1 result, and plan B (v0 + relay-paid supplemental lookup table)
+
+**V1 result (2026-10-05):**
+- The deposit simulates successfully: 1516 bytes, 206,317 CU, `err: null`.
+- Measured wallet cost: 2,090,880 lamports.
+  - Fees: 130,000 (10,000 base + 120,000 priority).
+  - Rent for the 3 accounts the Cloak program creates: 1,960,880 (655,320 + 655,320 + 650,240).
+- Recommended minimum balance: 3,241,120 lamports. The wallet holds 8,265,410, which is sufficient.
+- **Phantom does not support Transaction V1.** Its Wallet Standard `solana:signTransaction` declares `supportedTransactionVersions = ["legacy", 0]`, and it refused the v1 bytes. The web3.js 1.99 adapter cannot serialize v1 either.
+- The V1 code stays for future wallets and is not wired into the Phantom path.
+
+### SDK code path for `relaySupplementalAlt` (@cloak.dev/sdk 0.2.5, dist/index.js)
+
+`transact` → deposit → `submitTransactionDirect(…, relaySupplementalAlt, transactionVersion)`, in order:
+
+1. `resolveAddressLookupTableAccounts`: the relay's `/health` tables (3 pre-built) plus `altAddresses`.
+2. Risk quote:
+   - `fetchRiskQuote(${relayUrl}/range-quote, …, context: "deposit")` returns an Ed25519-verify instruction and the deposit **nonce**.
+   - `riskNoncePda = deriveRiskNoncePDA(nonce)`. The deposit instruction writes this account.
+3. Prefetch, immediately after the quote: `getRelaySupplementalAlt()` → `requestRelaySupplementalAlt` → `POST ${relayUrl}/supplemental-alt { mint, nullifiers[2], bind0: nonce, depositor }`.
+   - The relay creates or extends **its** shared table and returns `{ table }`.
+   - `resolveRelaySupplementalAlt` then polls until the table contains the nullifier PDAs, `riskNoncePda(nonce)` and the depositor ATA, and until `lastExtendedSlot < currentSlot` (the warm-up gate; ≤ 5 s, 150 ms poll).
+4. `planDirectV0Submission`: if the deposit exceeds 1232 bytes, `createSupplementalAlt` awaits the relay table. **On any relay failure it falls back to `createEphemeralALT`, a depositor-signed CreateLookupTable + ExtendLookupTable** (up to 3 creation attempts). `acquireDepositAlt` has the same fallback when no table is available at all.
+5. `sendV0`: build the v0 message → `signTransaction` (the wallet) → `sendRawTransaction` (preflight on) → confirm.
+   - It re-signs automatically on blockhash expiry (up to 2) and on transient transport errors (up to 3).
+   - The tier loop (full → compact → minimal compute budget) re-signs on packet-size errors.
+
+### Can the fallback be disabled cleanly?
+
+Not through SDK options: `relaySupplementalAlt` is "opt-in, falls back automatically". It is disabled from outside, with no SDK patch, by three independent layers (`packages/pay/src/relay-shield-guard.ts`):
+
+1. **Progress guard.** `RelayShieldGuard.onProgress` throws on the SDK's fallback announcements:
+   - "falling back to a depositor-signed table"
+   - "Creating address lookup table…"
+   - "Waiting for wallet signature (lookup table)…"
+
+   The throw happens inside the SDK's catch blocks, so the attempt ends before `createEphemeralALT` runs.
+2. **Signer guard.** Every wallet signature goes through `guardedWalletSigner`, for the whole app and not only during a shield. A transaction that invokes the Address Lookup Table program is refused before the wallet is asked (`USER_FUNDED_ALT_BLOCKED`). During an attempt it also refuses:
+   - anything but a v0 Cloak deposit (`UNEXPECTED_TRANSACTION`);
+   - a second signature, which would be the SDK's automatic retry (`SECOND_SIGNATURE_BLOCKED`).
+3. **Transport guard.** `rpc-capture` `inspectSend` never forwards, or simulates, a lookup-table transaction.
+
+The SDK re-wraps errors (`classifyRelayError`), so the runtime rethrows the guard's own `RelayShieldAbort`. `ShieldOperation` handles it as follows:
+- an abort before broadcast is non-blocking, and the attempt record is cleared;
+- a second-signature refusal after a send stays blocking (outcome unknown).
+
+### Risk-quote freshness: what is possible
+
+The requested order (relay table → warm-up → **then** quote) **cannot work**:
+- The relay table is bound to the quote's nonce (`bind0`).
+- The table must contain `riskNoncePda(nonce)`, which the deposit instruction writes.
+- A quote fetched after the table carries a new nonce the table does not cover, so the deposit would need another table.
+
+The SDK already does the closest correct thing: it fetches the quote and requests the relay table immediately after it. The incident's fatal gap was two wallet-signed ALT creations and three approvals between the quote and the deposit. It is removed:
+- **Nothing user-paced runs between the quote and the one deposit prompt.** No wallet-signed table, no second approval.
+  - The viewing-key registration *message* (once per page load) and the Cloak unlock message both happen before the quote.
+- **A freshness gate runs twice:**
+  - *Before the wallet prompt:* quote age ≤ 30 s and, if the quote carries an expiry, ≥ 30 s left.
+  - *After the wallet returns, before the SDK sends:* age ≤ 90 s and, if an expiry is known, ≥ 10 s left.
+
+  A stale quote aborts with nothing broadcast (`RISK_QUOTE_STALE`). The user can start a new attempt, which brings a new quote and a new relay table at the relay's cost. These thresholds are provisional. The quote message layout is undocumented, so `inspectRangeQuote` reports every i64 field that looks like a timestamp, and the dry run measures the real lifetime before the thresholds are fixed.
+- **Fallback if the measured lifetime is shorter than a human approval:** a minimal SDK patch in `submitTransactionDirect`. After `resolveRelaySupplementalAlt`, when the quote is older than a threshold, re-fetch the quote and re-request the relay table once, before building the message. That is the only place where a new nonce and its table can be produced together. Not implemented until the measurement says it is needed.
+
+### Prompts and cost on plan B
+
+- **Wallet prompts:**
+  - the Cloak unlock message (once per page);
+  - the viewing-key registration message (once per page load; the SDK caches it in memory);
+  - **exactly one transaction**: the deposit.
+- **Expected wallet SOL:** about 2,090,880 lamports. That is the 3 Cloak accounts' rent (1,960,880) plus fees: 10,000 base + 120,000 priority when the full compute-budget tier fits, 0 priority on the compact tier. The lookup table is the relay's cost.
+- `SOL_RECOMMENDED_LAMPORTS` is now 3,500,000 (it was 10,000,000, more than the wallet holds).
+
+### Actions
+
+`/shield/diagnose` → "Plan B":
+- **Dry run.** No relay call: `/supplemental-alt` is answered locally. The deposit is simulated and nothing is signed or sent.
+- **First real relay lookup-table test.** Behind an explicit checkbox:
+  - the relay table is requested for real (the relay writes and pays on chain);
+  - the deposit with it is only simulated, through the zero-signature signer and the simulate-only transport.
+
+`/shield` keeps its state machine. Its "Confirm and open wallet" button stays **disabled** (`REAL_SHIELD_ENABLED = false`) until the relay test passes and a real shield is approved.

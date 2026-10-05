@@ -26,12 +26,30 @@ const ORDER: ShieldState[] = [
   "CLOAK_READY",
   "SHIELD_PREPARED",
   "USER_CONFIRMATION_REQUIRED",
+  "FETCHING_RISK_QUOTE",
+  "PREPARING_RELAY_ALT",
+  "WAITING_FOR_ALT_WARMUP",
+  "CHECKING_QUOTE_FRESHNESS",
   "WALLET_SIGNATURE_REQUIRED",
   "SUBMITTING",
   "CONFIRMING",
   "SHIELDED"
 ];
-const IN_FLIGHT: ShieldState[] = ["WALLET_SIGNATURE_REQUIRED", "SUBMITTING", "CONFIRMING"];
+const IN_FLIGHT: ShieldState[] = [
+  "FETCHING_RISK_QUOTE",
+  "PREPARING_RELAY_ALT",
+  "WAITING_FOR_ALT_WARMUP",
+  "CHECKING_QUOTE_FRESHNESS",
+  "WALLET_SIGNATURE_REQUIRED",
+  "SUBMITTING",
+  "CONFIRMING"
+];
+/**
+ * The real shield (v0 + relay-paid lookup table) stays off until the first
+ * relay lookup-table test on /shield/diagnose has passed and the owner has
+ * approved a real shield. Everything up to the confirmation still works.
+ */
+const REAL_SHIELD_ENABLED = false;
 const ghost = { color: "var(--night-ink)", boxShadow: "inset 0 0 0 1.5px var(--night-ink)" };
 const PUBLIC_DEFAULT = "api.mainnet-beta.solana.com";
 
@@ -124,11 +142,17 @@ export default function ShieldScreen() {
               <div className="kv small"><span>· you have</span><span className="num">{summary.solBalance} SOL</span></div>
             </div>
             <p className={styles.fine}>
-              Your wallet may ask twice: first for a one-time lookup-table transaction (rent only, no USDC moves), then for the 1 USDC deposit. The deposit
-              is public on-chain; what happens after it is not linked to it. Nothing here retries automatically.
+              Your wallet approves exactly one transaction: the 1 USDC deposit. The lookup table it needs is created and paid by the Cloak relay; your
+              wallet never signs or pays for one. The deposit is public on-chain; what happens after it is not linked to it. Nothing here retries
+              automatically.
             </p>
+            {!REAL_SHIELD_ENABLED && (
+              <p className={`${styles.status} ${styles.err}`}>
+                The real shield is switched off until the first relay lookup-table test passes. Run it on <Link href="/shield/diagnose">/shield/diagnose</Link>.
+              </p>
+            )}
             <div className={styles.row}>
-              <button className="btn light" disabled={view.state !== "USER_CONFIRMATION_REQUIRED"} onClick={() => void op.confirm()}>
+              <button className="btn light" disabled={!REAL_SHIELD_ENABLED || view.state !== "USER_CONFIRMATION_REQUIRED"} onClick={() => void op.confirm()}>
                 Confirm and open wallet
               </button>
               <button className="btn ghost" style={ghost} disabled={view.state !== "USER_CONFIRMATION_REQUIRED"} onClick={() => op.cancel()}>Cancel</button>
@@ -138,7 +162,13 @@ export default function ShieldScreen() {
 
         {inFlight && (
           <>
-            <h2 className="display" style={{ fontSize: 32 }}>{view.state === "WALLET_SIGNATURE_REQUIRED" ? "Approve in your wallet" : view.state === "SUBMITTING" ? "Sending" : "Confirming"}</h2>
+            <h2 className="display" style={{ fontSize: 32 }}>{view.state === "WALLET_SIGNATURE_REQUIRED"
+                ? "Approve in your wallet"
+                : view.state === "SUBMITTING"
+                  ? "Sending"
+                  : view.state === "CONFIRMING"
+                    ? "Confirming"
+                    : "Preparing (nothing to approve yet)"}</h2>
             <p className={styles.status}>{view.stage}</p>
             <p className={styles.fine}>Keep this tab open. Do not press back or refresh; the button is locked so it cannot send twice.</p>
           </>

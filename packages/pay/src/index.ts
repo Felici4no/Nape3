@@ -19,3 +19,14 @@ export {
   type V1SigningOutcome,
   type SigningAttempt
 } from "./v1-signing-test";
+export {
+  RelayShieldGuard,
+  RelayShieldAbort,
+  assertNoUserFundedAlt,
+  inspectRangeQuote,
+  quoteFreshness,
+  DEFAULT_FRESHNESS,
+  type RelayShieldReport,
+  type RelayShieldViolation,
+  type RelayShieldStage
+} from "./relay-shield-guard";

@@ -148,6 +148,28 @@ describe("CloakFunding: shield", () => {
 
     expect(seen).toEqual([{ hasProgress: false }, { maxRootRetries: 0, hasProgress: true }]);
   });
+
+  it("relaySupplementalAlt reaches the SDK only when asked, together with maxRootRetries 0 and v0", async () => {
+    const seen: Array<Record<string, unknown>> = [];
+    const { sdk } = createSimulatedCloakSdk();
+    const spy: typeof sdk = {
+      ...sdk,
+      transact: (params, options) => {
+        seen.push({ relaySupplementalAlt: options.relaySupplementalAlt, maxRootRetries: options.maxRootRetries, transactionVersion: options.transactionVersion });
+        return sdk.transact(params, options);
+      }
+    };
+    const keys = await CloakKeys.fromSeed(SEED);
+    const keypair = await generateKeyPairSigner();
+    const wallet = { kind: "wallet" as const, signer: keypair, signMessage: async () => new Uint8Array(64), address: keypair.address };
+    const base = { sdk: spy, connection: {} as CloakRpc, keys, mint: USDC, log: createCloakLogger(() => {}), signer: wallet };
+    await new CloakFunding({ ...base, store: new MemoryNoteStore() }).shield(1_000_000n, { relaySupplementalAlt: true });
+    await new CloakFunding({ ...base, store: new MemoryNoteStore() }).shield(1_000_000n);
+    expect(seen).toEqual([
+      { relaySupplementalAlt: true, maxRootRetries: 0, transactionVersion: undefined },
+      { relaySupplementalAlt: undefined, maxRootRetries: 0, transactionVersion: undefined }
+    ]);
+  });
 });
 
 describe("CloakFunding: fund a purchase privately", () => {

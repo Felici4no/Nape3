@@ -76,7 +76,7 @@ describe("ShieldOperation: happy path", () => {
       amountUsdc: "1.000000",
       publicUsdc: "6.062919",
       solBalance: "0.012895810",
-      solRecommended: "0.010000000"
+      solRecommended: "0.003500000"
     });
     expect(shieldCalls).toEqual([]); // nothing sent before confirm
 
@@ -385,5 +385,79 @@ describe("displayError", () => {
     expect(text).not.toContain("SECRETKEY123");
     expect(text).not.toContain("rpcfast.com");
     expect(text).toContain("[url]");
+  });
+});
+
+describe("ShieldOperation: relay lookup-table path (plan B)", () => {
+  it("shows the relay stages, then exactly one wallet approval", async () => {
+    const { op } = setup({
+      shield: async (_amount, { onProgress }) => {
+        onProgress("Generating ZK proof...");
+        onProgress("relay:FETCHING_RISK_QUOTE");
+        onProgress("Fetching risk quote from backend...");
+        onProgress("relay:PREPARING_RELAY_ALT");
+        onProgress("relay:WAITING_FOR_ALT_WARMUP");
+        onProgress("Waiting for wallet signature...");
+        onProgress("relay:CHECKING_QUOTE_FRESHNESS");
+        onProgress("relay:WALLET_SIGNATURE_REQUIRED");
+        onProgress("Sending transaction...");
+        onProgress("Confirming transaction...");
+        return { signature: "SIG1" };
+      }
+    });
+    await toConfirmation(op);
+    await op.confirm();
+    expect(op.state.state).toBe("SHIELDED");
+    const afterConfirm = op.state.history.slice(op.state.history.indexOf("USER_CONFIRMATION_REQUIRED") + 1);
+    expect(afterConfirm).toEqual([
+      "WALLET_SIGNATURE_REQUIRED", // "generating the proof…" on confirm
+      "FETCHING_RISK_QUOTE",
+      "PREPARING_RELAY_ALT",
+      "WAITING_FOR_ALT_WARMUP",
+      "WALLET_SIGNATURE_REQUIRED",
+      "CHECKING_QUOTE_FRESHNESS",
+      "WALLET_SIGNATURE_REQUIRED",
+      "SUBMITTING",
+      "CONFIRMING",
+      "CONFIRMING",
+      "SHIELDED"
+    ]);
+  });
+
+  it("a guard abort before broadcast is a non-blocking failure that names the violation; the record is cleared", async () => {
+    const { RelayShieldAbort } = await import("./relay-shield-guard");
+    const { op, intents } = setup({
+      shield: async (_amount, { onProgress }) => {
+        onProgress("relay:PREPARING_RELAY_ALT");
+        throw new RelayShieldAbort("RELAY_ALT_FALLBACK_BLOCKED", "The relay lookup table was not available, and the wallet-paid fallback is disabled.", true);
+      }
+    });
+    await toConfirmation(op);
+    await op.confirm();
+    expect(op.state.state).toBe("FAILED");
+    expect(op.state.failure).toMatchObject({ code: "relay_alt_fallback_blocked", blocking: false });
+    expect(intents.read(WALLET.address)).toBeNull();
+  });
+
+  it("a refused second signature after the first was sent stays blocking (outcome unknown)", async () => {
+    const { RelayShieldAbort } = await import("./relay-shield-guard");
+    const { op, intents } = setup({
+      shield: async (_amount, { onProgress }) => {
+        onProgress("Waiting for wallet signature...");
+        onProgress("Sending transaction...");
+        throw new RelayShieldAbort("SECOND_SIGNATURE_BLOCKED", "The SDK asked for a second wallet signature.", false);
+      }
+    });
+    await toConfirmation(op);
+    await op.confirm();
+    expect(op.state.failure).toMatchObject({ code: "second_signature_blocked", blocking: true });
+    expect(intents.read(WALLET.address)?.status).toBe("sent");
+  });
+
+  it("asks for the measured SOL (0.0035), not the old 0.01 estimate", async () => {
+    const enough = setup({ sol: 8_265_410n });
+    await toConfirmation(enough.op);
+    expect(enough.op.state.state).toBe("USER_CONFIRMATION_REQUIRED");
+    expect(enough.op.state.summary?.solRecommended).toBe("0.003500000");
   });
 });

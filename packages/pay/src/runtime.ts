@@ -10,6 +10,7 @@ import {
   grossUpWithdrawal,
   MemoryNoteStore,
   readPublicBalances,
+  type CloakSigner,
   type RpcFailureDiagnostic,
   realCloakSdk,
   seedFromWalletSignature
@@ -23,6 +24,15 @@ import { LocalIntentStore } from "./shield-intent";
 import { displayError, SHIELD_AMOUNT_USDC, ShieldOperation, type ShieldDeps } from "./shield-op";
 import { connectWallet, type ConnectedWallet } from "./wallet";
 import { discoverStandardWallets, runV1SigningTest, type V1SigningResult } from "./v1-signing-test";
+import {
+  assertNoUserFundedAlt,
+  dryRunModifyingSigner,
+  guardedWalletSigner,
+  RelayShieldGuard,
+  type ModifyingSigner,
+  type RelayGuardMode,
+  type RelayShieldReport
+} from "./relay-shield-guard";
 
 /**
  * Real wiring of UPAY3FOOD Pay: injected wallet (Phantom/Solflare), Solana
@@ -55,14 +65,15 @@ export function setRpcUrl(url: string): void {
 async function unlock(
   wallet: ConnectedWallet,
   rpcUrl: string = getRpcUrl(),
-  connection: CloakRpc = createCloakRpc(rpcUrl)
+  connection: CloakRpc = createCloakRpc(rpcUrl),
+  signer: CloakSigner = wallet.cloakSigner()
 ): Promise<{ funding: CloakFunding; balance: PrivateBalance; keys: CloakKeys }> {
   const signature = await wallet.signMessage(derivationMessageBytes());
   const keys = await CloakKeys.fromSeed(await seedFromWalletSignature(signature));
   const funding = new CloakFunding({
     sdk: realCloakSdk,
     connection,
-    signer: wallet.cloakSigner(),
+    signer,
     keys,
     store: await EncryptedLocalNoteStore.create(wallet.address, signature),
     mint: USDC,
@@ -209,6 +220,76 @@ export interface ShieldSession {
    * discards it. Never broadcast: a guard makes every send path throw.
    */
   testV1Signing(): Promise<V1SigningResult>;
+  /**
+   * Plan B dry run, no side effects: the v0 shield with relaySupplementalAlt,
+   * where `/supplemental-alt` is answered locally (never sent to the relay),
+   * the deposit is only simulated and the wallet signs nothing. Shows whether
+   * the SDK reaches the relay request with a valid body, that its fallback to
+   * a wallet-paid table is blocked, and the risk quote's measured lifetime.
+   */
+  simulateRelayPath(): Promise<RelayPathRun>;
+  /**
+   * FIRST REAL RELAY TEST. Requests the relay lookup table for real (the
+   * relay writes and pays on chain), waits for it to become usable, then only
+   * SIMULATES the deposit with it. The wallet signs no transaction and nothing
+   * is broadcast from this app.
+   */
+  testRelayAlt(): Promise<RelayPathRun>;
+  /** Guard report of the last real shield attempt (relay path). */
+  lastRelayReport(): RelayShieldReport | null;
+}
+
+export type RelayPathVerdict =
+  /** dry run: the SDK asked the relay for the table with a valid body, and the wallet-paid fallback was blocked. */
+  | "READY_UP_TO_RELAY_ALT"
+  /** relay test: the relay table was created and the deposit using it simulates successfully. */
+  | "RELAY_ALT_DEPOSIT_WOULD_SUCCEED"
+  | "RELAY_ALT_DEPOSIT_WOULD_FAIL"
+  /** The deposit fit without a supplemental table (no relay call was needed). */
+  | "FITS_WITHOUT_RELAY_ALT"
+  /** The SDK never asked the relay (not eligible: no deposit nonce, not an SPL deposit…). */
+  | "RELAY_ALT_NOT_REQUESTED"
+  | "RELAY_ALT_FAILED"
+  /** Anything else that stopped the run before a verdict. */
+  | "STOPPED";
+
+export interface RelayPathRun {
+  mode: RelayGuardMode;
+  verdict: RelayPathVerdict;
+  reason: string;
+  report: RelayShieldReport;
+  /** Simulated transactions (a lookup-table creation would be refused before reaching here). */
+  attempts: SimulationOutcome[];
+  stages: string[];
+  stoppedBy: string | null;
+}
+
+export function relayVerdict(mode: RelayGuardMode, report: RelayShieldReport, attempts: SimulationOutcome[], stoppedBy: string | null): Pick<RelayPathRun, "verdict" | "reason"> {
+  const deposit = attempts.find((a) => a.transaction?.programIds.includes(CLOAK_PROGRAM_ID));
+  const usesRelayTable = !!deposit && !!report.relayTable && !!deposit.transaction?.lookupTables.some((l) => l.table === report.relayTable);
+  const validBody = !!report.relayRequest && report.relayRequest.nullifiers === 2 && report.relayRequest.bind0Bytes === 32 && !!report.relayRequest.mint && !!report.relayRequest.depositor;
+  if (deposit && !usesRelayTable) {
+    return deposit.ok
+      ? { verdict: "FITS_WITHOUT_RELAY_ALT", reason: "the deposit fit with the relay's pre-built tables and simulated successfully; no supplemental table was needed" }
+      : { verdict: "RELAY_ALT_DEPOSIT_WOULD_FAIL", reason: `the deposit (without a relay table) failed in simulation: ${deposit.diagnostic.message}` };
+  }
+  if (deposit) {
+    return deposit.ok
+      ? { verdict: "RELAY_ALT_DEPOSIT_WOULD_SUCCEED", reason: `deposit simulated successfully with the relay table ${report.relayTable}` }
+      : { verdict: "RELAY_ALT_DEPOSIT_WOULD_FAIL", reason: deposit.diagnostic.message };
+  }
+  if (!report.relayRequest) return { verdict: "RELAY_ALT_NOT_REQUESTED", reason: stoppedBy ?? "the SDK did not ask the relay for a table" };
+  if (mode === "dry-run") {
+    if (validBody && (report.violation === "RELAY_ALT_FALLBACK_BLOCKED" || report.violation === "USER_FUNDED_ALT_BLOCKED")) {
+      return {
+        verdict: "READY_UP_TO_RELAY_ALT",
+        reason: "the SDK asked the relay for the table with { mint, depositor, 2 nullifiers, 32-byte bind0 } (answered locally, not sent); its wallet-paid fallback was blocked"
+      };
+    }
+    return { verdict: "STOPPED", reason: stoppedBy ?? report.violation ?? "unexpected" };
+  }
+  if (report.relayFailed) return { verdict: "RELAY_ALT_FAILED", reason: report.relayFailed };
+  return { verdict: "STOPPED", reason: stoppedBy ?? report.violation ?? "no deposit was simulated" };
 }
 
 /** Exactly 1 USDC into the Cloak pool, signed by the injected wallet. Nothing is sent without confirm(). */
@@ -216,7 +297,20 @@ export function createShieldSession(): ShieldSession {
   let connected: ConnectedWallet | null = null;
   let unlocked: { funding: CloakFunding; keys: CloakKeys } | null = null;
   let lastFailure: RpcFailureDiagnostic | null = null;
-  const capture = { onFailure: (diagnostic: RpcFailureDiagnostic) => (lastFailure = diagnostic) };
+  /** The relay-path guard of the shield attempt in progress, if any. */
+  let activeGuard: RelayShieldGuard | null = null;
+  let lastReport: RelayShieldReport | null = null;
+  const capture = {
+    onFailure: (diagnostic: RpcFailureDiagnostic) => (lastFailure = diagnostic),
+    // Transport side of the rule: a lookup-table transaction is never forwarded, attempt or not.
+    inspectSend: (tx: Parameters<typeof assertNoUserFundedAlt>[0]) => (activeGuard ? activeGuard.inspectSend(tx) : assertNoUserFundedAlt(tx))
+  };
+  /** The wallet signer every Cloak call from this session uses: never signs a lookup-table transaction. */
+  const guardedSigner = (wallet: ConnectedWallet): CloakSigner => {
+    const base = wallet.cloakSigner();
+    if (base.kind !== "wallet") return base;
+    return { ...base, signer: guardedWalletSigner(base.signer as unknown as ModifyingSigner, () => activeGuard) as unknown as typeof base.signer };
+  };
   const deps: ShieldDeps = {
     connectWallet: async ({ silent }) => {
       connected = await connectWallet({ silent });
@@ -226,13 +320,33 @@ export function createShieldSession(): ShieldSession {
     unlock: async () => {
       if (!connected) throw new Error("wallet not connected");
       const url = shieldRpc().url;
-      const { funding, keys } = await unlock(connected, url, createCapturingCloakRpc(url, "live", capture));
+      const { funding, keys } = await unlock(connected, url, createCapturingCloakRpc(url, "live", capture), guardedSigner(connected));
       unlocked = { funding, keys };
       return {
         shieldedUsdc: async () => (await funding.shieldedBalance()).total,
+        // Plan B: v0 + relay-paid supplemental table, one wallet approval, no wallet-paid table ever.
         shield: async (amount, options) => {
-          const result = await funding.shield(amount, options);
-          return { signature: result.signature };
+          const guard = new RelayShieldGuard({ mode: "live", onStage: (stage) => options.onProgress(`relay:${stage}`) });
+          activeGuard = guard;
+          const restore = guard.installFetchObserver(window);
+          try {
+            const result = await funding.shield(amount, {
+              relaySupplementalAlt: true,
+              onProgress: (stage) => {
+                guard.onProgress(stage);
+                options.onProgress(stage);
+              }
+            });
+            guard.shielded();
+            return { signature: result.signature };
+          } catch (error) {
+            // The SDK re-wraps errors; the guard's own abort says precisely what was refused.
+            throw guard.lastAbort ?? error;
+          } finally {
+            restore();
+            activeGuard = null;
+            lastReport = guard.report();
+          }
         },
         reconcile: async () => (await funding.reconcileWithChain()).total
       };
@@ -262,9 +376,51 @@ export function createShieldSession(): ShieldSession {
     if (unlocked) return unlocked;
     if (!connected) throw new Error("connect the wallet first");
     const url = shieldRpc().url;
-    const { funding, keys } = await unlock(connected, url, createCapturingCloakRpc(url, "live", capture));
+    const { funding, keys } = await unlock(connected, url, createCapturingCloakRpc(url, "live", capture), guardedSigner(connected));
     unlocked = { funding, keys };
     return unlocked;
+  };
+
+  /** dry-run / relay-test: the relay path with a zero-signature signer and a simulate-only transport. */
+  const runRelayPath = async (mode: "dry-run" | "relay-test"): Promise<RelayPathRun> => {
+    if (!connected) throw new Error("connect the wallet first");
+    const keys = (await ensureUnlocked()).keys;
+    const guard = new RelayShieldGuard({ mode });
+    const attempts: SimulationOutcome[] = [];
+    const stages: string[] = [];
+    const url = shieldRpc().url;
+    const dryFunding = new CloakFunding({
+      sdk: realCloakSdk,
+      connection: createCapturingCloakRpc(url, "simulate-only", { onSimulation: (o) => attempts.push(o), measureCost: true, inspectSend: (tx) => guard.inspectSend(tx) }),
+      signer: {
+        kind: "wallet",
+        signer: guard.wrapSigner(dryRunModifyingSigner(connected.address)) as never,
+        signMessage: connected.signMessage,
+        address: connected.address
+      },
+      keys,
+      store: new MemoryNoteStore(),
+      mint: USDC,
+      log
+    });
+    let stoppedBy: string | null = null;
+    const restore = guard.installFetchObserver(window);
+    try {
+      await dryFunding.shield(SHIELD_AMOUNT_USDC, {
+        relaySupplementalAlt: true,
+        onProgress: (stage) => {
+          stages.push(stage.slice(0, 200));
+          guard.onProgress(stage);
+        }
+      });
+      stoppedBy = "the SDK reported success without a broadcast (unexpected)";
+    } catch (error) {
+      stoppedBy = guard.lastAbort ? `${guard.lastAbort.violation}: ${guard.lastAbort.message}` : displayError(error);
+    } finally {
+      restore();
+    }
+    const report = guard.report();
+    return { mode, ...relayVerdict(mode, report, attempts, stoppedBy), report, attempts, stages, stoppedBy };
   };
 
   return {
@@ -310,6 +466,9 @@ export function createShieldSession(): ShieldSession {
       }
       return { ...shieldVerdict(attempts), transactionVersion, stages, attempts, stoppedBy, lookupTables };
     },
+    simulateRelayPath: () => runRelayPath("dry-run"),
+    testRelayAlt: () => runRelayPath("relay-test"),
+    lastRelayReport: () => lastReport,
     async testV1Signing() {
       if (!connected) throw new Error("connect the wallet first");
       return runV1SigningTest({

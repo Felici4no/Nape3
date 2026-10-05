@@ -61,7 +61,16 @@ export interface CaptureHooks {
    * minimum, and attach a SOL cost breakdown. Reads only.
    */
   measureCost?: boolean;
+  /**
+   * live: called with every transaction before `sendTransaction` is
+   * forwarded. Throwing refuses the send: the RPC never receives it and the
+   * SDK gets a JSON-RPC error (BLOCKED_SEND_ERROR_CODE).
+   */
+  inspectSend?(transaction: DecodedTransaction | null): void;
 }
+
+/** Error code returned to the SDK when `inspectSend` refuses a transaction. */
+export const BLOCKED_SEND_ERROR_CODE = -32098;
 
 /** Error code returned to the SDK in simulate-only mode (outside the Solana-reserved range it decodes). */
 export const DRY_RUN_ERROR_CODE = -32099;
@@ -91,6 +100,14 @@ export function captureTransport(base: BaseTransport, mode: CaptureMode, hooks: 
     if (mode === "simulate-only" && method === "sendTransaction") {
       const [wire, options] = (payload.params ?? []) as [string, { encoding?: string; preflightCommitment?: string } | undefined];
       const transaction = decodeWire(wire, options?.encoding);
+      if (hooks.inspectSend) {
+        try {
+          hooks.inspectSend(transaction);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return { jsonrpc: "2.0", id: payload.id, error: { code: BLOCKED_SEND_ERROR_CODE, message: `blocked before simulating: ${message}` } };
+        }
+      }
       const commitment = options?.preflightCommitment ?? "confirmed";
       const measure = !!hooks.measureCost && transaction !== null && transaction.writableKeys.length > 0;
       const simulateOptions: Record<string, unknown> = { encoding: options?.encoding ?? "base64", sigVerify: false, replaceRecentBlockhash: false, commitment };
@@ -123,6 +140,16 @@ export function captureTransport(base: BaseTransport, mode: CaptureMode, hooks: 
         hooks.onSimulation?.(outcome);
       }
       return { jsonrpc: "2.0", id: payload.id, error: { code: DRY_RUN_ERROR_CODE, message: DRY_RUN_MESSAGE } };
+    }
+
+    if (method === "sendTransaction" && hooks.inspectSend) {
+      const [wire, options] = (payload.params ?? []) as [string, { encoding?: string } | undefined];
+      try {
+        hooks.inspectSend(decodeWire(wire, options?.encoding));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return { jsonrpc: "2.0", id: payload.id, error: { code: BLOCKED_SEND_ERROR_CODE, message: `blocked before sending: ${message}` } };
+      }
     }
 
     const response = (await base(config)) as JsonRpcResponse;

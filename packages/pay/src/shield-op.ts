@@ -1,6 +1,7 @@
 import { CloakPersistenceError, diagnosticFromError, safeErrorMessage, type RpcFailureDiagnostic } from "@nape3/payments/cloak";
 import { isUserRejection, type WalletHandle } from "./flow";
 import type { IntentStore, ShieldIntent, ShieldProof } from "./shield-intent";
+import { RelayShieldAbort } from "./relay-shield-guard";
 
 /**
  * One real Cloak shield from the user's own wallet, as an explicit state
@@ -9,6 +10,8 @@ import type { IntentStore, ShieldIntent, ShieldProof } from "./shield-intent";
  *
  *   WALLET_REQUIRED → WALLET_CONNECTED → BALANCE_VERIFIED → CLOAK_UNLOCK_REQUIRED
  *     → CLOAK_READY → SHIELD_PREPARED → USER_CONFIRMATION_REQUIRED
+ *     → [FETCHING_RISK_QUOTE → PREPARING_RELAY_ALT → WAITING_FOR_ALT_WARMUP
+ *        → CHECKING_QUOTE_FRESHNESS]   (relay lookup-table path, see relay-shield-guard)
  *     → WALLET_SIGNATURE_REQUIRED → SUBMITTING → CONFIRMING → SHIELDED
  *   any step can end in FAILED (blocking or not, see ShieldFailure).
  *
@@ -30,6 +33,10 @@ export type ShieldState =
   | "CLOAK_READY"
   | "SHIELD_PREPARED"
   | "USER_CONFIRMATION_REQUIRED"
+  | "FETCHING_RISK_QUOTE"
+  | "PREPARING_RELAY_ALT"
+  | "WAITING_FOR_ALT_WARMUP"
+  | "CHECKING_QUOTE_FRESHNESS"
   | "WALLET_SIGNATURE_REQUIRED"
   | "SUBMITTING"
   | "CONFIRMING"
@@ -37,8 +44,22 @@ export type ShieldState =
   | "FAILED";
 
 export const SHIELD_AMOUNT_USDC = 1_000_000n;
-/** Network fees plus lookup-table rent the Cloak deposit may need. An estimate, not a quote. */
-export const SOL_RECOMMENDED_LAMPORTS = 10_000_000n;
+/**
+ * SOL the wallet should hold for one 1 USDC shield on the relay lookup-table
+ * path. Measured on mainnet (simulation, 2026-10-05): 130,000 lamports of
+ * fees + 1,960,880 lamports of rent for the 3 accounts the Cloak program
+ * creates = 2,090,880 spent; plus the wallet's rent-exempt floor and a margin.
+ * The relay pays for the lookup table. An estimate, not a quote.
+ */
+export const SOL_RECOMMENDED_LAMPORTS = 3_500_000n;
+
+/** Progress lines `relay:<STAGE>` emitted by the relay lookup-table path. */
+const RELAY_STAGE_TEXT: Partial<Record<ShieldState, string>> = {
+  FETCHING_RISK_QUOTE: "Getting the risk quote from the Cloak relay…",
+  PREPARING_RELAY_ALT: "Asking the Cloak relay for the lookup table (the relay pays; nothing to approve)…",
+  WAITING_FOR_ALT_WARMUP: "Waiting for the relay's lookup table to become usable on chain…",
+  CHECKING_QUOTE_FRESHNESS: "Checking the risk quote is still fresh…"
+};
 
 /** Wallet side of the Cloak funding layer, available once the user signed the derivation message. */
 export interface ShieldFunding {
@@ -133,7 +154,8 @@ export class ShieldOperation {
 
   constructor(
     private readonly deps: ShieldDeps,
-    private readonly amount: bigint = SHIELD_AMOUNT_USDC
+    private readonly amount: bigint = SHIELD_AMOUNT_USDC,
+    private readonly solRecommended: bigint = SOL_RECOMMENDED_LAMPORTS
   ) {
     this.view = {
       state: "WALLET_REQUIRED",
@@ -241,10 +263,10 @@ export class ShieldOperation {
       this.fail({ code: "insufficient-usdc", message: `Needs ${formatUsdc6(this.amount)} USDC in this wallet; it has ${formatUsdc6(balances.publicUsdc)}.`, blocking: false });
       return;
     }
-    if (balances.solLamports < SOL_RECOMMENDED_LAMPORTS) {
+    if (balances.solLamports < this.solRecommended) {
       this.fail({
         code: "insufficient-sol",
-        message: `Needs about ${formatSol9(SOL_RECOMMENDED_LAMPORTS)} SOL for network fees and lookup-table rent; it has ${formatSol9(balances.solLamports)}.`,
+        message: `Needs about ${formatSol9(this.solRecommended)} SOL for network fees and the rent of the accounts the deposit creates; it has ${formatSol9(balances.solLamports)}.`,
         blocking: false
       });
       return;
@@ -299,7 +321,7 @@ export class ShieldOperation {
         return;
       }
       this.set({ publicUsdc: balances.publicUsdc, solLamports: balances.solLamports });
-      if (balances.publicUsdc < this.amount || balances.solLamports < SOL_RECOMMENDED_LAMPORTS) {
+      if (balances.publicUsdc < this.amount || balances.solLamports < this.solRecommended) {
         this.fail({ code: "balance-changed", message: "Balances changed and no longer cover this shield. Check them again.", blocking: false });
         return;
       }
@@ -310,7 +332,7 @@ export class ShieldOperation {
         amountUsdc: formatUsdc6(this.amount),
         publicUsdc: formatUsdc6(balances.publicUsdc),
         solBalance: formatSol9(balances.solLamports),
-        solRecommended: formatSol9(SOL_RECOMMENDED_LAMPORTS)
+        solRecommended: formatSol9(this.solRecommended)
       };
       this.go("SHIELD_PREPARED", null, { summary });
       this.go("USER_CONFIRMATION_REQUIRED", "Review the summary. Nothing is sent until you confirm here and approve in your wallet.");
@@ -359,6 +381,16 @@ export class ShieldOperation {
     }
 
     const onProgress = (stage: string) => {
+      const relay = /^relay:([A-Z_]+)/.exec(stage)?.[1] as ShieldState | undefined;
+      if (relay === "WALLET_SIGNATURE_REQUIRED") {
+        this.go("WALLET_SIGNATURE_REQUIRED", `Approve the ${formatUsdc6(this.amount)} USDC shield in your wallet. This is the only transaction to approve.`);
+        return;
+      }
+      if (relay && RELAY_STAGE_TEXT[relay]) {
+        this.go(relay, RELAY_STAGE_TEXT[relay]!);
+        return;
+      }
+      if (relay) return;
       if (/wallet signature/i.test(stage) && /lookup table/i.test(stage)) {
         this.go("WALLET_SIGNATURE_REQUIRED", "Approve the lookup-table transaction in your wallet. It only prepares accounts; no USDC moves yet.");
       } else if (/^waiting for wallet signature/i.test(stage)) {
@@ -453,6 +485,16 @@ export class ShieldOperation {
       fail({ code: "notes-not-saved", message: `${displayError(error)} Signature: ${error.signature}`, blocking: true });
       return;
     }
+    if (error instanceof RelayShieldAbort && error.beforeBroadcast && intent.status === "signing") {
+      // A guard stopped the attempt before the deposit could be sent: definitely nothing broadcast.
+      try {
+        this.deps.intents.clear(wallet.address);
+      } catch {
+        /* a leftover "signing" record is resolved by checkPending() */
+      }
+      fail({ code: error.violation.toLowerCase(), message: error.message, blocking: false });
+      return;
+    }
     if (intent.status === "signing") {
       // Nothing was broadcast (cancelled in the wallet, proof or RPC error before sending).
       try {
@@ -468,9 +510,11 @@ export class ShieldOperation {
       return;
     }
     fail({
-      code: "outcome-unknown",
+      code: error instanceof RelayShieldAbort ? error.violation.toLowerCase() : "outcome-unknown",
       message:
-        diagnostic && diagnostic.code === -32002
+        error instanceof RelayShieldAbort
+          ? `${error.message} Do not retry. Use "Check on chain" to find out.`
+          : diagnostic && diagnostic.code === -32002
           ? `The RPC rejected the shield in preflight simulation (${diagnostic.failingInstruction?.customCodeHex ?? diagnostic.transactionError ?? "see diagnostic"}). A preflight rejection is not broadcast, but this stays blocked until "Check on chain" confirms nothing landed.`
           : `The shield may have landed: ${displayError(error)} Do not retry. Use "Check on chain" to find out.`,
       blocking: true

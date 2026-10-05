@@ -52,6 +52,14 @@ export interface ShieldOptions {
   lookupTables?: string[];
   /** Transaction message version for the deposit: 1 = Transaction V1 (no lookup tables, 4,096-byte packet). Default 0. */
   transactionVersion?: 0 | 1;
+  /**
+   * v0 only: ask the Cloak relay to create/extend (and pay for) the
+   * supplemental lookup table instead of a depositor-signed one, so the
+   * wallet signs only the deposit. The SDK falls back to a depositor-signed
+   * table on any relay failure; callers that must never allow that wrap the
+   * signer (see @nape3/pay relay-shield-guard).
+   */
+  relaySupplementalAlt?: boolean;
 }
 
 export interface ShieldResult {
@@ -224,7 +232,8 @@ export class CloakFunding {
         ...(signer.kind === "wallet" ? { maxRootRetries: 0 } : {}),
         ...(options.onProgress ? { onProgress: options.onProgress } : {}),
         ...(options.lookupTables?.length ? { altAddresses: options.lookupTables } : {}),
-        ...(options.transactionVersion !== undefined ? { transactionVersion: options.transactionVersion } : {})
+        ...(options.transactionVersion !== undefined ? { transactionVersion: options.transactionVersion } : {}),
+        ...(options.relaySupplementalAlt ? { relaySupplementalAlt: true } : {})
       })
     );
     await this.persistOutputs(result, new Set());

@@ -6,6 +6,7 @@ import {
   CLOAK_PROGRAM_ID,
   formatSol9,
   formatUsdc6,
+  type RelayPathRun,
   type ShieldCost,
   type ShieldSession,
   type ShieldSimulation,
@@ -163,10 +164,44 @@ function v1SigningText(r: V1SigningResult): string {
   ].join("\n");
 }
 
+const RELAY_VERDICT_OK: ReadonlyArray<RelayPathRun["verdict"]> = ["READY_UP_TO_RELAY_ALT", "RELAY_ALT_DEPOSIT_WOULD_SUCCEED", "FITS_WITHOUT_RELAY_ALT"];
+
+function relayRunText(r: RelayPathRun): string {
+  const q = r.report.quote;
+  const lines = [
+    `Mode: ${r.mode === "dry-run" ? "dry run (no relay call, nothing sent)" : "relay test (relay table requested for real; deposit only simulated)"}`,
+    `Verdict: ${r.verdict}`,
+    `Reason: ${r.reason}`,
+    `Guard: stage ${r.report.stage}; violation ${r.report.violation ?? "none"}; wallet signatures requested ${r.report.signatures}`,
+    `Relay request: ${r.report.relayRequest ? `mint ${r.report.relayRequest.mint}, depositor ${r.report.relayRequest.depositor}, ${r.report.relayRequest.nullifiers} nullifiers, bind0 ${r.report.relayRequest.bind0Bytes} bytes` : "none"}`,
+    `Relay table: ${r.report.relayTable ?? "-"}${r.report.relayFailed ? ` (relay: ${r.report.relayFailed})` : ""}`,
+    `Lookup tables in the signed deposit: ${r.report.signedLookupTables.join(", ") || "-"}`,
+    q
+      ? `Risk quote: ${q.messageLength}-byte message (tag ${q.tag}); timestamp fields: ${q.timestampCandidates.map((c) => `@${c.offset} ${c.secondsFromFetch >= 0 ? "+" : ""}${c.secondsFromFetch}s`).join(", ") || "none found"}; expiry ${q.expiresAtMs === null ? "not found" : `${Math.round((q.expiresAtMs - q.fetchedAtMs) / 1000)}s after fetch`}`
+      : "Risk quote: not observed",
+    "Timeline (ms since start):",
+    ...r.report.events.map((e) => `  +${e.atMs} ${e.kind}: ${e.detail}`)
+  ];
+  if (r.stoppedBy) lines.push(`Stopped by: ${r.stoppedBy}`);
+  if (r.stages.length) lines.push("SDK progress:", ...r.stages.map((st) => `  ${st}`));
+  r.attempts.forEach((a, i) => {
+    const t = a.transaction;
+    lines.push("", `Simulated transaction ${i + 1}/${r.attempts.length}: ${t?.programIds.includes(CLOAK_PROGRAM_ID) ? "Cloak deposit" : "not a Cloak deposit"}: ${a.ok ? "simulation ok" : "simulation failed"}`);
+    if (t) {
+      lines.push(`  version ${t.version}, ${t.size} bytes, ${t.staticKeys.length} static accounts; lookup tables: ${t.lookupTables.map((l) => `${l.table} (w${l.writable}/r${l.readonly})`).join(", ") || "none"}`);
+    }
+    lines.push(formatDiagnostic(a.diagnostic));
+    if (a.cost) lines.push(costText(a.cost));
+  });
+  return lines.join("\n");
+}
+
 export function ShieldDiagnostics({ session, diagnostic }: { session: ShieldSession; diagnostic?: RpcFailureDiagnostic }) {
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [simulation, setSimulation] = useState<ShieldSimulation | null>(null);
   const [v1Signing, setV1Signing] = useState<V1SigningResult | null>(null);
+  const [relayRun, setRelayRun] = useState<RelayPathRun | null>(null);
+  const [relayAck, setRelayAck] = useState(false);
   const [pasted, setPasted] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -230,6 +265,36 @@ export function ShieldDiagnostics({ session, diagnostic }: { session: ShieldSess
         </p>
       )}
       {simulation && <Block title="Simulation (not broadcast)" text={simulationText(simulation)} />}
+
+      <div className={styles.diag}>
+        <span className="eyebrow">Plan B · v0 + relay-paid lookup table</span>
+        <p className={styles.fine}>
+          The shield Phantom can sign: a v0 deposit whose extra lookup table is created and paid by the Cloak relay. Your wallet never signs or pays for a
+          lookup table (that fallback is blocked), and approves exactly one transaction, the deposit.
+        </p>
+        <div className={styles.row}>
+          <button className="btn ghost" style={{ color: "var(--night-ink)", boxShadow: "inset 0 0 0 1.5px var(--night-ink)" }} disabled={busy !== null} onClick={() => void run("relay-dry", async () => setRelayRun(await session.simulateRelayPath()))}>
+            {busy === "relay-dry" ? "Dry run (no relay call)…" : "Dry-run plan B (no relay call, nothing sent)"}
+          </button>
+        </div>
+        <p className={styles.fine}>
+          <strong>First real relay lookup-table test.</strong> This asks the Cloak relay for the lookup table for real: the relay writes it on chain and pays
+          for it. Then the deposit that uses it is only simulated. Your wallet signs no transaction, and nothing is sent from this page.
+        </p>
+        <label className={styles.fine} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <input type="checkbox" checked={relayAck} onChange={(e) => setRelayAck(e.target.checked)} />I understand the relay will write a lookup table on chain at its cost, and that no shield is sent.
+        </label>
+        <div className={styles.row}>
+          <button className="btn light" disabled={busy !== null || !relayAck} onClick={() => void run("relay-test", async () => {
+            setRelayAck(false);
+            setRelayRun(await session.testRelayAlt());
+          })}>
+            {busy === "relay-test" ? "Relay test running (deposit simulated only)…" : "Run the first real relay-ALT test"}
+          </button>
+        </div>
+        {relayRun && <p className={`${styles.status} ${RELAY_VERDICT_OK.includes(relayRun.verdict) ? "" : styles.err}`}>{relayRun.verdict}: {relayRun.reason}</p>}
+        {relayRun && <Block title={relayRun.mode === "dry-run" ? "Plan B dry run (nothing sent)" : "Relay lookup-table test (deposit simulated, nothing sent)"} text={relayRunText(relayRun)} />}
+      </div>
 
       <div className={styles.diag}>
         <span className="eyebrow">Transaction V1 signing test</span>
