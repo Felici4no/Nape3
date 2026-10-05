@@ -311,6 +311,7 @@ async function handle(message: ExtensionMessage, tabId: number | undefined): Pro
       return { ok: true, type: "DONE" };
     case "GET_SNAPSHOT":
     case "GET_DOM_CAPTURE":
+    case "GET_PAGE_CAPTURE":
       return { ok: false, error: "handled by the content script" };
     default:
       return { ok: false, error: `unsupported message ${(message as { type: string }).type}` };
@@ -318,7 +319,7 @@ async function handle(message: ExtensionMessage, tabId: number | undefined): Pro
 }
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse: (r: ExtensionResponse) => void) => {
-  if (message.type === "GET_SNAPSHOT" || message.type === "GET_DOM_CAPTURE") return false; // content script
+  if (message.type === "GET_SNAPSHOT" || message.type === "GET_DOM_CAPTURE" || message.type === "GET_PAGE_CAPTURE") return false; // content script
   // Messages from the popup carry the tab id explicitly; content scripts via sender.
   const tabId = message.type === "RECORD_SNAPSHOT" ? (message.tabId ?? sender.tab?.id) : sender.tab?.id;
   handle(message, tabId)

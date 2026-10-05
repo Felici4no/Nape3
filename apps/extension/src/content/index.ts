@@ -8,7 +8,7 @@ import {
   type PageSnapshot
 } from "../shared/types";
 import { removeBadge, renderBadge as renderBadgeNow, whenPageSettled } from "./badge";
-import { captureOrderDom } from "./capture";
+import { captureOrderDom, capturePage } from "./capture";
 import { takeSnapshot } from "./extract";
 
 const log = createLogger("content");
@@ -151,8 +151,13 @@ void whenPageSettled(window).then(() => {
 // The popup always gets a *fresh* extraction — never a cached snapshot.
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, _sender, sendResponse: (response: ExtensionResponse) => void) => {
-    if (message.type !== "GET_SNAPSHOT" && message.type !== "GET_DOM_CAPTURE") return false;
+    if (message.type !== "GET_SNAPSHOT" && message.type !== "GET_DOM_CAPTURE" && message.type !== "GET_PAGE_CAPTURE") return false;
     try {
+      if (message.type === "GET_PAGE_CAPTURE") {
+        const capture = capturePage(document, takeSnapshot(document, location.href), { redactions: message.redactions });
+        sendResponse({ ok: true, type: "PAGE_CAPTURE", capture });
+        return false;
+      }
       sendResponse(
         message.type === "GET_DOM_CAPTURE"
           ? { ok: true, type: "DOM_CAPTURE", capture: captureOrderDom(document) }

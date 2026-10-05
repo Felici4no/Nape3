@@ -150,6 +150,7 @@ export interface MarketView {
 export type ExtensionMessage =
   | { type: "GET_SNAPSHOT" }
   | { type: "GET_DOM_CAPTURE" }
+  | { type: "GET_PAGE_CAPTURE"; redactions: string[] }
   | { type: "RECORD_SNAPSHOT"; snapshot: PageSnapshot; tabId?: number }
   | { type: "PLAN_INTENT"; request: string; snapshot: PageSnapshot | null }
   | { type: "GET_SETTINGS" }
@@ -174,6 +175,7 @@ export type ExtensionResponse =
   | { ok: true; type: "SETTINGS"; settings: ExtensionSettings }
   | { ok: true; type: "DONE" }
   | { ok: true; type: "DOM_CAPTURE"; capture: string }
+  | { ok: true; type: "PAGE_CAPTURE"; capture: string }
   | { ok: true; type: "PAYMENT_CREATED"; paymentId: string; url: string }
   | { ok: true; type: "WALLET_STATUS"; status: WalletStatus | null }
   | { ok: false; error: string };

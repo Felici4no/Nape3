@@ -185,6 +185,8 @@ function DecisionPanel({ decision, notes, intentError, agentState }: { decision:
 
 function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; market: MarketView | null; tabId: number | null }) {
   const [capture, setCapture] = useState<string | null>(null);
+  const [pageCapture, setPageCapture] = useState<string | null>(null);
+  const [redactions, setRedactions] = useState("");
   const cart = snapshot.cart;
   const time = (iso: string) => `${new Date(iso).toLocaleTimeString("pt-BR")} (${iso})`;
   async function loadCapture() {
@@ -195,6 +197,25 @@ function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; marke
     } catch (error) {
       setCapture(`error: ${errorMessage(error)}`);
     }
+  }
+  async function loadPageCapture() {
+    if (tabId === null) return;
+    const words = redactions.split(",").map((w) => w.trim()).filter((w) => w.length >= 3);
+    try {
+      const response = (await chrome.tabs.sendMessage(tabId, { type: "GET_PAGE_CAPTURE", redactions: words } satisfies ExtensionMessage)) as ExtensionResponse;
+      setPageCapture(response.ok && response.type === "PAGE_CAPTURE" ? response.capture : `error: ${response.ok ? "unexpected" : response.error}`);
+    } catch (error) {
+      setPageCapture(`error: ${errorMessage(error)}`);
+    }
+  }
+  function downloadPageCapture() {
+    if (!pageCapture) return;
+    const url = URL.createObjectURL(new Blob([pageCapture], { type: "text/plain" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `upay3food-capture-${snapshot.detection.context.toLowerCase()}-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
   return (
     <details className="debug" open>
@@ -231,6 +252,23 @@ function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; marke
               <li key={l.sourceTitle}>line: {l.quantity}× {l.sourceTitle} {money(l.lineTotalCents)} {l.evidence}</li>
             ))}
           </ul>
+        </>
+      )}
+      <p className="small">
+        <strong>Calibration capture (any page).</strong> Detected context, signals, what was extracted and a sanitized page structure.
+        Header, navigation, footer and input values are left out. E-mails, phones, CEPs, CPFs, long numbers, street addresses and Pix codes are removed.
+      </p>
+      <label className="small">
+        Extra words to remove (comma-separated: your name, street…). Used once, never stored.
+        <input type="text" autoComplete="off" spellCheck={false} value={redactions} onChange={(e) => setRedactions(e.target.value)} />
+      </label>
+      <button className="secondary" onClick={() => void loadPageCapture()}>Capture this page ({snapshot.detection.context})</button>
+      {pageCapture && (
+        <>
+          <p className="small warn">Review before sharing. Search it for your name, street and phone before sending.</p>
+          <textarea readOnly value={pageCapture} rows={10} onFocus={(e) => e.currentTarget.select()} />
+          <button className="secondary" onClick={() => void navigator.clipboard.writeText(pageCapture)}>Copy</button>
+          <button className="secondary" onClick={downloadPageCapture}>Download .txt</button>
         </>
       )}
       <button className="secondary" onClick={() => void loadCapture()}>Capture order DOM (for calibration)</button>
