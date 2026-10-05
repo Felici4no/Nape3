@@ -133,26 +133,33 @@ function simulationText(s: ShieldSimulation): string {
   return lines.join("\n");
 }
 
-const V1_OUTCOME_LABEL: Record<V1SigningResult["outcome"], string> = {
+const V1_OUTCOME_LABEL: Record<V1SigningResult["phantomV1"], string> = {
   PHANTOM_V1_SIGNING_SUPPORTED: "PHANTOM_V1_SIGNING_SUPPORTED",
   PHANTOM_V1_SIGNING_UNSUPPORTED: "PHANTOM_V1_SIGNING_UNSUPPORTED",
-  INCONCLUSIVE_USER_REJECTED: "INCONCLUSIVE: the request was rejected in the wallet"
+  DIAGNOSTIC_REQUEST_INVALID: "DIAGNOSTIC_REQUEST_INVALID: our request may not match what the wallet expects; no conclusion about V1",
+  INCONCLUSIVE_USER_REJECTED: "INCONCLUSIVE_USER_REJECTED: the request was rejected in the wallet"
 };
 
 function v1SigningText(r: V1SigningResult): string {
+  const ws = r.walletStandard;
   return [
-    `Outcome: ${V1_OUTCOME_LABEL[r.outcome]}`,
+    `A. Phantom V1 support: ${r.phantomV1Support} (${r.phantomV1})`,
+    `B. Current Cloak/web3.js adapter: ${r.cloakAdapter.works ? "YES" : "NO"}: ${r.cloakAdapter.reason}`,
     `Detail: ${r.detail}`,
     `Wallet: ${r.wallet}`,
-    `Path used: ${r.path ?? "-"}`,
-    `Wallet returned a signed result: ${r.checks.walletReturned}`,
-    `Message unchanged: ${r.checks.messageUnchanged ?? "-"}`,
-    `Still Transaction V1: ${r.checks.stillVersion1 ?? "-"}`,
-    `Signature valid for the message and the connected public key: ${r.checks.signatureValid ?? "-"}`,
-    `Cloak SDK wallet path usable (signed.serialize()): ${r.sdkAdapterPathWorks === null ? "-" : r.sdkAdapterPathWorks}`,
-    ...r.inPageErrors.map((e) => `In-page error (not the wallet): ${e}`),
+    `Wallet Standard: ${ws.found ? `${ws.name}, solana:signTransaction supportedTransactionVersions = ${ws.signTransactionVersions ? JSON.stringify(ws.signTransactionVersions) : "not declared"}` : "no wallet with solana:signTransaction found"}`,
+    ...r.attempts.flatMap((a, i) => [
+      "",
+      `Attempt ${i + 1}: ${a.path}: ${a.outcome}`,
+      `  request: ${a.request}`,
+      `  ${a.detail}`,
+      ...(a.error ? [`  wallet error: ${a.error}`] : []),
+      ...(a.responseShape ? [`  response shape (no values): ${a.responseShape}`] : []),
+      `  message unchanged: ${a.checks.messageUnchanged ?? "-"}; still V1: ${a.checks.stillVersion1 ?? "-"}; signature valid for the message and the connected key: ${a.checks.signatureValid ?? "-"}`
+    ]),
+    "",
     `Broadcast attempts blocked by the guard: ${r.blockedBroadcasts}`,
-    "The signed transaction was verified locally, then discarded. It was not sent and is not stored."
+    "Anything signed was verified locally, then wiped. Nothing was sent or stored."
   ].join("\n");
 }
 
@@ -232,8 +239,9 @@ export function ShieldDiagnostics({ session, diagnostic }: { session: ShieldSess
           It will not be broadcast and cannot move funds.
         </p>
         <p className={styles.fine}>
-          The transaction is a 0-lamport transfer from your wallet to itself. Only “sign” is requested (never “sign and send”); the signature is checked
-          here and then discarded. While the test runs, any attempt to broadcast is blocked.
+          The transaction is a 0-lamport transfer from your wallet to itself. Only “sign” is requested (never “sign and send”): first through Wallet
+          Standard, then, only if that route does not give an answer, through Phantom’s request API, so you may see up to two sign requests. The
+          signature is checked here and then discarded. While the test runs, any attempt to broadcast is blocked.
         </p>
         <div className={styles.row}>
           <button
@@ -246,7 +254,9 @@ export function ShieldDiagnostics({ session, diagnostic }: { session: ShieldSess
           </button>
         </div>
         {v1Signing && (
-          <p className={`${styles.status} ${v1Signing.outcome === "PHANTOM_V1_SIGNING_SUPPORTED" ? "" : styles.err}`}>{V1_OUTCOME_LABEL[v1Signing.outcome]}</p>
+          <p className={`${styles.status} ${v1Signing.phantomV1 === "PHANTOM_V1_SIGNING_SUPPORTED" ? "" : styles.err}`}>
+            Phantom V1 support: {v1Signing.phantomV1Support} · Current Cloak/web3.js adapter: {v1Signing.cloakAdapter.works ? "YES" : "NO"}
+          </p>
         )}
         {v1Signing && <Block title="Transaction V1 signing test (nothing sent)" text={v1SigningText(v1Signing)} />}
       </div>

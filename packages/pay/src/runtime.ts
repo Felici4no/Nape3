@@ -22,7 +22,7 @@ import { CLOAK_PROGRAM_ID, diagnoseShieldChain, type ShieldChainDiagnosis } from
 import { LocalIntentStore } from "./shield-intent";
 import { displayError, SHIELD_AMOUNT_USDC, ShieldOperation, type ShieldDeps } from "./shield-op";
 import { connectWallet, type ConnectedWallet } from "./wallet";
-import { runV1SigningTest, type V1SigningResult } from "./v1-signing-test";
+import { discoverStandardWallets, runV1SigningTest, type V1SigningResult } from "./v1-signing-test";
 
 /**
  * Real wiring of UPAY3FOOD Pay: injected wallet (Phantom/Solflare), Solana
@@ -312,15 +312,11 @@ export function createShieldSession(): ShieldSession {
     },
     async testV1Signing() {
       if (!connected) throw new Error("connect the wallet first");
-      const provider = connected.provider;
       return runV1SigningTest({
-        wallet: {
-          publicKey: provider.publicKey,
-          signTransaction: (tx) => provider.signTransaction(tx),
-          ...(provider.request ? { request: (args: { method: string; params?: unknown }) => provider.request!(args) } : {})
-        },
+        walletAddress: connected.address,
+        provider: connected.provider,
+        standardWallets: () => discoverStandardWallets(window),
         guardTarget: window as never,
-        guardWallet: provider,
         latestBlockhash: async () => {
           const r = await rpcCall<{ value: { blockhash: string; lastValidBlockHeight: number } }>("getLatestBlockhash", [{ commitment: "confirmed" }]);
           return r.value;

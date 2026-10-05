@@ -163,3 +163,25 @@ and the lamports each table holds.
   - a fallback over raw bytes (`provider.request({ method: "signTransaction" })`), used only when the failure happened in the page before the wallet saw the transaction.
 
   The simulate-only run uses a zero-signature kit signer, so it never reaches this path.
+
+### Results of the first run, and the fixes for two diagnostic bugs
+
+- **V1 shield simulation:** success. 1516 bytes, the Cloak and Token programs succeeded, 216,817 CU, `err: null`, nothing broadcast.
+- **SOL cost not measured:** `getMultipleAccounts` received the 9 writable accounts in one call, and RPC Fast caps that call at 5 inputs ("Too many inputs provided; max 5"). The reads now go in batches of ≤ 5, sequential and read-only, merged back in the original order (duplicates included). `readAccountsBatched` in `rpc-capture.ts`.
+- **Phantom result was not a valid verdict:** the fallback sent `base58(full wire transaction)` to `provider.request({ method: "signTransaction" })`. Phantom documents that the `message` parameter takes `bs58.encode(transaction.serializeMessage())`, so "Reached end of buffer unexpectedly" only showed that our encoding was wrong. The test now answers two questions separately:
+  - **A. Can Phantom sign a V1 message?** Two routes are tried:
+    - Wallet Standard `solana:signTransaction` with the serialized transaction bytes. This is the standard's own input, and the wallet's `supportedTransactionVersions` is reported too.
+    - Only if that gives no answer: `provider.request` with `base58(message bytes)`.
+
+    Responses are described by shape only and parsed generically. Outcomes:
+    - `PHANTOM_V1_SIGNING_SUPPORTED`
+    - `PHANTOM_V1_SIGNING_UNSUPPORTED`: the Wallet Standard route refused the transaction, or the error is an explicit version refusal.
+    - `DIAGNOSTIC_REQUEST_INVALID`: parse failures on the undocumented-for-v1 route.
+    - `INCONCLUSIVE_USER_REJECTED`
+  - **B. Can the current Cloak/web3.js adapter consume the result?** Answered locally with no prompt. It cannot: web3.js 1.99 `serialize()` throws for v1.
+- **Adapter design:** `walletStandardV1Signer` (`packages/pay/src/v1-wallet-signer.ts`).
+  - Same shape as the SDK's adapter signer (`address` + `modifyAndSignTransactions`).
+  - Passes the kit transaction bytes to Wallet Standard `solana:signTransaction` and decodes the wallet's signed bytes.
+  - Refuses a changed message or a signature that does not verify.
+  - No web3.js round trip, and no hand-rebuilt message.
+  - Not wired into the production shield yet.

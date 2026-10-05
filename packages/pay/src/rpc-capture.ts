@@ -182,6 +182,25 @@ function movementsFrom(inner: unknown, accountKeys: string[], before: Map<string
   return [...systemMovements(compiled, accountKeys, before), ...parsed];
 }
 
+/** RPC Fast caps getMultipleAccounts at 5 addresses per call. */
+export const GET_MULTIPLE_ACCOUNTS_MAX = 5;
+
+/**
+ * Reads `keys` in batches of at most GET_MULTIPLE_ACCOUNTS_MAX (sequentially,
+ * read-only, no retries) and returns one entry per key, in the original order
+ * (duplicates included).
+ */
+export async function readAccountsBatched(base: BaseTransport, signal: AbortSignal | undefined, keys: readonly string[], commitment: string): Promise<unknown[]> {
+  const out: unknown[] = [];
+  for (let i = 0; i < keys.length; i += GET_MULTIPLE_ACCOUNTS_MAX) {
+    const chunk = keys.slice(i, i + GET_MULTIPLE_ACCOUNTS_MAX);
+    const r = await read<{ value: unknown[] }>(base, signal, "getMultipleAccounts", [chunk, { encoding: "base64", dataSlice: { offset: 0, length: 0 }, commitment }]);
+    if (!Array.isArray(r.value) || r.value.length !== chunk.length) throw new Error(`getMultipleAccounts returned ${Array.isArray(r.value) ? r.value.length : "no"} entries for ${chunk.length} addresses`);
+    out.push(...r.value);
+  }
+  return out;
+}
+
 async function measureCost(
   base: BaseTransport,
   signal: AbortSignal | undefined,
@@ -194,12 +213,12 @@ async function measureCost(
   const keys = transaction.writableKeys;
   const messageBase64 = getBase64Decoder().decode(getTransactionDecoder().decode(base64ToBytes(wire)).messageBytes);
   const [pre, fee, rentMin] = await Promise.all([
-    read<{ value: unknown[] }>(base, signal, "getMultipleAccounts", [keys, { encoding: "base64", dataSlice: { offset: 0, length: 0 }, commitment }]),
+    readAccountsBatched(base, signal, keys, commitment),
     read<{ value: number | null }>(base, signal, "getFeeForMessage", [messageBase64, { commitment }]).catch(() => ({ value: null })),
     read<number>(base, signal, "getMinimumBalanceForRentExemption", [0, { commitment }])
   ]);
   const post = Array.isArray(postAccounts) ? postAccounts : [];
-  const accounts = keys.map((address, i) => ({ address, before: lamportsOf(pre.value[i]), after: lamportsOf(post[i]) }));
+  const accounts = keys.map((address, i) => ({ address, before: lamportsOf(pre[i]), after: lamportsOf(post[i]) }));
   const before = new Map(accounts.map((a) => [a.address, a.before] as const));
   return shieldCost({
     feePayer: transaction.staticKeys[0]!,

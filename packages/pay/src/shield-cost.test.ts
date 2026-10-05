@@ -15,7 +15,7 @@ import {
   AccountRole,
   type Blockhash
 } from "@solana/kit";
-import { captureTransport, DRY_RUN_ERROR_CODE, type SimulationOutcome } from "./rpc-capture";
+import { captureTransport, DRY_RUN_ERROR_CODE, GET_MULTIPLE_ACCOUNTS_MAX, readAccountsBatched, type SimulationOutcome } from "./rpc-capture";
 import { shieldCost, SYSTEM_PROGRAM, systemMovements } from "./shield-cost";
 import { CLOAK_PROGRAM_ID } from "./shield-diagnosis";
 
@@ -191,5 +191,48 @@ describe("captureTransport measureCost (simulate-only)", () => {
     expect(cost.sufficient).toBe(true);
     // the post-state account dump is not copied into the diagnostic
     expect(outcomes[0]!.diagnostic.data.accounts).toBeNull();
+  });
+});
+
+describe("readAccountsBatched (RPC Fast: getMultipleAccounts max 5 inputs)", () => {
+  function fakeRpc() {
+    const calls: string[][] = [];
+    const base = vi.fn(async ({ payload }: { payload: unknown }) => {
+      const p = payload as { id: unknown; method: string; params: [string[], unknown] };
+      expect(p.method).toBe("getMultipleAccounts");
+      const keys = p.params[0];
+      calls.push(keys);
+      if (keys.length > GET_MULTIPLE_ACCOUNTS_MAX) return { jsonrpc: "2.0", id: p.id, error: { code: -32602, message: "Too many inputs provided; max 5" } };
+      return { jsonrpc: "2.0", id: p.id, result: { context: { slot: 1 }, value: keys.map((k) => (k.startsWith("missing") ? null : { lamports: Number(k.split("-")[1]) })) } };
+    });
+    return { base, calls };
+  }
+
+  it("splits 9 writable accounts into 5 + 4 and keeps the original order", async () => {
+    const { base, calls } = fakeRpc();
+    const keys = Array.from({ length: 9 }, (_, i) => (i === 6 ? "missing-6" : `acct-${i + 1}`));
+    const values = await readAccountsBatched(base, undefined, keys, "confirmed");
+    expect(calls.map((c) => c.length)).toEqual([5, 4]);
+    expect(calls.flat()).toEqual(keys);
+    expect(values).toEqual([1, 2, 3, 4, 5, 6, null, 8, 9].map((v) => (v === null ? null : { lamports: v })));
+  });
+
+  it("handles a non-multiple of 5 with duplicates, and exactly 5 in one call", async () => {
+    const seven = fakeRpc();
+    const keys = ["acct-1", "acct-2", "acct-1", "acct-3", "acct-4", "acct-5", "acct-2"];
+    const values = await readAccountsBatched(seven.base, undefined, keys, "confirmed");
+    expect(seven.calls.map((c) => c.length)).toEqual([5, 2]);
+    expect(values.map((v) => (v as { lamports: number }).lamports)).toEqual([1, 2, 1, 3, 4, 5, 2]);
+
+    const five = fakeRpc();
+    await readAccountsBatched(five.base, undefined, ["acct-1", "acct-2", "acct-3", "acct-4", "acct-5"], "confirmed");
+    expect(five.calls).toHaveLength(1);
+    expect(await readAccountsBatched(fakeRpc().base, undefined, [], "confirmed")).toEqual([]);
+  });
+
+  it("fails the measurement (no retry) when a batch errors or comes back short", async () => {
+    const base = vi.fn(async ({ payload }: { payload: unknown }) => ({ jsonrpc: "2.0", id: (payload as { id: unknown }).id, result: { value: [null] } }));
+    await expect(readAccountsBatched(base, undefined, ["a", "b"], "confirmed")).rejects.toThrow(/1 entries for 2/);
+    expect(base).toHaveBeenCalledOnce();
   });
 });
