@@ -1,22 +1,33 @@
 .bar { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--cream) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
-.inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 64px; }
-.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-.mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: var(--ink); color: var(--burger); font-family: var(--font-display); font-size: 18px; }
-.word { font-family: var(--font-display); font-size: 22px; letter-spacing: 0.02em; }
-.word span { color: var(--burger-2); }
-.nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
-.nav a { padding: 8px 14px; border-radius: 999px; text-decoration: none; font-weight: 600; font-size: 14px; white-space: nowrap; }
-.nav a:hover { background: var(--paper); }
+.inner { display: flex; align-items: center; justify-content: center; height: 60px; }
+.word {
+  font-family: var(--font-display);
+  font-size: 26px;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  line-height: 1;
+  animation: wordIn 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--after-splash, 0ms);
+}
+.word span { color: var(--burger-2); display: inline-block; transition: transform 300ms cubic-bezier(0.3, 1.6, 0.5, 1); }
+.word:hover span { transform: translateY(-3px) rotate(-6deg); }
+@keyframes wordIn {
+  from { opacity: 0; letter-spacing: 0.3em; }
+  to { opacity: 1; letter-spacing: 0.06em; }
+}
 .banner { background: #fff3c4; border-bottom: 1px solid #e9cf6b; color: #4a3a00; font-size: 13px; padding: 8px 0; }
 .bannerLive { background: #e3f3e4; border-bottom-color: #9fd0a3; color: #1e3f20; }
 .bannerWarn { background: #ffe1d6; border-bottom-color: #f0a58f; color: #6b1d0c; }
 .toggle { margin-left: 8px; font-weight: 600; white-space: nowrap; }
-.footer { padding: 64px 0 48px; margin-top: 96px; }
+/* leaves room for the floating bottom navigation */
+.footer { padding: 64px 0 calc(136px + env(safe-area-inset-bottom)); margin-top: 96px; }
 .sentence { font-size: clamp(40px, 6vw, 88px); max-width: 14ch; }
 .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 32px; color: var(--night-ink-2); }
 @media (max-width: 760px) {
-  .word { font-size: 18px; }
-  .inner { height: auto; padding-top: 10px; padding-bottom: 10px; flex-wrap: wrap; }
-  .nav { width: 100%; }
+  .word { font-size: 22px; }
+  .inner { height: 54px; }
   .cols { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .word { animation: none; }
 }

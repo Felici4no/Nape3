@@ -1,0 +1,93 @@
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: var(--night);
+  color: var(--night-ink);
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 650ms cubic-bezier(0.7, 0, 0.2, 1);
+}
+.lift { clip-path: inset(0 0 100% 0); }
+
+.center { display: grid; justify-items: center; gap: 14px; transition: transform 650ms cubic-bezier(0.7, 0, 0.2, 1), opacity 400ms ease; }
+.lift .center { transform: translateY(-40px); opacity: 0; }
+
+/* four food tones that bounce in like dishes landing on a table */
+.plate { display: flex; gap: 10px; margin-bottom: 6px; }
+.plate span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  animation: drop 900ms cubic-bezier(0.3, 1.5, 0.5, 1) both, bob 1200ms ease-in-out 900ms infinite;
+}
+.plate span:nth-child(2) { animation-delay: 90ms, 990ms; }
+.plate span:nth-child(3) { animation-delay: 180ms, 1080ms; }
+.plate span:nth-child(4) { animation-delay: 270ms, 1170ms; }
+@keyframes drop {
+  from { opacity: 0; transform: translateY(-36px) scale(0.4); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes bob {
+  0%, 100% { transform: none; }
+  50% { transform: translateY(-5px); }
+}
+
+.word {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(52px, 12vw, 120px);
+  line-height: 1;
+  letter-spacing: 0.04em;
+  display: flex;
+  overflow: hidden;
+  padding: 0 0.05em 0.06em;
+}
+.word span {
+  display: inline-block;
+  animation: rise 700ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.word .three { color: var(--burger); }
+@keyframes rise {
+  from { transform: translateY(105%); }
+  to { transform: none; }
+}
+
+.tag {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--night-ink-2);
+  animation: fade 600ms ease 700ms both;
+}
+@keyframes fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.progress {
+  width: 160px;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 3px;
+  background: var(--night-line);
+  overflow: hidden;
+}
+.progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--burger), var(--pizza), var(--acai-2), var(--sushi-2));
+  transform-origin: left;
+  animation: fill 1400ms cubic-bezier(0.6, 0, 0.2, 1) 150ms both;
+}
+@keyframes fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* fail-safe: never left covering the page (no JS, a slow hydration) */
+.splash { animation: failsafe 0s linear 4s forwards; }
+@keyframes failsafe { to { visibility: hidden; opacity: 0; pointer-events: none; } }

@@ -167,3 +167,9 @@ button { font: inherit; }
 section { scroll-margin-top: 80px; }
 .tag.live { background: #e3f3e4; border-color: #9fd0a3; color: #1e5a22; }
 .night .tag.live { background: #183a1b; border-color: #2f6b34; color: #9be3a5; }
+
+/* opening splash (components/nav/Splash) and the entrances timed after it */
+:root { --after-splash: 1750ms; }
+:root.splash-seen { --after-splash: 120ms; }
+.splash-seen .splash { display: none; }
+.splash-on body { overflow: hidden; }

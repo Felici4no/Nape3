@@ -2,27 +2,14 @@ import Link from "next/link";
 import { getMarketSource } from "@/lib/source.server";
 import styles from "./Shell.module.css";
 
-const NAV = [
-  { href: "/market", label: "Market" },
-  { href: "/agent", label: "Agent" },
-  { href: "/wallet", label: "Wallet" },
-  { href: "/pay", label: "Pay" },
-  { href: "/privacy", label: "Privacy" }
-];
-
+/** The header carries only the name, centered; navigation lives in the bottom bar (BottomNav). */
 export function TopBar() {
   return (
     <header className={styles.bar}>
       <div className={`wrap ${styles.inner}`}>
-        <Link href="/" className={styles.logo} aria-label="UPAY3FOOD.agent home">
-          <span className={styles.mark}>U3</span>
-          <span className={styles.word}>UPAY3FOOD<span>.agent</span></span>
+        <Link href="/" className={styles.word} aria-label="UPAY3FOOD home">
+          UPAY<span>3</span>FOOD
         </Link>
-        <nav className={styles.nav} aria-label="Main">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href}>{n.label}</Link>
-          ))}
-        </nav>
       </div>
     </header>
   );
