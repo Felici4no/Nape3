@@ -18,6 +18,9 @@ import {
   CloakKeys,
   cloakFundingSource,
   createCloakLogger,
+  diagnosticFromError,
+  diagnosticFromMessage,
+  formatDiagnostic,
   createSimulatedCloakSdk,
   derivationMessageBytes,
   MemoryNoteStore,
@@ -174,14 +177,25 @@ async function main() {
       console.log(`Fee ${formatUsdc(result.fee)} · change kept shielded ${formatUsdc(result.change)}`);
       return;
     }
+    case "decode": {
+      // Offline: decodes a "Solana error #…; Decode this error by running …" line (argument or stdin).
+      let text = rest.join(" ");
+      if (!text) for await (const chunk of process.stdin) text += String(chunk);
+      const diagnostic = diagnosticFromMessage(text);
+      console.log(diagnostic ? formatDiagnostic(diagnostic) : "No encoded Solana error context found.");
+      return;
+    }
     default:
-      console.log("usage: pnpm cloak <demo | balance [--reconcile] | shield <usdc> [--yes] | fund <usdc> <address> [--yes]>");
+      console.log("usage: pnpm cloak <demo | balance [--reconcile] | shield <usdc> [--yes] | fund <usdc> <address> [--yes] | decode '<console line>'>");
   }
 }
 
 if (process.argv[1] && /main\.ts$/.test(process.argv[1])) {
   main().catch((error: unknown) => {
     console.error(safeErrorMessage(error));
+    // Keep the RPC's own explanation (preflight logs, custom code) that the generic message hides.
+    const diagnostic = diagnosticFromError(error);
+    if (diagnostic) console.error(formatDiagnostic(diagnostic));
     process.exit(1);
   });
 }

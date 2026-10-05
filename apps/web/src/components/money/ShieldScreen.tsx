@@ -4,7 +4,7 @@ import "@nape3/pay/polyfills";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  createShieldOperation,
+  createShieldSession,
   findWallet,
   formatSol9,
   formatUsdc6,
@@ -16,6 +16,7 @@ import {
   type ShieldView
 } from "@nape3/pay";
 import { shortAddress } from "@/lib/format";
+import { ShieldDiagnostics } from "./ShieldDiagnostics";
 import styles from "./money.module.css";
 
 const ORDER: ShieldState[] = [
@@ -35,7 +36,8 @@ const ghost = { color: "var(--night-ink)", boxShadow: "inset 0 0 0 1.5px var(--n
 const PUBLIC_DEFAULT = "api.mainnet-beta.solana.com";
 
 export default function ShieldScreen() {
-  const op = useMemo(() => createShieldOperation(), []);
+  const session = useMemo(() => createShieldSession(), []);
+  const op = session.operation;
   const [view, setView] = useState<ShieldView>(op.state);
   const [rpc, setRpc] = useState("");
   const [rpcInfo, setRpcInfo] = useState<ShieldRpc | null>(null);
@@ -176,6 +178,7 @@ export default function ShieldScreen() {
               )}
             </div>
             {failure.blocking && <p className={styles.fine}>A new shield is refused until this is resolved, so a second one can never be sent by accident.</p>}
+            <ShieldDiagnostics session={session} {...(failure.diagnostic ? { diagnostic: failure.diagnostic } : {})} />
           </>
         )}
 

@@ -48,6 +48,8 @@ export interface ShieldedBalance {
 export interface ShieldOptions {
   /** SDK stage text ("Waiting for wallet signature...", "Confirming transaction..."). Public, never contains secrets. */
   onProgress?: (stage: string) => void;
+  /** Existing address lookup tables to use instead of creating one (e.g. a simulate-only rerun). */
+  lookupTables?: string[];
 }
 
 export interface ShieldResult {
@@ -218,7 +220,8 @@ export class CloakFunding {
         // A wallet re-proves and re-asks for approval on every stale-root retry (up to 40 by
         // default). A shield never retries by itself: a failure is surfaced and the user decides.
         ...(signer.kind === "wallet" ? { maxRootRetries: 0 } : {}),
-        ...(options.onProgress ? { onProgress: options.onProgress } : {})
+        ...(options.onProgress ? { onProgress: options.onProgress } : {}),
+        ...(options.lookupTables?.length ? { altAddresses: options.lookupTables } : {})
       })
     );
     await this.persistOutputs(result, new Set());

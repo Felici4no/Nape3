@@ -1,4 +1,4 @@
-import { CloakPersistenceError, safeErrorMessage } from "@nape3/payments/cloak";
+import { CloakPersistenceError, diagnosticFromError, safeErrorMessage, type RpcFailureDiagnostic } from "@nape3/payments/cloak";
 import { isUserRejection, type WalletHandle } from "./flow";
 import type { IntentStore, ShieldIntent, ShieldProof } from "./shield-intent";
 
@@ -55,6 +55,12 @@ export interface ShieldDeps {
   unlock(wallet: WalletHandle): Promise<ShieldFunding>;
   readTransaction(signature: string): Promise<{ slot: number; blockTime: number | null } | null>;
   intents: IntentStore;
+  /**
+   * Structured RPC failure (code, err, logs, unitsConsumed…) captured at the
+   * transport during the last shield, before the SDK re-wrapped it. Optional.
+   */
+  lastRpcFailure?(): RpcFailureDiagnostic | null;
+  resetRpcFailure?(): void;
   /** "rpc-fast" when the configured RPC is RPC Fast, otherwise "custom". */
   provider: string;
   now(): Date;
@@ -81,6 +87,8 @@ export interface ShieldFailure {
    * shield is refused until `checkPending()` proves otherwise.
    */
   blocking: boolean;
+  /** Decoded Solana RPC failure, when there was one. Public data only (logs, codes, addresses). */
+  diagnostic?: RpcFailureDiagnostic;
 }
 
 export interface ShieldView {
@@ -368,6 +376,7 @@ export class ShieldOperation {
       }
     };
 
+    this.deps.resetRpcFailure?.();
     try {
       const result = await funding.shield(this.amount, { onProgress });
       await this.finish(wallet, intent, result.signature, funding);
@@ -435,10 +444,13 @@ export class ShieldOperation {
   }
 
   private onShieldError(wallet: WalletHandle, intent: ShieldIntent, error: unknown) {
+    // Keep the RPC's own explanation (preflight logs, custom error code): the SDK wraps it into a generic message.
+    const diagnostic = this.deps.lastRpcFailure?.() ?? diagnosticFromError(error) ?? undefined;
+    const fail = (failure: ShieldFailure) => this.fail(diagnostic ? { ...failure, diagnostic } : failure);
     if (error instanceof CloakPersistenceError) {
       // Confirmed on chain, but the notes were not saved: never retry.
       this.safeWrite(wallet.address, { ...intent, status: "sent", signature: error.signature });
-      this.fail({ code: "notes-not-saved", message: `${displayError(error)} Signature: ${error.signature}`, blocking: true });
+      fail({ code: "notes-not-saved", message: `${displayError(error)} Signature: ${error.signature}`, blocking: true });
       return;
     }
     if (intent.status === "signing") {
@@ -448,16 +460,19 @@ export class ShieldOperation {
       } catch {
         /* a leftover "signing" record is resolved by checkPending() */
       }
-      this.fail({
+      fail({
         code: isUserRejection(error) ? "rejected" : "failed-before-broadcast",
         message: isUserRejection(error) ? "Cancelled in the wallet. Nothing left your wallet." : `Shield failed before anything was sent: ${displayError(error)}`,
         blocking: false
       });
       return;
     }
-    this.fail({
+    fail({
       code: "outcome-unknown",
-      message: `The shield may have landed: ${displayError(error)} Do not retry. Use "Check on chain" to find out.`,
+      message:
+        diagnostic && diagnostic.code === -32002
+          ? `The RPC rejected the shield in preflight simulation (${diagnostic.failingInstruction?.customCodeHex ?? diagnostic.transactionError ?? "see diagnostic"}). A preflight rejection is not broadcast, but this stays blocked until "Check on chain" confirms nothing landed.`
+          : `The shield may have landed: ${displayError(error)} Do not retry. Use "Check on chain" to find out.`,
       blocking: true
     });
   }

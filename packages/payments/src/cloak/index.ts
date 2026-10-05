@@ -8,3 +8,4 @@ export { PRIVACY_COPY } from "./copy";
 export { cloakFundingSource } from "./source";
 export { createSimulatedCloakSdk } from "./simulated";
 export * from "./balances";
+export * from "./rpc-diagnostics";

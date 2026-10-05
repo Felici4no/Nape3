@@ -33,3 +33,6 @@
 .steps li { padding: 4px 8px; border-radius: 999px; background: var(--night-2); color: var(--night-ink-2); }
 .steps li.stepDone { color: #7bd389; }
 .steps li.stepNow { background: var(--night-ink); color: var(--night); }
+.diag { display: grid; gap: 10px; margin-top: 8px; border-top: 1px solid var(--night-line); padding-top: 14px; min-width: 0; }
+.pre { font-family: var(--font-num); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow-y: auto; margin: 8px 0; }
+.paste { width: 100%; font-family: var(--font-num); font-size: 12px; background: var(--night-2); color: var(--night-ink); border: 1px solid var(--night-line); border-radius: 10px; padding: 8px; }

@@ -1,4 +1,4 @@
-import { address, createCloakRpc } from "@cloak.dev/sdk";
+import { address, createCloakRpc, type CloakRpc } from "@cloak.dev/sdk";
 import { assessFunding, type AgentState, type FundingAssessment, type FundingRequirement } from "@nape3/agent";
 import type { Cents } from "@nape3/domain";
 import { MockOfframp, USDC_MINT } from "@nape3/payments";
@@ -8,15 +8,19 @@ import {
   createCloakLogger,
   derivationMessageBytes,
   grossUpWithdrawal,
+  MemoryNoteStore,
   readPublicBalances,
+  type RpcFailureDiagnostic,
   realCloakSdk,
   seedFromWalletSignature
 } from "@nape3/payments/cloak";
 import { reportToExtension } from "./bridge";
 import { EncryptedLocalNoteStore } from "./encrypted-store";
 import { PaymentFlow, settlementUnavailable, type PaymentRequest, type PrivateBalance } from "./flow";
+import { createCapturingCloakRpc, dryRunSigner, type SimulationOutcome } from "./rpc-capture";
+import { diagnoseShieldChain, type ShieldChainDiagnosis } from "./shield-diagnosis";
 import { LocalIntentStore } from "./shield-intent";
-import { SHIELD_AMOUNT_USDC, ShieldOperation, type ShieldDeps } from "./shield-op";
+import { displayError, SHIELD_AMOUNT_USDC, ShieldOperation, type ShieldDeps } from "./shield-op";
 import { connectWallet, type ConnectedWallet } from "./wallet";
 
 /**
@@ -47,12 +51,16 @@ export function setRpcUrl(url: string): void {
 }
 
 /** One signature (not a transaction): derives the Cloak key and the local note-encryption key. */
-async function unlock(wallet: ConnectedWallet, rpcUrl: string = getRpcUrl()): Promise<{ funding: CloakFunding; balance: PrivateBalance }> {
+async function unlock(
+  wallet: ConnectedWallet,
+  rpcUrl: string = getRpcUrl(),
+  connection: CloakRpc = createCloakRpc(rpcUrl)
+): Promise<{ funding: CloakFunding; balance: PrivateBalance; keys: CloakKeys }> {
   const signature = await wallet.signMessage(derivationMessageBytes());
   const keys = await CloakKeys.fromSeed(await seedFromWalletSignature(signature));
   const funding = new CloakFunding({
     sdk: realCloakSdk,
-    connection: createCloakRpc(rpcUrl),
+    connection,
     signer: wallet.cloakSigner(),
     keys,
     store: await EncryptedLocalNoteStore.create(wallet.address, signature),
@@ -61,6 +69,7 @@ async function unlock(wallet: ConnectedWallet, rpcUrl: string = getRpcUrl()): Pr
   });
   return {
     funding,
+    keys,
     balance: { shieldedUsdc: async () => (await funding.shieldedBalance()).total, shield: (amount) => funding.shield(amount) }
   };
 }
@@ -152,9 +161,35 @@ async function rpcCall<T>(method: string, params: unknown[]): Promise<T> {
   return envelope.result as T;
 }
 
+export interface ShieldSimulation {
+  /** Simulation of the shield (deposit) transaction; null if the SDK stopped before building it. */
+  outcome: SimulationOutcome | null;
+  /** Every transaction the SDK tried to send, simulated in order (a lookup-table creation would appear here too). */
+  attempts: SimulationOutcome[];
+  /** What stopped the SDK when no simulation was reached (proof, quote, RPC). */
+  stoppedBy: string | null;
+  lookupTables: string[];
+}
+
+export interface ShieldSession {
+  operation: ShieldOperation;
+  /** Read-only: balances, latest signatures, lookup-table transaction and account, Cloak deposits. */
+  diagnose(): Promise<ShieldChainDiagnosis & { privateUsdc: bigint | null }>;
+  /**
+   * Builds the same shield transaction through the Cloak SDK and only simulates it:
+   * sendTransaction is never forwarded, the wallet is not asked to sign a transaction
+   * (zero signature, sigVerify off), the existing lookup table is reused, notes are kept
+   * in memory only, and the shield intent record is not touched.
+   */
+  simulate(lookupTables: string[]): Promise<ShieldSimulation>;
+}
+
 /** Exactly 1 USDC into the Cloak pool, signed by the injected wallet. Nothing is sent without confirm(). */
-export function createShieldOperation(): ShieldOperation {
+export function createShieldSession(): ShieldSession {
   let connected: ConnectedWallet | null = null;
+  let unlocked: { funding: CloakFunding; keys: CloakKeys } | null = null;
+  let lastFailure: RpcFailureDiagnostic | null = null;
+  const capture = { onFailure: (diagnostic: RpcFailureDiagnostic) => (lastFailure = diagnostic) };
   const deps: ShieldDeps = {
     connectWallet: async ({ silent }) => {
       connected = await connectWallet({ silent });
@@ -163,7 +198,9 @@ export function createShieldOperation(): ShieldOperation {
     readPublicBalances: (owner) => readPublicBalances(createCloakRpc(shieldRpc().url), address(owner), USDC),
     unlock: async () => {
       if (!connected) throw new Error("wallet not connected");
-      const { funding } = await unlock(connected, shieldRpc().url);
+      const url = shieldRpc().url;
+      const { funding, keys } = await unlock(connected, url, createCapturingCloakRpc(url, "live", capture));
+      unlocked = { funding, keys };
       return {
         shieldedUsdc: async () => (await funding.shieldedBalance()).total,
         shield: async (amount, options) => {
@@ -181,13 +218,56 @@ export function createShieldOperation(): ShieldOperation {
       return tx ? { slot: tx.slot, blockTime: tx.blockTime } : null;
     },
     intents: new LocalIntentStore(),
+    lastRpcFailure: () => lastFailure,
+    resetRpcFailure: () => {
+      lastFailure = null;
+    },
     get provider() {
       return rpcProviderLabel();
     },
     now: () => new Date(),
     newId: () => crypto.randomUUID()
   };
-  return new ShieldOperation(deps, SHIELD_AMOUNT_USDC);
+  const operation = new ShieldOperation(deps, SHIELD_AMOUNT_USDC);
+
+  return {
+    operation,
+    async diagnose() {
+      const wallet = operation.state.wallet;
+      if (!wallet) throw new Error("connect the wallet first");
+      const chain = await diagnoseShieldChain(rpcCall, wallet.address, USDC);
+      let privateUsdc: bigint | null = null;
+      if (unlocked) privateUsdc = (await unlocked.funding.reconcileWithChain()).total;
+      return { ...chain, privateUsdc };
+    },
+    async simulate(lookupTables) {
+      if (!connected || !unlocked) throw new Error("unlock Cloak first (one message signature, not a transaction)");
+      const attempts: SimulationOutcome[] = [];
+      const url = shieldRpc().url;
+      const dryFunding = new CloakFunding({
+        sdk: realCloakSdk,
+        connection: createCapturingCloakRpc(url, "simulate-only", { onSimulation: (o) => attempts.push(o) }),
+        signer: { kind: "wallet", signer: dryRunSigner(connected.address), signMessage: connected.signMessage, address: connected.address },
+        keys: unlocked.keys,
+        store: new MemoryNoteStore(),
+        mint: USDC,
+        log
+      });
+      let stoppedBy: string | null = null;
+      try {
+        await dryFunding.shield(SHIELD_AMOUNT_USDC, { lookupTables });
+        stoppedBy = "the SDK reported success without a broadcast (unexpected)";
+      } catch (error) {
+        if (attempts.length === 0) stoppedBy = displayError(error);
+      }
+      return { outcome: attempts.at(-1) ?? null, attempts, stoppedBy, lookupTables };
+    }
+  };
+}
+
+/** Backwards-compatible: the operation alone. */
+export function createShieldOperation(): ShieldOperation {
+  return createShieldSession().operation;
 }
 
 // ---------------------------------------------------------------------------
