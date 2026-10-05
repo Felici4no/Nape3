@@ -1,4 +1,4 @@
-# Payments: Pix + Solana (prepared, not live)
+# Payments: Pix + Solana (shield live, settlement not live)
 
 ## Pix detection (implemented, read-only)
 
@@ -19,8 +19,7 @@ No API interception, no network inspection, no token access.
 (`@cloak.dev/sdk`): shield ahead of time, then `partialWithdraw` to the
 off-ramp deposit address, so the deposit is not linked on-chain to the user's
 wallet. The router takes a `FundingSource`. `publicWalletFunding` is the
-default and `cloakFundingSource` the private one. Privacy scope, limits and
-the proof transaction are in [privacy-week.md](../privacy-week.md).
+default and `cloakFundingSource` the private one. Privacy scope and limits are in [privacy-week.md](../privacy-week.md). The first real browser-wallet shield of **1.000000 USDC** was confirmed on Solana mainnet on 2026-10-05; see [the canonical proof](../08-proofs/2026-10-05-mainnet-shield.md).
 
 ## Route (interfaces + mocks)
 
