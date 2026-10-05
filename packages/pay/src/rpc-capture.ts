@@ -22,6 +22,8 @@ export type CaptureMode = "live" | "simulate-only";
 
 export interface SimulationOutcome {
   ok: boolean;
+  /** The RPC refused to simulate (JSON-RPC error: unsupported version, too large…); the program never ran. */
+  rpcRejected: boolean;
   diagnostic: RpcFailureDiagnostic;
   /** Public summary of the simulated transaction (programs, lookup tables); null if it could not be decoded. */
   transaction: DecodedTransaction | null;
@@ -79,12 +81,13 @@ export function captureTransport(base: BaseTransport, mode: CaptureMode, hooks: 
       })) as JsonRpcResponse;
       const transaction = decodeWire(wire, options?.encoding);
       if (simulation.error) {
-        hooks.onSimulation?.({ ok: false, diagnostic: diagnosticFromRpcError(simulation.error), transaction });
+        hooks.onSimulation?.({ ok: false, rpcRejected: true, diagnostic: diagnosticFromRpcError(simulation.error), transaction });
       } else {
         const value = ((simulation.result as { value?: Record<string, unknown> } | undefined)?.value ?? {}) as Record<string, unknown>;
         const ok = value.err === null || value.err === undefined;
         hooks.onSimulation?.({
           ok,
+          rpcRejected: false,
           diagnostic: diagnosticFromRpcError({ code: ok ? 0 : -32002, message: ok ? "Simulation succeeded (not broadcast)" : "Transaction simulation failed (not broadcast)", data: value }),
           transaction
         });

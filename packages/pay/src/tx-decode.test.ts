@@ -8,6 +8,7 @@ import {
   getBase64EncodedWireTransaction,
   getAddressEncoder,
   pipe,
+  setTransactionMessageComputeUnitLimit,
   setTransactionMessageFeePayer,
   setTransactionMessageLifetimeUsingBlockhash,
   AccountRole,
@@ -33,6 +34,7 @@ function wire(message: unknown): Uint8Array {
 
 const lifetime = { blockhash: BLOCKHASH, lastValidBlockHeight: 1n };
 const legacyBase = () => pipe(createTransactionMessage({ version: "legacy" }), (m) => setTransactionMessageFeePayer(PAYER, m), (m) => setTransactionMessageLifetimeUsingBlockhash(lifetime, m));
+const v1Base = () => pipe(createTransactionMessage({ version: 1 }), (m) => setTransactionMessageFeePayer(PAYER, m), (m) => setTransactionMessageLifetimeUsingBlockhash(lifetime, m));
 const v0Base = () => pipe(createTransactionMessage({ version: 0 }), (m) => setTransactionMessageFeePayer(PAYER, m), (m) => setTransactionMessageLifetimeUsingBlockhash(lifetime, m));
 
 describe("decodeTransaction", () => {
@@ -72,6 +74,25 @@ describe("decodeTransaction", () => {
     expect(d.altInstructions).toEqual([]);
   });
 
+  it("reads a Transaction V1 deposit: no lookup tables, every account static, compute config in the header", () => {
+    const msg = setTransactionMessageComputeUnitLimit(
+      1_200_000,
+      appendTransactionMessageInstructions(
+        [{ programAddress: address(CLOAK_PROGRAM_ID), accounts: [{ address: POOL, role: AccountRole.WRITABLE }, { address: EXTRA, role: AccountRole.READONLY }], data: new Uint8Array(900) }],
+        v1Base()
+      )
+    );
+    const bytes = wire(msg);
+    const d = decodeTransaction(bytes);
+    expect(d.version).toBe(1);
+    expect(d.size).toBe(bytes.length);
+    expect(d.size).toBeGreaterThan(900);
+    expect(d.programIds).toEqual([CLOAK_PROGRAM_ID]);
+    expect(d.staticKeys).toEqual(expect.arrayContaining([PAYER, POOL, EXTRA, CLOAK_PROGRAM_ID]));
+    expect(d.lookupTables).toEqual([]);
+    expect(Object.values(d.config ?? {})).toContain(1_200_000);
+  });
+
   it("rejects truncated bytes instead of guessing", () => {
     expect(() => decodeTransaction(new Uint8Array([1, 2, 3]))).toThrow(/truncated/);
   });
@@ -80,8 +101,8 @@ describe("decodeTransaction", () => {
 describe("shieldVerdict: never 'would succeed' without the Cloak program", () => {
   const ok = diagnosticFromRpcError({ code: 0, message: "Simulation succeeded", data: { err: null, logs: [] } });
   const failed = diagnosticFromRpcError({ code: -32002, message: "failed", data: { err: { InstructionError: [3, { Custom: 4272 }] }, logs: [] } });
-  const tx = (programIds: string[], altInstructions: string[] = []) => ({ version: 0, signatures: 1, staticKeys: [], instructions: [], programIds, lookupTables: [], extendedAddresses: [], altInstructions });
-  const altSetup: SimulationOutcome = { ok: true, diagnostic: ok, transaction: tx([ALT_PROGRAM], ["CreateLookupTable", "ExtendLookupTable"]) };
+  const tx = (programIds: string[], altInstructions: string[] = []) => ({ version: 0, size: 900, signatures: 1, staticKeys: [], instructions: [], programIds, lookupTables: [], extendedAddresses: [], altInstructions, config: null });
+  const altSetup: SimulationOutcome = { ok: true, rpcRejected: false, diagnostic: ok, transaction: tx([ALT_PROGRAM], ["CreateLookupTable", "ExtendLookupTable"]) };
 
   it("a successful ALT setup simulation is NOT_A_SHIELD_SIMULATION", () => {
     const v = shieldVerdict([altSetup]);
@@ -91,9 +112,15 @@ describe("shieldVerdict: never 'would succeed' without the Cloak program", () =>
   });
 
   it("judges the Cloak deposit only", () => {
-    expect(shieldVerdict([{ ok: false, diagnostic: failed, transaction: tx([CU, CLOAK_PROGRAM_ID]) }])).toMatchObject({ verdict: "WOULD_FAIL" });
-    expect(shieldVerdict([altSetup, { ok: true, diagnostic: ok, transaction: tx([CLOAK_PROGRAM_ID]) }])).toMatchObject({ verdict: "WOULD_SUCCEED" });
-    expect(shieldVerdict([{ ok: true, diagnostic: ok, transaction: null }]).verdict).toBe("NOT_A_SHIELD_SIMULATION");
+    expect(shieldVerdict([{ ok: false, rpcRejected: false, diagnostic: failed, transaction: tx([CU, CLOAK_PROGRAM_ID]) }])).toMatchObject({ verdict: "WOULD_FAIL" });
+    expect(shieldVerdict([altSetup, { ok: true, rpcRejected: false, diagnostic: ok, transaction: tx([CLOAK_PROGRAM_ID]) }])).toMatchObject({ verdict: "WOULD_SUCCEED" });
+    expect(shieldVerdict([{ ok: true, rpcRejected: false, diagnostic: ok, transaction: null }]).verdict).toBe("NOT_A_SHIELD_SIMULATION");
+    // e.g. a cluster without the v1 gate: the deposit was built but the RPC refused to run it
+    const rejected = diagnosticFromRpcError({ code: -32602, message: "Transaction version (1) is not supported", data: null });
+    expect(shieldVerdict([{ ok: false, rpcRejected: true, diagnostic: rejected, transaction: tx([CLOAK_PROGRAM_ID]) }])).toMatchObject({
+      verdict: "RPC_REJECTED",
+      verdictReason: expect.stringContaining("not supported")
+    });
     expect(shieldVerdict([]).verdict).toBe("NOT_A_SHIELD_SIMULATION");
   });
 });

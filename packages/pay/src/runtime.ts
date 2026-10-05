@@ -166,10 +166,12 @@ async function rpcCall<T>(method: string, params: unknown[]): Promise<T> {
  * program. Anything else (e.g. the SDK asking for another lookup table) is
  * NOT_A_SHIELD_SIMULATION, whatever its own result.
  */
-export type ShieldSimulationVerdict = "WOULD_SUCCEED" | "WOULD_FAIL" | "NOT_A_SHIELD_SIMULATION";
+export type ShieldSimulationVerdict = "WOULD_SUCCEED" | "WOULD_FAIL" | "RPC_REJECTED" | "NOT_A_SHIELD_SIMULATION";
 
 export interface ShieldSimulation {
   verdict: ShieldSimulationVerdict;
+  /** Message version the SDK was asked to build (0 = v0 + lookup tables, 1 = Transaction V1). */
+  transactionVersion: 0 | 1;
   /** Why the verdict is NOT_A_SHIELD_SIMULATION. */
   verdictReason: string | null;
   /** Simulation of the shield (deposit) transaction: the attempt that invokes the Cloak program. */
@@ -199,7 +201,7 @@ export interface ShieldSession {
    * (zero signature, sigVerify off), the existing lookup table is reused, notes are kept
    * in memory only, and the shield intent record is not touched.
    */
-  simulate(lookupTables: string[]): Promise<ShieldSimulation>;
+  simulate(lookupTables: string[], options?: { transactionVersion?: 0 | 1 }): Promise<ShieldSimulation>;
 }
 
 /** Exactly 1 USDC into the Cloak pool, signed by the injected wallet. Nothing is sent without confirm(). */
@@ -274,7 +276,8 @@ export function createShieldSession(): ShieldSession {
       if (unlocked) privateUsdc = (await unlocked.funding.reconcileWithChain()).total;
       return { ...chain, privateUsdc };
     },
-    async simulate(lookupTables) {
+    async simulate(lookupTables, options = {}) {
+      const transactionVersion = options.transactionVersion ?? 0;
       if (!connected) throw new Error("connect the wallet first");
       const keys = (await ensureUnlocked()).keys;
       const attempts: SimulationOutcome[] = [];
@@ -291,12 +294,14 @@ export function createShieldSession(): ShieldSession {
       let stoppedBy: string | null = null;
       const stages: string[] = [];
       try {
-        await dryFunding.shield(SHIELD_AMOUNT_USDC, { lookupTables, onProgress: (stage) => stages.push(stage.slice(0, 200)) });
+        // v1: lookup tables are still passed so the SDK skips its first depositor-signed ALT
+        // (acquireDepositAlt runs before the version check); it then drops them for v1.
+        await dryFunding.shield(SHIELD_AMOUNT_USDC, { lookupTables, transactionVersion, onProgress: (stage) => stages.push(stage.slice(0, 200)) });
         stoppedBy = "the SDK reported success without a broadcast (unexpected)";
       } catch (error) {
         if (attempts.length === 0) stoppedBy = displayError(error);
       }
-      return { ...shieldVerdict(attempts), stages, attempts, stoppedBy, lookupTables };
+      return { ...shieldVerdict(attempts), transactionVersion, stages, attempts, stoppedBy, lookupTables };
     }
   };
 }
@@ -304,7 +309,10 @@ export function createShieldSession(): ShieldSession {
 /** Only a transaction that invokes the Cloak program counts as a shield simulation. */
 export function shieldVerdict(attempts: SimulationOutcome[]): Pick<ShieldSimulation, "verdict" | "verdictReason" | "outcome"> {
   const shield = attempts.find((a) => a.transaction?.programIds.includes(CLOAK_PROGRAM_ID));
-  if (shield) return { verdict: shield.ok ? "WOULD_SUCCEED" : "WOULD_FAIL", verdictReason: null, outcome: shield };
+  if (shield) {
+    if (shield.rpcRejected) return { verdict: "RPC_REJECTED", verdictReason: `the RPC refused to simulate the deposit: ${shield.diagnostic.message}`, outcome: shield };
+    return { verdict: shield.ok ? "WOULD_SUCCEED" : "WOULD_FAIL", verdictReason: null, outcome: shield };
+  }
   const alt = attempts.find((a) => a.transaction?.altInstructions.length);
   const reason = alt
     ? `the SDK tried to ${alt.transaction!.altInstructions.join(" + ")} first (the given lookup tables do not make the deposit fit in a transaction); it stopped there and never built the deposit`

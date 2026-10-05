@@ -50,6 +50,8 @@ export interface ShieldOptions {
   onProgress?: (stage: string) => void;
   /** Existing address lookup tables to use instead of creating one (e.g. a simulate-only rerun). */
   lookupTables?: string[];
+  /** Transaction message version for the deposit: 1 = Transaction V1 (no lookup tables, 4,096-byte packet). Default 0. */
+  transactionVersion?: 0 | 1;
 }
 
 export interface ShieldResult {
@@ -221,7 +223,8 @@ export class CloakFunding {
         // default). A shield never retries by itself: a failure is surfaced and the user decides.
         ...(signer.kind === "wallet" ? { maxRootRetries: 0 } : {}),
         ...(options.onProgress ? { onProgress: options.onProgress } : {}),
-        ...(options.lookupTables?.length ? { altAddresses: options.lookupTables } : {})
+        ...(options.lookupTables?.length ? { altAddresses: options.lookupTables } : {}),
+        ...(options.transactionVersion !== undefined ? { transactionVersion: options.transactionVersion } : {})
       })
     );
     await this.persistOutputs(result, new Set());

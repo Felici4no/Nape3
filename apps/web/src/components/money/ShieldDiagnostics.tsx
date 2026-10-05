@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CLOAK_PROGRAM_ID, formatSol9, formatUsdc6, type ShieldSession, type ShieldSimulation } from "@nape3/pay";
+import { altCleanupPlan, CLOAK_PROGRAM_ID, formatSol9, formatUsdc6, type ShieldSession, type ShieldSimulation } from "@nape3/pay";
 import { diagnosticFromMessage, formatDiagnostic, type RpcFailureDiagnostic } from "@nape3/payments/cloak";
 import styles from "./money.module.css";
 
@@ -48,6 +48,10 @@ function diagnosisText(d: Diagnosis): string {
     `Cloak program transactions (a shield would be one): ${d.cloakTransactions.length ? d.cloakTransactions.join(", ") : "none"}`,
     `Lookup tables found in recent transactions: ${d.lookupTables.length}`,
     ...d.lookupTables.flatMap(tableLines),
+    "Rent reclaim plan for this wallet's lookup tables (nothing is sent from here):",
+    ...altCleanupPlan(d.lookupTables, d.wallet, d.currentSlot).map(
+      (c) => `  ${c.table}: ${c.recoverableLamports === null ? "?" : `${formatSol9(c.recoverableLamports)} SOL`} recoverable; next: ${c.next}. ${c.detail}`
+    ),
     "Latest signatures:",
     ...d.signatures.map(
       (s) => `  ${s.slot} ${s.failed ? "FAILED" : "ok"} ${s.kind.padEnd(12)} ${s.signature}${s.lookupTable ? ` (${s.lookupTable.actions.join(" + ")} ${s.lookupTable.address})` : ""}`
@@ -58,11 +62,12 @@ function diagnosisText(d: Diagnosis): string {
 const VERDICT_LABEL: Record<ShieldSimulation["verdict"], string> = {
   WOULD_SUCCEED: "SHIELD WOULD SUCCEED (Cloak deposit simulated)",
   WOULD_FAIL: "SHIELD WOULD FAIL (Cloak deposit simulated)",
+  RPC_REJECTED: "RPC_REJECTED: the RPC refused to simulate the Cloak deposit (the program did not run)",
   NOT_A_SHIELD_SIMULATION: "NOT_A_SHIELD_SIMULATION: the Cloak deposit was not simulated"
 };
 
 function simulationText(s: ShieldSimulation): string {
-  const lines = [`Verdict: ${VERDICT_LABEL[s.verdict]}`];
+  const lines = [`Verdict: ${VERDICT_LABEL[s.verdict]}`, `Requested message version: ${s.transactionVersion === 1 ? "Transaction V1 (no lookup tables)" : "v0 + lookup tables"}`];
   if (s.verdictReason) lines.push(`Reason: ${s.verdictReason}`);
   lines.push(`Lookup tables given to the SDK: ${s.lookupTables.join(", ") || "none"}`);
   if (s.stoppedBy) lines.push(`SDK stopped before any transaction was built: ${s.stoppedBy}`);
@@ -75,7 +80,11 @@ function simulationText(s: ShieldSimulation): string {
       `Simulated transaction ${i + 1}/${s.attempts.length}: ${isShield ? "Cloak deposit" : t?.altInstructions.length ? `lookup-table setup (${t.altInstructions.join(" + ")})` : "not a Cloak deposit"}: ${a.ok ? "simulation ok" : "simulation failed"}`
     );
     if (t) {
-      lines.push(`  version ${t.version}, ${t.instructions.length} instructions:`, ...t.instructions.map((ix) => `    #${ix.index} ${ix.programId} (${ix.dataLength} bytes)`));
+      lines.push(
+        `  version ${t.version}, ${t.size} bytes serialized, ${t.staticKeys.length} static accounts, ${t.instructions.length} instructions:`,
+        ...t.instructions.map((ix) => `    #${ix.index} ${ix.programId} (${ix.accounts} accounts, ${ix.dataLength} data bytes)`)
+      );
+      if (t.config) lines.push(`  v1 compute config: ${JSON.stringify(t.config)}`);
       if (t.lookupTables.length) lines.push(`  lookup tables referenced: ${t.lookupTables.map((l) => `${l.table} (w${l.writable}/r${l.readonly})`).join(", ")}`);
       if (t.extendedAddresses.length) lines.push(`  addresses this ALT would add (${t.extendedAddresses.length}):`, ...t.extendedAddresses.map((x) => `    ${x}`));
     }
@@ -127,6 +136,15 @@ export function ShieldDiagnostics({ session, diagnostic }: { session: ShieldSess
           onClick={() => void run("simulate", async () => setSimulation(await session.simulate(activeTables)))}
         >
           {busy === "simulate" ? "Simulating (no broadcast)…" : "Simulate shield (no transaction)"}
+        </button>
+        <button
+          className="btn ghost"
+          style={{ color: "var(--night-ink)", boxShadow: "inset 0 0 0 1.5px var(--night-ink)" }}
+          disabled={busy !== null || !activeTables.length}
+          title="Same deposit as a Transaction V1 message: every account static, no lookup tables, 4,096-byte packet. Simulated only."
+          onClick={() => void run("simulate-v1", async () => setSimulation(await session.simulate(activeTables, { transactionVersion: 1 })))}
+        >
+          {busy === "simulate-v1" ? "Simulating V1 (no broadcast)…" : "Simulate as Transaction V1"}
         </button>
       </div>
       {error && <p className={`${styles.status} ${styles.err}`}>{error}</p>}

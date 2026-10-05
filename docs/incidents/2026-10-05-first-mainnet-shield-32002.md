@@ -83,3 +83,61 @@ simulated transaction from its bytes (program ids, referenced tables,
 addresses an extension would add) and only reports WOULD_SUCCEED / WOULD_FAIL
 for a transaction that invokes the Cloak program; otherwise
 NOT_A_SHIELD_SIMULATION with the reason.
+
+## Update: two wallet-funded ALTs; the deposit needs a new one every time
+
+Chain: no Cloak transaction; two wallet-owned, warmed-up tables
+`CTE1bHMrKbT29VRrYVCoF1gD4EYJaLrzBTMhwmWVPLc` (slot 453425017) and
+`GLVcKLgw5rRsa6eWNXwNqMzP4tX8zXgfEMCx9837aan3` (slot 453425722), 2,315,200
+lamports each. With both (plus the relay's prebuilt tables) the deposit still
+exceeds 1232 bytes and the SDK asks for a third table whose addresses are
+per-attempt (`9A14…`, `5WXQ…`, `7yJc…`: nullifier / nonce PDAs). Accumulating
+wallet-funded tables cannot fix this.
+
+### Option A: Transaction V1 (SIMD-0385), diagnostic first
+
+`@cloak.dev/sdk` 0.2.5 already supports `transactionVersion: 1`: every account
+static, no lookup tables, 4,096-byte packet, compute budget in the message
+header (`V1_COMPUTE_CONFIG`). The SDK's own note: it "needs the cluster's v1
+gate active and a signer that signs v1 messages (a browser wallet may not
+yet)". Caveats found in the source:
+
+- `acquireDepositAlt` runs before the version check, so v1 without
+  `altAddresses` would still create (and then discard) a depositor-signed ALT.
+  The diagnostic passes the existing tables to skip it.
+- The v1 message still carries the ComputeBudget instructions in addition to
+  the header config.
+
+`/shield/diagnose` → "Simulate as Transaction V1" builds the same deposit
+(same SDK instructions, proof, risk quote, accounts, payer, blockhash) as v1
+and only simulates it (zero signature, sigVerify off). Verdicts: WOULD_SUCCEED
+/ WOULD_FAIL (Cloak program ran), RPC_REJECTED (the RPC refused, e.g. v1 not
+active), NOT_A_SHIELD_SIMULATION.
+
+### Option B: `relaySupplementalAlt` (not enabled)
+
+- Rent: the relay extends **its shared table** (`POST {relay}/supplemental-alt`);
+  the user pays nothing for it. The table is shared and extended per deposit.
+- Warm-up: `resolveRelaySupplementalAlt` waits for `lastExtendedSlot <
+  currentSlot` (5 s timeout).
+- Quote ordering: the risk quote is fetched first; the relay request starts
+  right after the nonce is known, in parallel. The quote is never refreshed.
+- Not simulation-safe: the relay call is an on-chain write by the relay even in
+  our simulate-only mode (it is HTTP, not our `sendTransaction`).
+- Failure falls back automatically to the depositor-signed ALT (user SOL). A
+  production setup would need to refuse that fallback.
+
+### Risk-quote ordering (likely cause of the original -32002)
+
+Current path: risk quote → ALT #1 (wallet approval, confirm) → ALT #2
+(approval, confirm) → deposit (approval) → preflight. The quote is never
+refreshed, and the program has `RangeQuoteExpired` (0x10b0). Not proven
+without the deposit's own logs, but it is the only hypothesis consistent with
+"ALT warm, accounts present, deposit rejected".
+
+### Reclaiming the two tables (not submitted)
+
+Per table, signed by the wallet (authority): `DeactivateLookupTable`, then
+after the deactivation slot leaves SlotHashes (~512 slots, ~3.5 min)
+`CloseLookupTable` with recipient = wallet. `/shield/diagnose` shows the plan
+and the lamports each table holds.

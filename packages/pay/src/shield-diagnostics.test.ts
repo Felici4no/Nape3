@@ -3,7 +3,7 @@ import { classifyRelayError } from "@cloak.dev/sdk";
 import { decodeSolanaErrorContext, diagnosticFromError, diagnosticFromMessage, diagnosticFromRpcError, formatDiagnostic, safeErrorMessage } from "@nape3/payments/cloak";
 import { getSolanaErrorFromJsonRpcError } from "@solana/kit";
 import { captureTransport, DRY_RUN_ERROR_CODE, dryRunSigner } from "./rpc-capture";
-import { ALT_PROGRAM_ID, CLOAK_PROGRAM_ID, diagnoseShieldChain, U64_MAX, type RpcCall } from "./shield-diagnosis";
+import { ALT_PROGRAM_ID, altCleanupPlan, CLOAK_PROGRAM_ID, diagnoseShieldChain, U64_MAX, type LookupTableState, type RpcCall } from "./shield-diagnosis";
 import { MemoryIntentStore } from "./shield-intent";
 import { ShieldOperation, type ShieldDeps, type ShieldFunding } from "./shield-op";
 
@@ -204,6 +204,7 @@ describe("read-only chain diagnosis", () => {
       getAccountInfo: {
         value: {
           owner: ALT_PROGRAM_ID,
+          lamports: 2_310_200,
           data: { parsed: { info: { addresses: [CLOAK_PROGRAM_ID, CU], authority: WALLET, deactivationSlot: U64_MAX, lastExtendedSlot: "330000000", lastExtendedSlotStartIndex: 0 } } }
         }
       }
@@ -229,6 +230,47 @@ describe("read-only chain diagnosis", () => {
     expect(d.lookupTableTransaction).toMatchObject({ signature: "SigAlt", kind: "lookup-table", lookupTable: { address: ALT, actions: ["createLookupTable", "extendLookupTable"] } });
     expect(d.lookupTable).toMatchObject({ exists: true, active: true, addresses: [CLOAK_PROGRAM_ID, CU], lastExtendedSlot: 330_000_000, warmedUp: true });
     expect(d.lookupTables.map((t) => t.address)).toEqual([ALT]);
+    expect(d.lookupTables[0]!.lamports).toBe(2_310_200n);
     expect(d.cloakTransactions).toEqual([]);
+  });
+});
+
+describe("lookup-table rent reclaim plan (analysis only)", () => {
+  const table = (patch: Partial<LookupTableState>): LookupTableState => ({
+    address: "T",
+    exists: true,
+    owner: ALT_PROGRAM_ID,
+    lamports: 2_310_200n,
+    addresses: [],
+    authority: WALLET,
+    deactivationSlot: U64_MAX,
+    lastExtendedSlot: 1,
+    lastExtendedSlotStartIndex: 0,
+    active: true,
+    warmedUp: true,
+    ...patch
+  });
+
+  it("active → deactivate; recently deactivated → wait; past the window → close; foreign/frozen → none", () => {
+    const plan = altCleanupPlan(
+      [
+        table({ address: "A" }),
+        table({ address: "B", active: false, deactivationSlot: "1000" }),
+        table({ address: "C", active: false, deactivationSlot: "100" }),
+        table({ address: "D", authority: "someone-else" }),
+        table({ address: "E", authority: null })
+      ],
+      WALLET,
+      1200
+    );
+    expect(plan.map((p) => [p.table, p.next])).toEqual([
+      ["A", "deactivate"],
+      ["B", "wait"],
+      ["C", "close"],
+      ["D", "none"],
+      ["E", "none"]
+    ]);
+    expect(plan[1]!.detail).toMatch(/closable from about slot 1513/);
+    expect(plan[0]!.recoverableLamports).toBe(2_310_200n);
   });
 });

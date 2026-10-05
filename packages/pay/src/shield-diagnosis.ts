@@ -27,6 +27,8 @@ export interface LookupTableState {
   address: string;
   exists: boolean;
   owner: string | null;
+  /** Lamports held by the table account (rent recoverable by closing it). */
+  lamports: bigint | null;
   addresses: string[];
   authority: string | null;
   deactivationSlot: string | null;
@@ -87,13 +89,13 @@ function summarize(signature: string, slot: number, blockTime: number | null, tx
 }
 
 export async function readLookupTable(rpc: RpcCall, tableAddress: string, currentSlot: number): Promise<LookupTableState> {
-  const result = await rpc<{ value: { owner: string; data: { parsed?: { info?: Record<string, unknown> } } } | null }>("getAccountInfo", [
+  const result = await rpc<{ value: { owner: string; lamports?: number; data: { parsed?: { info?: Record<string, unknown> } } } | null }>("getAccountInfo", [
     tableAddress,
     { encoding: "jsonParsed", commitment: "confirmed" }
   ]);
   const account = result.value;
   if (!account) {
-    return { address: tableAddress, exists: false, owner: null, addresses: [], authority: null, deactivationSlot: null, lastExtendedSlot: null, lastExtendedSlotStartIndex: null, active: false, warmedUp: null };
+    return { address: tableAddress, exists: false, owner: null, lamports: null, addresses: [], authority: null, deactivationSlot: null, lastExtendedSlot: null, lastExtendedSlotStartIndex: null, active: false, warmedUp: null };
   }
   const info = account.data.parsed?.info ?? {};
   const lastExtendedSlot = info.lastExtendedSlot !== undefined ? Number(info.lastExtendedSlot) : null;
@@ -102,6 +104,7 @@ export async function readLookupTable(rpc: RpcCall, tableAddress: string, curren
     address: tableAddress,
     exists: true,
     owner: account.owner,
+    lamports: account.lamports !== undefined ? BigInt(account.lamports) : null,
     addresses: Array.isArray(info.addresses) ? (info.addresses as string[]) : [],
     authority: typeof info.authority === "string" ? info.authority : null,
     deactivationSlot,
@@ -148,4 +151,39 @@ export async function diagnoseShieldChain(rpc: RpcCall, wallet: string, usdcMint
     lookupTables,
     cloakTransactions: signatures.filter((s) => s.kind === "cloak").map((s) => s.signature)
   };
+}
+
+// ---------------------------------------------------------------------------
+// Reclaiming the rent of wallet-owned lookup tables (analysis only: nothing is sent)
+// ---------------------------------------------------------------------------
+
+/** A deactivated table can be closed once its deactivation slot has left the SlotHashes sysvar (512 slots). */
+export const SLOT_HASHES_WINDOW = 512;
+
+export interface AltCleanupStep {
+  table: string;
+  recoverableLamports: bigint | null;
+  /** What the authority must sign next, if anything. */
+  next: "deactivate" | "wait" | "close" | "none";
+  detail: string;
+}
+
+export function altCleanupPlan(tables: readonly LookupTableState[], wallet: string, currentSlot: number): AltCleanupStep[] {
+  return tables.map((t) => {
+    const base = { table: t.address, recoverableLamports: t.lamports };
+    if (!t.exists) return { ...base, next: "none" as const, detail: "already closed" };
+    if (t.authority !== wallet) return { ...base, next: "none" as const, detail: t.authority ? `authority is ${t.authority}, not this wallet` : "frozen (no authority): cannot be closed" };
+    if (t.active) {
+      return {
+        ...base,
+        next: "deactivate" as const,
+        detail: "1) DeactivateLookupTable (authority signs, ~5000 lamports fee). 2) After ~512 slots (~3.5 min), CloseLookupTable to this wallet."
+      };
+    }
+    const deactivated = Number(t.deactivationSlot);
+    const closableAt = deactivated + SLOT_HASHES_WINDOW + 1;
+    return currentSlot >= closableAt
+      ? { ...base, next: "close" as const, detail: "CloseLookupTable (authority signs, recipient = this wallet)." }
+      : { ...base, next: "wait" as const, detail: `deactivated at slot ${deactivated}; closable from about slot ${closableAt} (${closableAt - currentSlot} slots).` };
+  });
 }
