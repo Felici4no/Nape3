@@ -15,6 +15,8 @@ import {
 import { reportToExtension } from "./bridge";
 import { EncryptedLocalNoteStore } from "./encrypted-store";
 import { PaymentFlow, settlementUnavailable, type PaymentRequest, type PrivateBalance } from "./flow";
+import { LocalIntentStore } from "./shield-intent";
+import { SHIELD_AMOUNT_USDC, ShieldOperation, type ShieldDeps } from "./shield-op";
 import { connectWallet, type ConnectedWallet } from "./wallet";
 
 /**
@@ -89,6 +91,76 @@ export function createPaymentFlow(request: PaymentRequest): PaymentFlow {
     },
     request
   );
+}
+
+// ---------------------------------------------------------------------------
+// Standalone shield (no purchase): the first real Cloak shield from /shield.
+// ---------------------------------------------------------------------------
+
+/** Host of the configured RPC, for display. The path and query (which may carry an API key) are never shown. */
+export function rpcHost(): string {
+  try {
+    return new URL(getRpcUrl()).hostname;
+  } catch {
+    return "invalid RPC url";
+  }
+}
+
+function rpcProviderLabel(): string {
+  return /(^|\.)rpcfast\.com$/.test(rpcHost()) ? "rpc-fast" : "custom";
+}
+
+/** Read-only JSON-RPC call. Errors never include the URL. */
+async function rpcCall<T>(method: string, params: unknown[]): Promise<T> {
+  const response = await fetch(getRpcUrl(), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
+  }).catch(() => {
+    throw new Error(`rpc ${method}: network error`);
+  });
+  if (!response.ok) throw new Error(`rpc ${method}: HTTP ${response.status}`);
+  const envelope = (await response.json()) as { result?: T; error?: { message?: string } };
+  if (envelope.error) throw new Error(`rpc ${method}: ${envelope.error.message ?? "error"}`);
+  return envelope.result as T;
+}
+
+/** Exactly 1 USDC into the Cloak pool, signed by the injected wallet. Nothing is sent without confirm(). */
+export function createShieldOperation(): ShieldOperation {
+  let connected: ConnectedWallet | null = null;
+  const deps: ShieldDeps = {
+    connectWallet: async ({ silent }) => {
+      connected = await connectWallet({ silent });
+      return connected;
+    },
+    readPublicBalances: (owner) => readPublicBalances(createCloakRpc(getRpcUrl()), address(owner), USDC),
+    unlock: async () => {
+      if (!connected) throw new Error("wallet not connected");
+      const { funding } = await unlock(connected);
+      return {
+        shieldedUsdc: async () => (await funding.shieldedBalance()).total,
+        shield: async (amount, options) => {
+          const result = await funding.shield(amount, options);
+          return { signature: result.signature };
+        },
+        reconcile: async () => (await funding.reconcileWithChain()).total
+      };
+    },
+    readTransaction: async (signature) => {
+      const tx = await rpcCall<{ slot: number; blockTime: number | null } | null>("getTransaction", [
+        signature,
+        { encoding: "json", commitment: "confirmed", maxSupportedTransactionVersion: 1 }
+      ]);
+      return tx ? { slot: tx.slot, blockTime: tx.blockTime } : null;
+    },
+    intents: new LocalIntentStore(),
+    get provider() {
+      return rpcProviderLabel();
+    },
+    now: () => new Date(),
+    newId: () => crypto.randomUUID()
+  };
+  return new ShieldOperation(deps, SHIELD_AMOUNT_USDC);
 }
 
 // ---------------------------------------------------------------------------

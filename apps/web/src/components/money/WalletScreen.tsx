@@ -128,7 +128,7 @@ export default function WalletScreen({ references }: { references: ReferencePurc
 
         <p className={styles.fine}>
           UPAY3FOOD never asks for your seed phrase or private key. One wallet signature unlocks your private balance on this device; it is
-          not a transaction. <Link href="/privacy">What stays private →</Link>
+          not a transaction. <Link href="/shield">Shield 1 USDC →</Link> · <Link href="/privacy">What stays private →</Link>
         </p>
       </div>
     </div>

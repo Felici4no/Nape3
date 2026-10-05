@@ -28,3 +28,8 @@
 .details summary { cursor: pointer; }
 .details input { width: 100%; margin-top: 6px; padding: 10px; border-radius: 10px; background: var(--night-2); color: var(--night-ink); border: 1px solid var(--night-line); font: inherit; }
 @media (max-width: 600px) { .sheet { padding: 20px; border-radius: var(--radius-l); } }
+.proof { background: var(--night-2); border: 1px solid var(--night-line); border-radius: var(--radius-m); padding: 14px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+.steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 20px 0 0; font-size: 10px; letter-spacing: 0.04em; }
+.steps li { padding: 4px 8px; border-radius: 999px; background: var(--night-2); color: var(--night-ink-2); }
+.steps li.stepDone { color: #7bd389; }
+.steps li.stepNow { background: var(--night-ink); color: var(--night); }

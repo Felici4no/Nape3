@@ -124,6 +124,30 @@ describe("CloakFunding: shield", () => {
     const { funding } = await setup(lossy);
     await expect(funding.shield(2_000_000n)).rejects.toBeInstanceOf(CloakPersistenceError);
   });
+
+  it("a wallet-signed shield never retries by itself; a keypair keeps the SDK default", async () => {
+    const seen: Array<{ maxRootRetries?: number; hasProgress: boolean }> = [];
+    const { sdk } = createSimulatedCloakSdk();
+    const spy: typeof sdk = {
+      ...sdk,
+      transact: (params, options) => {
+        seen.push({ ...(options.maxRootRetries !== undefined ? { maxRootRetries: options.maxRootRetries } : {}), hasProgress: typeof options.onProgress === "function" });
+        return sdk.transact(params, options);
+      }
+    };
+    const keys = await CloakKeys.fromSeed(SEED);
+    const keypair = await generateKeyPairSigner();
+    const base = { sdk: spy, connection: {} as CloakRpc, keys, store: new MemoryNoteStore(), mint: USDC, log: createCloakLogger(() => {}) };
+
+    await new CloakFunding({ ...base, signer: { kind: "keypair", keypair } }).shield(1_000_000n);
+    await new CloakFunding({
+      ...base,
+      store: new MemoryNoteStore(),
+      signer: { kind: "wallet", signer: keypair, signMessage: async () => new Uint8Array(64), address: keypair.address }
+    }).shield(1_000_000n, { onProgress: () => {} });
+
+    expect(seen).toEqual([{ hasProgress: false }, { maxRootRetries: 0, hasProgress: true }]);
+  });
 });
 
 describe("CloakFunding: fund a purchase privately", () => {

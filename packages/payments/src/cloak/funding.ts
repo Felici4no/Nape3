@@ -45,6 +45,11 @@ export interface ShieldedBalance {
   pending: number;
 }
 
+export interface ShieldOptions {
+  /** SDK stage text ("Waiting for wallet signature...", "Confirming transaction..."). Public, never contains secrets. */
+  onProgress?: (stage: string) => void;
+}
+
 export interface ShieldResult {
   signature: string;
   explorer: string;
@@ -195,7 +200,7 @@ export class CloakFunding {
   // ---------------------------------------------------------------- shield
 
   /** Public wallet → Cloak USDC pool. The deposit itself is visible; what follows is not linked to it. */
-  async shield(amount: UsdcUnits): Promise<ShieldResult> {
+  async shield(amount: UsdcUnits, options: ShieldOptions = {}): Promise<ShieldResult> {
     assertShieldable(amount);
     const { sdk, keys, signer } = this.deps;
     const nk = keys.viewingKeyNk();
@@ -208,7 +213,13 @@ export class CloakFunding {
         externalAmount: amount,
         depositor: signerAddress(signer)
       },
-      cloakOptions(this.deps.connection, signer, nk, { chainNoteSalt: noteSalt })
+      cloakOptions(this.deps.connection, signer, nk, {
+        chainNoteSalt: noteSalt,
+        // A wallet re-proves and re-asks for approval on every stale-root retry (up to 40 by
+        // default). A shield never retries by itself: a failure is surfaced and the user decides.
+        ...(signer.kind === "wallet" ? { maxRootRetries: 0 } : {}),
+        ...(options.onProgress ? { onProgress: options.onProgress } : {})
+      })
     );
     await this.persistOutputs(result, new Set());
     const balance = await this.shieldedBalance();
