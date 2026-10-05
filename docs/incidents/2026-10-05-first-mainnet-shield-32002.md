@@ -290,3 +290,23 @@ The path is forced to v0. The confirmation shows:
 - relay pays the lookup table.
 
 The final button reads "Broadcast real mainnet shield of 1.000000 USDC", and the text above it says it WILL broadcast a real mainnet transaction. The blocked intent from the first failure is handled exactly as before: it is never cleared except by "Check on chain".
+
+
+## Resolution: confirmed mainnet shield
+
+The investigation ended with a production-safe Phantom path: **v0 + relay-funded supplemental ALT**, with wallet-funded ALT fallback blocked at the progress, signer, and transport layers.
+
+On 2026-10-05 the first real browser-wallet shield completed successfully:
+
+- amount: **1.000000 USDC**;
+- network: Solana mainnet-beta;
+- wallet: `9qAezschd4e5t5yi9F5SAw41g43Vuj6iYMh7dpcKqkUi`;
+- signature: `4xa8vKZLHQfZF6GzvK4SAqQwRrQUN9H7UBmT5cvnc6BKjiMdQ2RMJKnRVqgq7HtG4tAyUeFbcXjWXWfZ1v4asQfx`;
+- slot: `453687294`;
+- confirmed at: `2026-10-05T20:32:11.000Z`;
+- application state: `SHIELDED`;
+- resulting private balance reported by the app: **1.000000 USDC**.
+
+Canonical evidence: [docs/08-proofs/2026-10-05-mainnet-shield.md](../08-proofs/2026-10-05-mainnet-shield.md).
+
+The historical `-32002` root cause remains undetermined. The old path was removed because it was economically and operationally unacceptable regardless of the exact historical cause.
