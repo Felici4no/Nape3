@@ -35,6 +35,9 @@ const STYLE = `
   .eyebrow { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; opacity: .6; }
   .row { display: flex; justify-content: space-between; gap: 12px; margin-top: 4px; }
   .muted { opacity: .7; }
+  .label { margin-top: 6px; opacity: .75; }
+  .total { font-size: 22px; font-weight: 700; letter-spacing: -.01em; margin: 1px 0 6px; }
+  .note { max-width: 220px; }
   button { all: unset; cursor: pointer; float: right; opacity: .6; padding: 0 2px; }
 `;
 
@@ -72,30 +75,33 @@ export function renderBadge(doc: Document, snapshot: PageSnapshot, market: Marke
     ? `<div class="muted">extracted ${escapeHtml(time)} · ${escapeHtml(snapshot.snapshotId)}${market?.observation ? ` · observed ${escapeHtml(new Date(market.observation.observedAt).toLocaleTimeString("pt-BR"))}` : ""}</div>`
     : "";
 
+  // Product copy in pt-BR; the page context and timestamps stay in debug only.
   let body: string;
   if (cart && !cart.validity.valid) {
     // Never show an unvalidated total (and never an item price instead).
-    body = `<div class="row"><span>Current checkout</span><strong>not validated</strong></div>
-      <div class="muted">${escapeHtml(cart.validity.reasons[0] ?? "")}</div>`;
+    body = `<div class="label">Seu checkout</div>
+      <div class="total">não validado</div>
+      <div class="muted">Não consegui conferir os valores desta página, então não mostro um total.</div>
+      ${debug ? `<div class="muted">${escapeHtml(cart.validity.reasons[0] ?? "")}</div>` : ""}`;
   } else {
     const total = cart?.totalCents.value ?? pixAmount!;
     const summary = market?.summary;
     const marketLine = !market
-      ? `<div class="muted">Comparing…</div>`
+      ? `<div class="muted">Comparando…</div>`
       : summary && summary.sufficient && summary.medianCents !== null && summary.lowestCents !== null
-        ? `<div class="row"><span>Median</span><strong>${formatBRL(summary.medianCents)}</strong></div>
-           <div class="row"><span>Lowest observed</span><strong>${formatBRL(summary.lowestCents)}</strong></div>
-           <div class="muted">${summary.sampleSize} fresh observations${summary.containsSynthetic ? " · includes synthetic fixtures" : ""}</div>`
-        : `<div class="muted">Not enough fresh market data</div>`;
-    body = `<div class="row"><span>Current checkout</span><strong>${formatBRL(total)}</strong></div>${marketLine}`;
+        ? `<div class="row"><span>Mediana</span><strong>${formatBRL(summary.medianCents)}</strong></div>
+           <div class="row"><span>Menor observado</span><strong>${formatBRL(summary.lowestCents)}</strong></div>
+           <div class="muted">${summary.sampleSize} observações recentes${summary.containsSynthetic ? " · inclui dados sintéticos" : ""}</div>`
+        : `<div class="muted note">Ainda não há ofertas suficientes para comparar este pedido.</div>`;
+    body = `<div class="label">Seu checkout</div><div class="total">${formatBRL(total)}</div>${marketLine}`;
   }
 
   root.innerHTML = `<style>${STYLE}</style>
     <div class="badge" role="status">
-      <button title="Hide" aria-label="Hide">✕</button>
-      <div class="eyebrow">UPAY3FOOD.agent · ${escapeHtml(snapshot.detection.context)}</div>
+      <button title="Ocultar" aria-label="Ocultar">✕</button>
+      <div class="eyebrow">UPAY3FOOD</div>
       ${body}
-      ${debugLine}
+      ${debug ? `<div class="muted">${escapeHtml(snapshot.detection.context)}</div>${debugLine}` : ""}
     </div>`;
   root.querySelector("button")?.addEventListener("click", removeBadge, { once: true });
 }
