@@ -94,10 +94,40 @@ function upstreamUrl(env: ProxyEnv): string | null {
   }
 }
 
-function rpcError(status: number, code: number, message: string, id: unknown = null, headers: Record<string, string> = {}): Response {
+/**
+ * Every response from this proxy says so, and why it failed. The browser's
+ * RPC client keeps the response headers in its error (Solana error #8100002
+ * carries `headers` + `statusCode`), so a 403 can be traced to this layer —
+ * or, when the header is absent, to something in front of it (Vercel) or to
+ * another endpoint. Values are fixed tokens; never a URL, key or body.
+ */
+export const LAYER_HEADER = "x-upay3food-rpc-layer";
+export const REASON_HEADER = "x-upay3food-rpc-reason";
+
+export type ProxyFailureReason =
+  | "not-configured"
+  | "origin-not-allowed"
+  | "method-not-allowed"
+  | "too-large"
+  | "invalid-request"
+  | "upstream-timeout"
+  | "upstream-unreachable"
+  | "upstream-rate-limited"
+  | "upstream-auth"
+  | "upstream-error"
+  | "upstream-non-json";
+
+function rpcError(
+  status: number,
+  code: number,
+  message: string,
+  id: unknown = null,
+  headers: Record<string, string> = {},
+  reason: ProxyFailureReason = "invalid-request"
+): Response {
   return new Response(JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } }), {
     status,
-    headers: { "content-type": "application/json", "cache-control": "no-store", ...headers }
+    headers: { "content-type": "application/json", "cache-control": "no-store", [LAYER_HEADER]: "proxy", [REASON_HEADER]: reason, ...headers }
   });
 }
 
@@ -137,14 +167,14 @@ function validate(call: unknown): { ok: true } | { ok: false; id: unknown; code:
 
 export async function handleSolanaRpc(request: Request, env: ProxyEnv, fetchImpl: Fetch = fetch): Promise<Response> {
   const target = upstreamUrl(env);
-  if (!target) return rpcError(503, -32000, "RPC proxy is not configured");
-  if (!originAllowed(request, env)) return rpcError(403, -32000, "Origin not allowed");
+  if (!target) return rpcError(503, -32000, "RPC proxy is not configured", null, {}, "not-configured");
+  if (!originAllowed(request, env)) return rpcError(403, -32000, "Origin not allowed", null, {}, "origin-not-allowed");
 
   const declared = Number(request.headers.get("content-length") ?? "0");
-  if (declared > MAX_BODY_BYTES) return rpcError(413, -32000, "Request too large");
+  if (declared > MAX_BODY_BYTES) return rpcError(413, -32000, "Request too large", null, {}, "too-large");
   const text = await request.text().catch(() => null);
   if (text === null) return rpcError(400, -32700, "Parse error");
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return rpcError(413, -32000, "Request too large");
+  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return rpcError(413, -32000, "Request too large", null, {}, "too-large");
 
   let parsed: unknown;
   try {
@@ -156,7 +186,9 @@ export async function handleSolanaRpc(request: Request, env: ProxyEnv, fetchImpl
   if (calls.length === 0 || calls.length > MAX_BATCH) return rpcError(400, -32600, "Invalid request");
   for (const call of calls) {
     const verdict = validate(call);
-    if (!verdict.ok) return rpcError(verdict.status, verdict.code, verdict.message, Array.isArray(parsed) ? null : verdict.id);
+    if (!verdict.ok) {
+      return rpcError(verdict.status, verdict.code, verdict.message, Array.isArray(parsed) ? null : verdict.id, {}, verdict.code === -32601 ? "method-not-allowed" : "invalid-request");
+    }
   }
   const id = Array.isArray(parsed) ? null : ((parsed as RpcCall).id ?? null);
 
@@ -175,22 +207,87 @@ export async function handleSolanaRpc(request: Request, env: ProxyEnv, fetchImpl
     });
   } catch (error) {
     const name = error instanceof Error ? error.name : "";
-    if (name === "TimeoutError" || name === "AbortError") return rpcError(504, -32003, "RPC upstream timed out", id);
-    return rpcError(502, -32002, "RPC upstream unreachable", id);
+    if (name === "TimeoutError" || name === "AbortError") return rpcError(504, -32003, "RPC upstream timed out", id, {}, "upstream-timeout");
+    return rpcError(502, -32002, "RPC upstream unreachable", id, {}, "upstream-unreachable");
   }
 
   if (upstream.status === 429) {
     const retryAfter = upstream.headers.get("retry-after");
-    return rpcError(429, -32005, "RPC upstream rate limited", id, retryAfter && /^\d+$/.test(retryAfter) ? { "retry-after": retryAfter } : {});
+    return rpcError(429, -32005, "RPC upstream rate limited", id, retryAfter && /^\d+$/.test(retryAfter) ? { "retry-after": retryAfter } : {}, "upstream-rate-limited");
   }
-  if (upstream.status === 401 || upstream.status === 403) return rpcError(502, -32001, "RPC upstream rejected the proxy's credentials", id);
-  if (upstream.status !== 200) return rpcError(502, -32002, `RPC upstream error (HTTP ${upstream.status})`, id);
+  if (upstream.status === 401 || upstream.status === 403) return rpcError(502, -32001, "RPC upstream rejected the proxy's credentials", id, {}, "upstream-auth");
+  if (upstream.status !== 200) return rpcError(502, -32002, `RPC upstream error (HTTP ${upstream.status})`, id, {}, "upstream-error");
 
   const body = scrub(await upstream.text(), env);
   try {
     JSON.parse(body);
   } catch {
-    return rpcError(502, -32002, "RPC upstream returned a non-JSON response", id);
+    return rpcError(502, -32002, "RPC upstream returned a non-JSON response", id, {}, "upstream-non-json");
   }
-  return new Response(body, { status: 200, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+  return new Response(body, { status: 200, headers: { "content-type": "application/json", "cache-control": "no-store", [LAYER_HEADER]: "proxy" } });
+}
+
+// ---------------------------------------------------------------------------
+// Health (read-only): does the proxy work, and does the upstream answer?
+// ---------------------------------------------------------------------------
+
+/** Solana mainnet-beta genesis hash. */
+export const MAINNET_GENESIS_HASH = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
+
+export interface ProxyHealth {
+  proxy: "OK" | "NOT_CONFIGURED";
+  upstream: "OK" | "FAIL";
+  /** Why the upstream failed, as the proxy classifies it. */
+  upstreamReason: ProxyFailureReason | "unexpected-response" | null;
+  network: "mainnet-beta" | "other" | "unknown";
+  slot: number | null;
+  upstreamHealth: string | null;
+  latencyMs: number | null;
+  checkedAt: string;
+}
+
+/**
+ * Three read-only calls through the same forwarding path as the browser:
+ * getHealth, getGenesisHash, getSlot. No transaction, no caller input, no
+ * secret in the result (it is built from fixed fields only).
+ */
+export async function proxyHealth(env: ProxyEnv, fetchImpl: Fetch = fetch, now: () => number = Date.now): Promise<ProxyHealth> {
+  const checkedAt = new Date(now()).toISOString();
+  const base = { slot: null, upstreamHealth: null, latencyMs: null, checkedAt };
+  if (!upstreamUrl(env)) return { proxy: "NOT_CONFIGURED", upstream: "FAIL", upstreamReason: "not-configured", network: "unknown", ...base };
+  const site = "https://health.internal";
+  const request = new Request(`${site}/api/solana-rpc`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: site },
+    body: JSON.stringify([
+      { jsonrpc: "2.0", id: 1, method: "getHealth" },
+      { jsonrpc: "2.0", id: 2, method: "getGenesisHash" },
+      { jsonrpc: "2.0", id: 3, method: "getSlot", params: [{ commitment: "confirmed" }] }
+    ])
+  });
+  const started = now();
+  const response = await handleSolanaRpc(request, env, fetchImpl);
+  const latencyMs = now() - started;
+  if (response.status !== 200) {
+    return { proxy: "OK", upstream: "FAIL", upstreamReason: (response.headers.get(REASON_HEADER) as ProxyFailureReason | null) ?? "upstream-error", network: "unknown", ...base, latencyMs };
+  }
+  try {
+    const results = (await response.json()) as Array<{ id: number; result?: unknown; error?: { message?: string } }>;
+    const byId = new Map(results.map((r) => [r.id, r]));
+    const genesis = byId.get(2)?.result;
+    const slot = byId.get(3)?.result;
+    const health = byId.get(1);
+    return {
+      proxy: "OK",
+      upstream: typeof slot === "number" ? "OK" : "FAIL",
+      upstreamReason: typeof slot === "number" ? null : "unexpected-response",
+      network: genesis === MAINNET_GENESIS_HASH ? "mainnet-beta" : typeof genesis === "string" ? "other" : "unknown",
+      slot: typeof slot === "number" ? slot : null,
+      upstreamHealth: typeof health?.result === "string" ? health.result : health?.error ? "unhealthy" : null,
+      latencyMs,
+      checkedAt
+    };
+  } catch {
+    return { proxy: "OK", upstream: "FAIL", upstreamReason: "unexpected-response", network: "unknown", ...base, latencyMs };
+  }
 }

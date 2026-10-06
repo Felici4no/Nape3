@@ -1,6 +1,7 @@
 import type { CloakRpc } from "@cloak.dev/sdk";
 import { diagnosticFromRpcError, type RpcFailureDiagnostic } from "@nape3/payments/cloak";
 import { base64ToBytes, decodeTransaction, type DecodedTransaction } from "./tx-decode";
+import { endpointKind, tracedTransport } from "./rpc-trace";
 import { shieldCost, systemMovements, type InnerInstruction, type ShieldCost, type SystemMovement } from "./shield-cost";
 import {
   createDefaultRpcTransport,
@@ -258,8 +259,10 @@ async function measureCost(
 }
 
 /** Same shape as the SDK's `createCloakRpc` (an `endpoint` property the SDK checks), with capture. */
-export function createCapturingCloakRpc(url: string, mode: CaptureMode, hooks: CaptureHooks): CloakRpc {
-  const base = createDefaultRpcTransport({ url }) as unknown as BaseTransport;
+export function createCapturingCloakRpc(url: string, mode: CaptureMode, hooks: CaptureHooks, stage = "rpc"): CloakRpc {
+  const pageOrigin = typeof location !== "undefined" ? location.origin : null;
+  // Every request is traced (method, status, timing, failure class; never params or the URL).
+  const base = tracedTransport(createDefaultRpcTransport({ url }) as unknown as BaseTransport, endpointKind(url, pageOrigin), stage);
   const rpc = createSolanaRpcFromTransport(captureTransport(base, mode, hooks) as unknown as RpcTransport);
   return new Proxy(rpc, {
     get(target, prop, receiver) {

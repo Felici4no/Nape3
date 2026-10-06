@@ -30,3 +30,14 @@ export {
   type RelayShieldViolation,
   type RelayShieldStage
 } from "./relay-shield-guard";
+export {
+  classifyFailure,
+  classifyHttpFailure,
+  clearRpcTrace,
+  endpointKind,
+  httpFailureOf,
+  onRpcTrace,
+  rpcTrace,
+  type RpcFailureClass,
+  type RpcTraceEntry
+} from "./rpc-trace";

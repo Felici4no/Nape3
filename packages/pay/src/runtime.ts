@@ -1,4 +1,4 @@
-import { address, createCloakRpc, type CloakRpc } from "@cloak.dev/sdk";
+import { address, CLOAK_PRODUCTION_RELAY_URL, createCloakRpc, type CloakRpc } from "@cloak.dev/sdk";
 import { assessFunding, type AgentState, type FundingAssessment, type FundingRequirement } from "@nape3/agent";
 import type { Cents } from "@nape3/domain";
 import { MockOfframp, USDC_MINT } from "@nape3/payments";
@@ -19,10 +19,11 @@ import { reportToExtension } from "./bridge";
 import { EncryptedLocalNoteStore } from "./encrypted-store";
 import { PaymentFlow, settlementUnavailable, type PaymentRequest, type PrivateBalance } from "./flow";
 import { createCapturingCloakRpc, dryRunSigner, type SimulationOutcome } from "./rpc-capture";
+import { classifyHttpFailure, endpointKind, recordRpcTrace, type RpcFailureClass } from "./rpc-trace";
 import { CLOAK_PROGRAM_ID, diagnoseShieldChain, type ShieldChainDiagnosis } from "./shield-diagnosis";
 import { LocalIntentStore } from "./shield-intent";
 import { displayError, SHIELD_AMOUNT_USDC, ShieldOperation, type ShieldDeps } from "./shield-op";
-import { connectWallet, type ConnectedWallet } from "./wallet";
+import { connectWallet, findWallet, type ConnectedWallet } from "./wallet";
 import { discoverStandardWallets, runV1SigningTest, type V1SigningResult } from "./v1-signing-test";
 import {
   assertNoUserFundedAlt,
@@ -64,8 +65,8 @@ export function setRpcUrl(url: string): void {
 /** One signature (not a transaction): derives the Cloak key and the local note-encryption key. */
 async function unlock(
   wallet: ConnectedWallet,
-  rpcUrl: string = getRpcUrl(),
-  connection: CloakRpc = createCloakRpc(rpcUrl),
+  rpcUrl: string = shieldRpc().url,
+  connection: CloakRpc = solanaRpc("unlock"),
   signer: CloakSigner = wallet.cloakSigner()
 ): Promise<{ funding: CloakFunding; balance: PrivateBalance; keys: CloakKeys }> {
   const signature = await wallet.signMessage(derivationMessageBytes());
@@ -104,7 +105,7 @@ export function createPaymentFlow(request: PaymentRequest): PaymentFlow {
         if (!connected) throw new Error("wallet not connected");
         return (await unlock(connected)).balance;
       },
-      readPublicBalances: (owner) => readPublicBalances(createCloakRpc(getRpcUrl()), address(owner), USDC),
+      readPublicBalances: (owner) => readPublicBalances(solanaRpc("pay.balances"), address(owner), USDC),
       quote: quoteFunding,
       settle: settlementUnavailable,
       report: (context, extra) => reportToExtension(context, extra.shieldedUsdc, request),
@@ -152,6 +153,15 @@ export function shieldRpc(): ShieldRpc {
   return { url: getRpcUrl(), viaProxy: false, label: host };
 }
 
+/**
+ * The Solana RPC every screen uses: the same-origin proxy on the deployed site
+ * (/wallet and /pay used to call api.mainnet-beta.solana.com from the browser,
+ * which answers browsers with HTTP 403), traced per request.
+ */
+export function solanaRpc(stage: string): CloakRpc {
+  return createCapturingCloakRpc(shieldRpc().url, "live", {}, stage);
+}
+
 /** "rpc-fast" only through the proxy, which can only reach the configured RPC Fast endpoint. */
 function rpcProviderLabel(): string {
   const rpc = shieldRpc();
@@ -160,15 +170,31 @@ function rpcProviderLabel(): string {
 
 /** Read-only JSON-RPC call. Errors never include the URL. */
 async function rpcCall<T>(method: string, params: unknown[]): Promise<T> {
-  const response = await fetch(shieldRpc().url, {
+  const started = Date.now();
+  const url = shieldRpc().url;
+  const record = (httpStatus: number | null, rpcErrorCode: number | null, classification: RpcFailureClass | null) =>
+    recordRpcTrace({ timestamp: new Date(started).toISOString(), endpoint: endpointKind(url, location.origin), method, httpStatus, rpcErrorCode, durationMs: Date.now() - started, originHost: location.host, stage: "diagnosis", classification });
+  const response = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
   }).catch(() => {
+    record(null, null, "RPC_NETWORK_FAILURE");
     throw new Error(`rpc ${method}: network error`);
   });
-  if (!response.ok) throw new Error(`rpc ${method}: HTTP ${response.status}`);
-  const envelope = (await response.json()) as { result?: T; error?: { message?: string } };
+  if (!response.ok) {
+    const failure = classifyHttpFailure({
+      endpoint: endpointKind(url, location.origin),
+      status: response.status,
+      layer: response.headers.get("x-upay3food-rpc-layer"),
+      reason: response.headers.get("x-upay3food-rpc-reason"),
+      viaVercel: !!response.headers.get("x-vercel-id")
+    });
+    record(response.status, null, failure);
+    throw new Error(`rpc ${method}: HTTP ${response.status} (${failure})`);
+  }
+  const envelope = (await response.json()) as { result?: T; error?: { message?: string; code?: number } };
+  record(200, envelope.error?.code ?? null, null);
   if (envelope.error) throw new Error(`rpc ${method}: ${envelope.error.message ?? "error"}`);
   return envelope.result as T;
 }
@@ -316,7 +342,7 @@ export function createShieldSession(): ShieldSession {
       connected = await connectWallet({ silent });
       return connected;
     },
-    readPublicBalances: (owner) => readPublicBalances(createCloakRpc(shieldRpc().url), address(owner), USDC),
+    readPublicBalances: (owner) => readPublicBalances(solanaRpc("shield.balances"), address(owner), USDC),
     unlock: async () => {
       if (!connected) throw new Error("wallet not connected");
       const url = shieldRpc().url;
@@ -548,7 +574,7 @@ export class WalletSession {
     if (!this.wallet) throw new Error("wallet not connected");
     if (options.includePrivate && !this.privateBalance) this.privateBalance = (await unlock(this.wallet)).balance;
     const [publicBalances, shielded] = await Promise.all([
-      readPublicBalances(createCloakRpc(getRpcUrl()), address(this.wallet.address), USDC),
+      readPublicBalances(solanaRpc("wallet.balances"), address(this.wallet.address), USDC),
       this.privateBalance ? this.privateBalance.shieldedUsdc() : Promise.resolve(null)
     ]);
     let assessment: FundingAssessment | null = null;
@@ -594,4 +620,79 @@ export class WalletSession {
       assessment: null
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// System diagnostics (/diagnostics): which layer works, read-only
+// ---------------------------------------------------------------------------
+
+export interface LayerStatus {
+  status: "OK" | "FAIL" | "SKIPPED";
+  detail: string;
+}
+
+export interface SystemDiagnostics {
+  checkedAt: string;
+  /** Server → RPC Fast, through /api/solana-rpc/health (getHealth, getGenesisHash, getSlot). */
+  proxy: LayerStatus;
+  upstream: LayerStatus;
+  network: string;
+  /** Browser → (Vercel) → proxy → upstream: a getSlot from this page, as every screen sends it. */
+  browserRpc: LayerStatus;
+  wallet: { detected: boolean; name: string | null; address: string | null };
+  cloak: LayerStatus;
+}
+
+const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
+
+/** Nothing here signs, sends a transaction or asks the wallet for anything (silent reconnect only). */
+export async function systemDiagnostics(): Promise<SystemDiagnostics> {
+  const checkedAt = new Date().toISOString();
+  const rpc = shieldRpc();
+
+  let proxy: LayerStatus = { status: "SKIPPED", detail: "local development: no server proxy" };
+  let upstream: LayerStatus = { status: "SKIPPED", detail: "" };
+  let network = "unknown";
+  if (rpc.viaProxy) {
+    try {
+      const response = await fetch(`${location.origin}${SOLANA_RPC_PROXY_PATH}/health`, { cache: "no-store" });
+      const health = (await response.json()) as { proxy: string; upstream: string; upstreamReason: string | null; network: string; slot: number | null; latencyMs: number | null };
+      proxy = health.proxy === "OK" ? { status: "OK", detail: "configured" } : { status: "FAIL", detail: "RPC_FAST_URL missing on the server" };
+      upstream =
+        health.upstream === "OK"
+          ? { status: "OK", detail: `slot ${health.slot} · ${health.latencyMs} ms` }
+          : { status: "FAIL", detail: health.upstreamReason ?? "unknown" };
+      network = health.network;
+    } catch (error) {
+      proxy = { status: "FAIL", detail: `health endpoint unreachable: ${displayError(error)}` };
+    }
+  }
+
+  let browserRpc: LayerStatus;
+  try {
+    const slot = await rpcCall<number>("getSlot", [{ commitment: "confirmed" }]);
+    browserRpc = { status: "OK", detail: `getSlot ${slot} via ${rpc.label}` };
+  } catch (error) {
+    browserRpc = { status: "FAIL", detail: displayError(error) };
+  }
+
+  const found = typeof window !== "undefined" ? findWallet() : null;
+  let walletAddress: string | null = null;
+  if (found) {
+    try {
+      walletAddress = short((await connectWallet({ silent: true })).address);
+    } catch {
+      walletAddress = null; // not trusted yet: no prompt from a diagnostics page
+    }
+  }
+
+  let cloak: LayerStatus;
+  try {
+    const response = await fetch(`${CLOAK_PRODUCTION_RELAY_URL}/health`, { cache: "no-store" });
+    cloak = response.ok ? { status: "OK", detail: `SDK loaded · relay /health ${response.status}` } : { status: "FAIL", detail: `relay /health HTTP ${response.status} (CLOAK_RELAY_FAILURE)` };
+  } catch (error) {
+    cloak = { status: "FAIL", detail: `relay unreachable (CLOAK_RELAY_FAILURE): ${displayError(error)}` };
+  }
+
+  return { checkedAt, proxy, upstream, network, browserRpc, wallet: { detected: !!found, name: found?.name ?? null, address: walletAddress }, cloak };
 }

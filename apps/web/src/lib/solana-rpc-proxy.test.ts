@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ALLOWED_METHODS, handleSolanaRpc, MAX_BATCH, MAX_BODY_BYTES, scrub, type ProxyEnv } from "./solana-rpc-proxy";
+import { ALLOWED_METHODS, handleSolanaRpc, MAINNET_GENESIS_HASH, MAX_BATCH, MAX_BODY_BYTES, proxyHealth, scrub, type ProxyEnv } from "./solana-rpc-proxy";
 
 // Synthetic: same shape as a real key, never a real one.
 const KEY = "TESTKEY0aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7dE9fG1hJ3kL5mN7pQ9rS";
@@ -234,5 +234,49 @@ describe("secret redaction", () => {
     }) as never);
     await handleSolanaRpc(call(body, { origin: "https://evil.example" }), ENV, upstreamReturning(ok(1, 1)));
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("layer + reason headers (to trace a 403 to its layer)", () => {
+  it("tags every refusal with the proxy layer and a fixed reason", async () => {
+    const cases: Array<[Request, string, number]> = [
+      [call({ jsonrpc: "2.0", id: 1, method: "getSlot" }, { origin: "https://evil.example" }), "origin-not-allowed", 403],
+      [call({ jsonrpc: "2.0", id: 1, method: "getProgramAccounts" }), "method-not-allowed", 403]
+    ];
+    for (const [request, reason, status] of cases) {
+      const response = await handleSolanaRpc(request, ENV, upstreamReturning("{}"));
+      expect(response.status).toBe(status);
+      expect(response.headers.get("x-upay3food-rpc-layer")).toBe("proxy");
+      expect(response.headers.get("x-upay3food-rpc-reason")).toBe(reason);
+    }
+    const auth = await handleSolanaRpc(call({ jsonrpc: "2.0", id: 1, method: "getSlot" }), ENV, upstreamReturning("forbidden", 403));
+    expect(auth.status).toBe(502);
+    expect(auth.headers.get("x-upay3food-rpc-reason")).toBe("upstream-auth");
+    const fine = await handleSolanaRpc(call({ jsonrpc: "2.0", id: 1, method: "getSlot" }), ENV, upstreamReturning(ok(1, 5)));
+    expect(fine.headers.get("x-upay3food-rpc-layer")).toBe("proxy");
+    expect(fine.headers.get("x-upay3food-rpc-reason")).toBeNull();
+  });
+});
+
+describe("proxyHealth (read-only)", () => {
+  const healthy = vi.fn(async (_url: string, init: RequestInit) => {
+    const calls = JSON.parse(String(init.body)) as Array<{ id: number; method: string }>;
+    expect(calls.map((c) => c.method)).toEqual(["getHealth", "getGenesisHash", "getSlot"]);
+    return new Response(JSON.stringify([
+      { jsonrpc: "2.0", id: 1, result: "ok" },
+      { jsonrpc: "2.0", id: 2, result: MAINNET_GENESIS_HASH },
+      { jsonrpc: "2.0", id: 3, result: 453_700_000 }
+    ]));
+  });
+
+  it("reports proxy OK, upstream OK, mainnet-beta and the slot, without the endpoint", async () => {
+    const health = await proxyHealth(ENV, healthy);
+    expect(health).toMatchObject({ proxy: "OK", upstream: "OK", network: "mainnet-beta", slot: 453_700_000, upstreamHealth: "ok", upstreamReason: null });
+    expect(JSON.stringify(health)).not.toContain(KEY);
+  });
+
+  it("names the failing layer: not configured, upstream auth", async () => {
+    expect(await proxyHealth({ NODE_ENV: "production" }, healthy)).toMatchObject({ proxy: "NOT_CONFIGURED", upstream: "FAIL", upstreamReason: "not-configured" });
+    expect(await proxyHealth(ENV, upstreamReturning("nope", 401))).toMatchObject({ proxy: "OK", upstream: "FAIL", upstreamReason: "upstream-auth" });
   });
 });

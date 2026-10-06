@@ -8,3 +8,4 @@ export const WalletScreenLoader = dynamic(() => import("./WalletScreen"), { ssr:
 export const PayScreenLoader = dynamic(() => import("./PayScreen"), { ssr: false, loading });
 export const ShieldScreenLoader = dynamic(() => import("./ShieldScreen"), { ssr: false, loading });
 export const ShieldDiagnoseScreenLoader = dynamic(() => import("./ShieldDiagnoseScreen"), { ssr: false, loading });
+export const DiagnosticsScreenLoader = dynamic(() => import("./DiagnosticsScreen"), { ssr: false, loading });
