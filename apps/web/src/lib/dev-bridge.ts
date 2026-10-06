@@ -52,8 +52,23 @@ export interface DevSnapshot {
   diagnostics: { extensionVersion: string; pageContext: string; navigationType: string | null; pageAgeSeconds: number | null; path: string };
 }
 
+export const MIN_TOKEN_LENGTH = 24;
+
 export function bridgeEnabled(env: BridgeEnv): boolean {
-  return !!env.DEV_BRIDGE_TOKEN && env.DEV_BRIDGE_TOKEN.length >= 24 && !!env.BLOB_READ_WRITE_TOKEN;
+  return bridgeConfig(env).enabled;
+}
+
+/** Configuration state for /api/dev/extension/status: never the values, only whether each piece is usable. */
+export function bridgeConfig(env: BridgeEnv): {
+  enabled: boolean;
+  devBridgeToken: "missing" | "too-short" | "ok";
+  blobToken: "missing" | "ok";
+  minTokenLength: number;
+} {
+  const token = (env.DEV_BRIDGE_TOKEN ?? "").trim();
+  const devBridgeToken = token === "" ? "missing" : token.length < MIN_TOKEN_LENGTH ? "too-short" : "ok";
+  const blobToken = (env.BLOB_READ_WRITE_TOKEN ?? "").trim() ? "ok" : "missing";
+  return { enabled: devBridgeToken === "ok" && blobToken === "ok", devBridgeToken, blobToken, minTokenLength: MIN_TOKEN_LENGTH };
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -65,8 +80,9 @@ function timingSafeEqual(a: string, b: string): boolean {
 
 export function authorized(request: Request, env: BridgeEnv): boolean {
   const header = request.headers.get("authorization") ?? "";
-  const token = /^Bearer (.+)$/.exec(header)?.[1] ?? "";
-  return !!env.DEV_BRIDGE_TOKEN && timingSafeEqual(token, env.DEV_BRIDGE_TOKEN);
+  const token = (/^Bearer (.+)$/.exec(header)?.[1] ?? "").trim();
+  const expected = (env.DEV_BRIDGE_TOKEN ?? "").trim();
+  return !!expected && timingSafeEqual(token, expected);
 }
 
 export const SESSION_ID = /^[0-9a-f]{32}$/;

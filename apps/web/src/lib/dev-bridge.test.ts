@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addSnapshot, authorized, bridgeEnabled, createSession, forbiddenContent, latestSnapshot, listSnapshots, memoryStore, SCHEMA, TTL_MS } from "./dev-bridge";
+import { addSnapshot, authorized, bridgeConfig, bridgeEnabled, createSession, forbiddenContent, latestSnapshot, listSnapshots, memoryStore, SCHEMA, TTL_MS } from "./dev-bridge";
 
 const TOKEN = "dev-bridge-test-token-0123456789abcdef";
 const T0 = Date.parse("2026-10-06T12:00:00Z");
@@ -23,6 +23,13 @@ describe("dev bridge: enabled only with both tokens, writes only with the bridge
     expect(bridgeEnabled({ DEV_BRIDGE_TOKEN: TOKEN })).toBe(false);
     expect(bridgeEnabled({ DEV_BRIDGE_TOKEN: "short", BLOB_READ_WRITE_TOKEN: "x" })).toBe(false);
     expect(bridgeEnabled({ DEV_BRIDGE_TOKEN: TOKEN, BLOB_READ_WRITE_TOKEN: "x" })).toBe(true);
+  });
+
+  it("reports why it is off, without values", () => {
+    expect(bridgeConfig({})).toEqual({ enabled: false, devBridgeToken: "missing", blobToken: "missing", minTokenLength: 24 });
+    expect(bridgeConfig({ DEV_BRIDGE_TOKEN: "short", BLOB_READ_WRITE_TOKEN: "x" })).toMatchObject({ enabled: false, devBridgeToken: "too-short", blobToken: "ok" });
+    expect(bridgeConfig({ DEV_BRIDGE_TOKEN: ` ${TOKEN}\n`, BLOB_READ_WRITE_TOKEN: "x" })).toMatchObject({ enabled: true });
+    expect(JSON.stringify(bridgeConfig({ DEV_BRIDGE_TOKEN: TOKEN, BLOB_READ_WRITE_TOKEN: "vercel_blob_rw_secret" }))).not.toMatch(/dev-bridge-test|vercel_blob_rw/);
   });
 
   it("authorizes only the exact bearer token", () => {
