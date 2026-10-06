@@ -9,7 +9,9 @@ import { mergeNetworkObservations } from "../shared/network";
 import { mergeObservation, requirementFromObservation, snapshotToObservation } from "../shared/observation";
 import {
   DEFAULT_SETTINGS,
+  type BridgeStatus,
   type ConnectivityReport,
+  type DevSnapshotPayload,
   type ExtensionMessage,
   type ExtensionResponse,
   type ExtensionSettings,
@@ -288,6 +290,81 @@ async function handleExternal(message: ExternalMessage, origin: string | undefin
 
 const executor = scheduleExecutor(getSettings, getObserverId);
 
+// ---------------------------------------------------------------------------
+// Extension Dev Bridge (development only): sanitized snapshots → UPAY3FOOD
+// ---------------------------------------------------------------------------
+
+const bridgeState: { sent: number; lastSentAt: string | null; lastStatus: number | null; lastError: string | null } = {
+  sent: 0,
+  lastSentAt: null,
+  lastStatus: null,
+  lastError: null
+};
+
+function bridgeOrigin(settings: ExtensionSettings): string | null {
+  try {
+    return new URL(settings.devBridgeUrl || "https://upay3food.com").origin;
+  } catch {
+    return null;
+  }
+}
+
+function bridgeStatus(settings: ExtensionSettings): BridgeStatus {
+  return {
+    enabled: !!(settings.debug && settings.devBridgeEnabled),
+    origin: bridgeOrigin(settings),
+    sessionId: settings.devBridgeSessionId ?? null,
+    ...bridgeState
+  };
+}
+
+async function bridgeStart(): Promise<ExtensionResponse> {
+  const settings = await getSettings();
+  const origin = bridgeOrigin(settings);
+  if (!origin || !settings.devBridgeToken) return { ok: false, error: "set the bridge URL and token first" };
+  const response = await fetch(`${origin}/api/dev/extension/session`, {
+    method: "POST",
+    credentials: "omit",
+    headers: { authorization: `Bearer ${settings.devBridgeToken}` }
+  });
+  if (!response.ok) return { ok: false, error: `bridge answered HTTP ${response.status}${response.status === 404 ? " (bridge not configured on the server)" : response.status === 401 ? " (wrong token)" : ""}` };
+  const { sessionId } = (await response.json()) as { sessionId: string };
+  const next = { ...settings, devBridgeEnabled: true, devBridgeSessionId: sessionId };
+  await chrome.storage.local.set({ settings: next });
+  Object.assign(bridgeState, { sent: 0, lastSentAt: null, lastStatus: null, lastError: null });
+  log.info("bridge.session", { sessionId });
+  return { ok: true, type: "BRIDGE_STATUS", status: bridgeStatus(next) };
+}
+
+async function bridgeSend(payload: DevSnapshotPayload): Promise<ExtensionResponse> {
+  const settings = await getSettings();
+  const origin = bridgeOrigin(settings);
+  if (!settings.debug || !settings.devBridgeEnabled || !settings.devBridgeSessionId || !settings.devBridgeToken || !origin) {
+    return { ok: false, error: "bridge off" };
+  }
+  try {
+    const response = await fetch(`${origin}/api/dev/extension/session/${encodeURIComponent(settings.devBridgeSessionId)}/snapshot`, {
+      method: "POST",
+      credentials: "omit",
+      headers: { "content-type": "application/json", authorization: `Bearer ${settings.devBridgeToken}` },
+      body: JSON.stringify(payload)
+    });
+    bridgeState.lastStatus = response.status;
+    if (response.ok) {
+      bridgeState.sent++;
+      bridgeState.lastSentAt = new Date().toISOString();
+      bridgeState.lastError = null;
+    } else {
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      bridgeState.lastError = (body.error ?? `HTTP ${response.status}`).slice(0, 200);
+    }
+  } catch (error) {
+    bridgeState.lastStatus = null;
+    bridgeState.lastError = errorMessage(error).slice(0, 200);
+  }
+  return { ok: true, type: "BRIDGE_STATUS", status: bridgeStatus(settings) };
+}
+
 /**
  * Connectivity test, link by link: background (this code runs), content
  * script in the iFood tab (PING → PONG with its page context only), agent-api
@@ -324,7 +401,8 @@ async function connectivity(settings: ExtensionSettings, webOrigin: string | nul
       executorId: health.executorId,
       lastPoll: health.lastPoll
     },
-    webOrigin
+    webOrigin,
+    bridge: bridgeStatus(settings)
   };
 }
 
@@ -356,6 +434,12 @@ async function handle(message: ExtensionMessage, tabId: number | undefined): Pro
       return { ok: true, type: "DONE" };
     case "GET_CONNECTIVITY":
       return { ok: true, type: "CONNECTIVITY", report: await connectivity(await getSettings(), null) };
+    case "BRIDGE_SNAPSHOT":
+      return bridgeSend(message.payload);
+    case "BRIDGE_START":
+      return bridgeStart();
+    case "GET_BRIDGE_STATUS":
+      return { ok: true, type: "BRIDGE_STATUS", status: bridgeStatus(await getSettings()) };
     case "GET_SNAPSHOT":
     case "GET_DOM_CAPTURE":
     case "GET_PAGE_CAPTURE":

@@ -129,6 +129,16 @@ export interface ExtensionSettings {
   showBadge: boolean;
   /** UPAY3FOOD Pay page (apps/web /pay). The checkout is fetched from the extension by id, never put in the URL. */
   fundingAppUrl: string;
+  /**
+   * Extension Dev Bridge (development only, requires Debug mode): sanitized
+   * page snapshots are posted to `${devBridgeUrl}/api/dev/extension/...`.
+   * The token is the developer's (DEV_BRIDGE_TOKEN on the server), typed in
+   * the popup; never in code.
+   */
+  devBridgeEnabled?: boolean;
+  devBridgeUrl?: string;
+  devBridgeToken?: string;
+  devBridgeSessionId?: string;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -155,6 +165,11 @@ export type ExtensionMessage =
   | { type: "PING" }
   /** Popup → background: run the connectivity test. */
   | { type: "GET_CONNECTIVITY" }
+  /** Content → background: one sanitized snapshot for the dev bridge. */
+  | { type: "BRIDGE_SNAPSHOT"; payload: DevSnapshotPayload }
+  /** Popup → background: open a dev-bridge session (needs the token in settings). */
+  | { type: "BRIDGE_START" }
+  | { type: "GET_BRIDGE_STATUS" }
   | { type: "RECORD_SNAPSHOT"; snapshot: PageSnapshot; tabId?: number }
   | { type: "PLAN_INTENT"; request: string; snapshot: PageSnapshot | null }
   | { type: "GET_SETTINGS" }
@@ -182,6 +197,7 @@ export type ExtensionResponse =
   | { ok: true; type: "PAGE_CAPTURE"; capture: string }
   | { ok: true; type: "PONG"; context: PageContext; at: string }
   | { ok: true; type: "CONNECTIVITY"; report: ConnectivityReport }
+  | { ok: true; type: "BRIDGE_STATUS"; status: BridgeStatus }
   | { ok: true; type: "PAYMENT_CREATED"; paymentId: string; url: string }
   | { ok: true; type: "WALLET_STATUS"; status: WalletStatus | null }
   | { ok: false; error: string };
@@ -203,4 +219,28 @@ export interface ConnectivityReport {
   };
   /** The origin that asked (web app), when it came from the web. */
   webOrigin: string | null;
+  bridge: BridgeStatus;
+}
+
+/** Same shape as the server's DevSnapshot (apps/web/src/lib/dev-bridge.ts), schema v1. */
+export interface DevSnapshotPayload {
+  schema: "upay3food.dev-snapshot.v1";
+  capturedAt: string;
+  context: PageContext;
+  detection: { context: PageContext; confidence: number; signals: string[] };
+  extracted: Record<string, unknown>;
+  sanitizedStructure: string;
+  diagnostics: { extensionVersion: string; pageContext: PageContext; navigationType: string | null; pageAgeSeconds: number | null; path: string };
+}
+
+export interface BridgeStatus {
+  enabled: boolean;
+  /** Origin only. */
+  origin: string | null;
+  sessionId: string | null;
+  sent: number;
+  lastSentAt: string | null;
+  /** HTTP status of the last post, or null when none. */
+  lastStatus: number | null;
+  lastError: string | null;
 }

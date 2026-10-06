@@ -5,6 +5,7 @@ import { PRIVACY_COPY } from "@nape3/payments/privacy-copy";
 import { errorMessage } from "../shared/log";
 import { abbreviateAddress, payability, walletSummary, type WalletStatus } from "../shared/payment";
 import type {
+  BridgeStatus,
   CartSnapshot,
   ExtensionMessage,
   ExtensionResponse,
@@ -183,6 +184,84 @@ function DecisionPanel({ decision, notes, intentError, agentState }: { decision:
   );
 }
 
+/** Dev bridge controls (development only; shown in Debug mode). */
+function DevBridgePanel() {
+  const [url, setUrl] = useState("https://upay3food.com");
+  const [token, setToken] = useState("");
+  const [status, setStatus] = useState<BridgeStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function refresh() {
+    const r = (await chrome.runtime.sendMessage({ type: "GET_BRIDGE_STATUS" } satisfies ExtensionMessage)) as ExtensionResponse;
+    if (r.ok && r.type === "BRIDGE_STATUS") setStatus(r.status);
+  }
+  useEffect(() => {
+    void (async () => {
+      const r = (await chrome.runtime.sendMessage({ type: "GET_SETTINGS" } satisfies ExtensionMessage)) as ExtensionResponse;
+      if (r.ok && r.type === "SETTINGS") {
+        setUrl(r.settings.devBridgeUrl || "https://upay3food.com");
+        setToken(r.settings.devBridgeToken ?? "");
+      }
+      await refresh();
+    })();
+    const id = setInterval(() => void refresh(), 2000);
+    return () => clearInterval(id);
+  }, []);
+
+  async function saveSettings(patch: Partial<ExtensionSettings>) {
+    const r = (await chrome.runtime.sendMessage({ type: "GET_SETTINGS" } satisfies ExtensionMessage)) as ExtensionResponse;
+    if (!(r.ok && r.type === "SETTINGS")) throw new Error("could not read settings");
+    await chrome.runtime.sendMessage({ type: "SAVE_SETTINGS", settings: { ...r.settings, ...patch } } satisfies ExtensionMessage);
+  }
+
+  async function start() {
+    setError(null);
+    try {
+      const origin = new URL(url).origin;
+      // Host permission for the bridge origin, asked from this click (a user gesture).
+      const granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
+      if (!granted) throw new Error(`permission for ${origin} was not granted`);
+      await saveSettings({ devBridgeUrl: origin, devBridgeToken: token.trim() });
+      const r = (await chrome.runtime.sendMessage({ type: "BRIDGE_START" } satisfies ExtensionMessage)) as ExtensionResponse;
+      if (!r.ok) throw new Error(r.error);
+      if (r.type === "BRIDGE_STATUS") setStatus(r.status);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }
+
+  async function stop() {
+    await saveSettings({ devBridgeEnabled: false, devBridgeSessionId: undefined });
+    await refresh();
+  }
+
+  return (
+    <div className="small">
+      <p>
+        <strong>Dev bridge</strong> (development): sends each page's sanitized snapshot to the UPAY3FOOD dev endpoint, so the page can be inspected
+        remotely. Same sanitization as the capture; the server refuses anything that still looks like personal data. Sessions expire in 30 min.
+      </p>
+      <label>Bridge URL<input type="text" value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} /></label>
+      <label>Bridge token (DEV_BRIDGE_TOKEN)<input type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} /></label>
+      {status?.enabled && status.sessionId ? (
+        <>
+          <p>
+            Session <code>{status.sessionId}</code> · sent {status.sent}
+            {status.lastSentAt ? ` · last ${new Date(status.lastSentAt).toLocaleTimeString("pt-BR")}` : ""}
+            {status.lastStatus ? ` · HTTP ${status.lastStatus}` : ""}
+          </p>
+          {status.lastError && <p className="warn">Last error: {status.lastError}</p>}
+          <button className="secondary" onClick={() => void navigator.clipboard.writeText(status.sessionId!)}>Copy session id</button>
+          <button className="secondary" onClick={() => void stop()}>Stop bridge</button>
+        </>
+      ) : (
+        <button className="secondary" disabled={!token.trim()} onClick={() => void start()}>Start bridge session</button>
+      )}
+      {error && <p className="warn">{error}</p>}
+    </div>
+  );
+}
+
 function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; market: MarketView | null; tabId: number | null }) {
   const [capture, setCapture] = useState<string | null>(null);
   const [pageCapture, setPageCapture] = useState<string | null>(null);
@@ -265,6 +344,7 @@ function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; marke
         </>
       )}
       <button className="secondary" onClick={() => void runConnectivity()}>Run connectivity test</button>
+      <DevBridgePanel />
       {connectivity && <textarea readOnly value={connectivity} rows={8} />}
       <p className="small">
         <strong>Calibration capture (any page).</strong> Detected context, signals, what was extracted and a sanitized page structure.

@@ -39,7 +39,9 @@ function ExtensionReport({ report }: { report: Record<string, unknown> }) {
     ifoodContentScript?: { status: string; context: string | null; latencyMs: number | null };
     agentApi?: { configured: boolean; origin: string | null; executorRegistered: boolean; lastPoll: { at: string; status: string; commands: number; detail: string | null } | null };
     webOrigin?: string | null;
+    bridge?: { enabled: boolean; origin: string | null; sessionId: string | null; sent: number; lastSentAt: string | null; lastError: string | null };
   };
+  const b = r.bridge;
   const poll = r.agentApi?.lastPoll;
   const ago = poll ? `${Math.round((Date.now() - Date.parse(poll.at)) / 1000)} s ago` : "never";
   return (
@@ -53,6 +55,15 @@ function ExtensionReport({ report }: { report: Record<string, unknown> }) {
       <Row name="Agent API configured" status={r.agentApi?.configured ? "YES" : "NO"} detail={r.agentApi?.origin ?? "not set in the extension settings"} />
       <Row name="Browser executor registered" status={r.agentApi?.executorRegistered ? "YES" : "NO"} detail="" />
       <Row name="Last poll" status={poll ? poll.status.toUpperCase() : "—"} detail={poll ? `${ago} · ${poll.commands} command(s)${poll.detail ? ` · ${poll.detail}` : ""}` : "never"} />
+      <Row
+        name="Remote debug bridge"
+        status={b?.enabled && b.sessionId ? (b.lastError ? "FAIL" : "OK") : "OFF"}
+        detail={
+          b?.enabled && b.sessionId
+            ? `session ${b.sessionId.slice(0, 8)}… · ${b.sent} sent${b.lastSentAt ? ` · last ${Math.round((Date.now() - Date.parse(b.lastSentAt)) / 1000)} s ago` : ""}${b.lastError ? ` · ${b.lastError}` : ""}`
+            : "off (popup → Debug → Dev bridge)"
+        }
+      />
     </>
   );
 }

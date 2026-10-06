@@ -10,6 +10,7 @@ import {
 import { removeBadge, renderBadge as renderBadgeNow, whenPageSettled } from "./badge";
 import { captureOrderDom, capturePage } from "./capture";
 import { takeSnapshot } from "./extract";
+import { bridgeKey, buildBridgePayload, MIN_INTERVAL_MS } from "./devbridge";
 
 const log = createLogger("content");
 const ORDER_CONTEXTS = new Set(["CART", "CHECKOUT", "PIX_PAYMENT"]);
@@ -52,6 +53,25 @@ function fingerprint(snapshot: PageSnapshot): string {
   ]);
 }
 
+let lastBridgeKey = "";
+let lastBridgeAt = 0;
+
+/** Dev bridge (Debug mode + bridge on + a session): every page context, not only orders. */
+function sendToBridge(snapshot: PageSnapshot) {
+  if (!settings.debug || !settings.devBridgeEnabled || !settings.devBridgeSessionId) return;
+  const key = bridgeKey(document, snapshot);
+  const now = Date.now();
+  if (key === lastBridgeKey || now - lastBridgeAt < MIN_INTERVAL_MS) return;
+  lastBridgeKey = key;
+  lastBridgeAt = now;
+  try {
+    const payload = buildBridgePayload(document, snapshot, chrome.runtime.getManifest().version);
+    void chrome.runtime.sendMessage({ type: "BRIDGE_SNAPSHOT", payload } satisfies ExtensionMessage).catch(() => undefined);
+  } catch (error) {
+    log.warn("bridge.capture_failed", { error: errorMessage(error) });
+  }
+}
+
 async function observe(trigger: string): Promise<void> {
   let snapshot: PageSnapshot;
   try {
@@ -60,6 +80,7 @@ async function observe(trigger: string): Promise<void> {
     log.error("snapshot.failed", { error: errorMessage(error) });
     return;
   }
+  sendToBridge(snapshot);
   if (!ORDER_CONTEXTS.has(snapshot.detection.context)) {
     lastFingerprint = "";
     lastSnapshot = null;
