@@ -120,3 +120,75 @@ export async function requestExecutor(): Promise<{ executorId: string; agentApiU
 export async function notifyRunStarted(): Promise<void> {
   await send({ type: "AGENT_RUN_STARTED" });
 }
+
+// ---------------------------------------------------------------------------
+// Connectivity test (/diagnostics)
+// ---------------------------------------------------------------------------
+
+export function currentExtensionId(): string | null {
+  return extensionIdOf();
+}
+
+/** Remembers the extension id typed on /diagnostics (unpacked extensions have a per-machine id). */
+export function setExtensionId(id: string): boolean {
+  if (!/^[a-p]{32}$/.test(id)) return false;
+  try {
+    localStorage.setItem(EXT_KEY, id);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export interface ExtensionPing {
+  /** web → background answered. */
+  reachable: boolean;
+  /** Why not, in terms of the transport link that failed. */
+  failure:
+    | null
+    | "NO_EXTENSION_ID"
+    | "CHROME_RUNTIME_UNAVAILABLE" // not Chrome, or no installed extension lists this site in externally_connectable
+    | "EXTENSION_NOT_FOUND" // id wrong, extension disabled/not installed, or this origin not allowed by its manifest
+    | "ORIGIN_REJECTED" // the extension answered but refused this origin
+    | "TIMEOUT";
+  detail: string | null;
+  report: Record<string, unknown> | null;
+  latencyMs: number;
+}
+
+/**
+ * Asks the extension for its connectivity report: web → background →
+ * content script in the iFood tab, plus its agent-api/executor state.
+ * Read-only; no commercial action.
+ */
+export async function pingExtension(timeoutMs = 3_000): Promise<ExtensionPing> {
+  const started = Date.now();
+  const done = (p: Omit<ExtensionPing, "latencyMs">): ExtensionPing => ({ ...p, latencyMs: Date.now() - started });
+  const extensionId = extensionIdOf();
+  if (!extensionId) return done({ reachable: false, failure: "NO_EXTENSION_ID", detail: "paste the id from chrome://extensions", report: null });
+  const rt = (globalThis as unknown as { chrome?: { runtime?: ChromeRuntime } }).chrome?.runtime;
+  if (!rt || typeof rt.sendMessage !== "function") {
+    return done({
+      reachable: false,
+      failure: "CHROME_RUNTIME_UNAVAILABLE",
+      detail: "chrome.runtime is not exposed to this page: not Chrome, or no installed extension lists this site in externally_connectable",
+      report: null
+    });
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(done({ reachable: false, failure: "TIMEOUT", detail: `no answer in ${timeoutMs} ms`, report: null })), timeoutMs);
+    try {
+      rt.sendMessage(extensionId, { type: "PING" }, (response) => {
+        clearTimeout(timer);
+        const lastError = rt.lastError?.message ?? null;
+        const r = (response as { ok?: boolean; error?: string; report?: Record<string, unknown> } | undefined) ?? null;
+        if (!r) return resolve(done({ reachable: false, failure: "EXTENSION_NOT_FOUND", detail: lastError ?? "no response", report: null }));
+        if (!r.ok) return resolve(done({ reachable: false, failure: r.error === "origin not allowed" ? "ORIGIN_REJECTED" : "EXTENSION_NOT_FOUND", detail: r.error ?? null, report: null }));
+        resolve(done({ reachable: true, failure: null, detail: null, report: r.report ?? null }));
+      });
+    } catch (error) {
+      clearTimeout(timer);
+      resolve(done({ reachable: false, failure: "EXTENSION_NOT_FOUND", detail: error instanceof Error ? error.message : String(error), report: null }));
+    }
+  });
+}

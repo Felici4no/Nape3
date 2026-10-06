@@ -24,6 +24,14 @@ interface Credentials {
 }
 
 let activeUntil = 0;
+/** Last poll outcome, for the connectivity test (in memory: the service worker may restart). */
+export interface LastPoll {
+  at: string;
+  status: "ok" | "unauthorized" | "error";
+  commands: number;
+  detail: string | null;
+}
+let lastPoll: LastPoll | null = null;
 let polling = false;
 const opened = new Set<string>();
 const lastReported = new Map<string, string>();
@@ -83,10 +91,12 @@ export async function pollAgent(settings: ExtensionSettings, observerId: string,
       signal: AbortSignal.timeout(5_000)
     });
     if (response.status === 401) {
+      lastPoll = { at: new Date().toISOString(), status: "unauthorized", commands: 0, detail: "executor token rejected; re-registering" };
       await chrome.storage.local.remove("executor"); // re-register next time
       return;
     }
     const { commands } = (await response.json()) as { commands: AgentBrowserCommand[] };
+    lastPoll = { at: new Date().toISOString(), status: "ok", commands: commands.length, detail: null };
     if (commands.length) activeUntil = Date.now() + ACTIVE_WINDOW_MS;
     for (const command of commands) {
       if (command.type === "REVALIDATE_CANDIDATE" && !lastReported.has(command.commandId)) await post(creds, command, { type: "STARTED" });
@@ -103,10 +113,39 @@ export async function pollAgent(settings: ExtensionSettings, observerId: string,
     }
     log.info("executor.polled", { reason, commands: commands.length });
   } catch (error) {
+    lastPoll = { at: new Date().toISOString(), status: "error", commands: 0, detail: errorMessage(error).slice(0, 160) };
     log.warn("executor.poll_failed", { error: errorMessage(error) });
   } finally {
     polling = false;
   }
+}
+
+export interface ExecutorHealth {
+  agentApiConfigured: boolean;
+  /** Origin only (no path or token). */
+  agentApiOrigin: string | null;
+  registered: boolean;
+  executorId: string | null;
+  lastPoll: LastPoll | null;
+}
+
+/** For the connectivity test: no network call, only what the executor already knows. */
+export async function executorHealth(settings: ExtensionSettings): Promise<ExecutorHealth> {
+  const { executor } = await chrome.storage.local.get("executor");
+  const stored = executor as Credentials | undefined;
+  let origin: string | null = null;
+  try {
+    origin = settings.agentApiUrl ? new URL(settings.agentApiUrl).origin : null;
+  } catch {
+    origin = null;
+  }
+  return {
+    agentApiConfigured: !!settings.agentApiUrl,
+    agentApiOrigin: origin,
+    registered: !!stored && stored.apiUrl === settings.agentApiUrl,
+    executorId: stored && stored.apiUrl === settings.agentApiUrl ? stored.executorId : null,
+    lastPoll
+  };
 }
 
 /** Starts the alarm backstop and a short active loop. Call on startup and whenever a run may have started. */

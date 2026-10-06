@@ -3,12 +3,13 @@ import type { CartQuoteObservation, MarketObservation } from "@nape3/domain";
 import { acaiFixtures } from "@nape3/fixtures";
 import { compareCheckout, summarizeMarket, type MarketSummary } from "@nape3/market";
 import { createLogger, errorMessage } from "../shared/log";
-import { executorIdentity, scheduleExecutor } from "./executor";
+import { executorHealth, executorIdentity, scheduleExecutor } from "./executor";
 import { isAllowedPayOrigin, parseWalletReport, payability, type PendingPayment, type WalletStatus } from "../shared/payment";
 import { mergeNetworkObservations } from "../shared/network";
 import { mergeObservation, requirementFromObservation, snapshotToObservation } from "../shared/observation";
 import {
   DEFAULT_SETTINGS,
+  type ConnectivityReport,
   type ExtensionMessage,
   type ExtensionResponse,
   type ExtensionSettings,
@@ -243,6 +244,8 @@ type ExternalMessage =
   /** The web app started a run bound to this executor: poll now. */
   | { type: "AGENT_RUN_STARTED" }
   | { type: "REPORT_WALLET_STATUS"; status: unknown }
+  /** Connectivity test from the web app (/diagnostics). Read-only. */
+  | { type: "PING" }
   | { type: "WALLET_DISCONNECTED" };
 
 async function handleExternal(message: ExternalMessage, origin: string | undefined): Promise<unknown> {
@@ -276,12 +279,54 @@ async function handleExternal(message: ExternalMessage, origin: string | undefin
     case "AGENT_RUN_STARTED":
       executor.nudge("run-started");
       return { ok: true };
+    case "PING":
+      return { ok: true, report: await connectivity(settings, origin ?? null) };
     default:
       return { ok: false, error: "unsupported message" };
   }
 }
 
 const executor = scheduleExecutor(getSettings, getObserverId);
+
+/**
+ * Connectivity test, link by link: background (this code runs), content
+ * script in the iFood tab (PING → PONG with its page context only), agent-api
+ * configuration and the executor's last poll. No commercial action, no page
+ * content, no tokens.
+ */
+async function connectivity(settings: ExtensionSettings, webOrigin: string | null): Promise<ConnectivityReport> {
+  const tabs = await chrome.tabs.query({ url: "https://*.ifood.com.br/*" });
+  const tab = tabs.find((t) => t.active) ?? tabs.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
+  let ifoodContentScript: ConnectivityReport["ifoodContentScript"] = { status: "no-ifood-tab", context: null, latencyMs: null };
+  if (tab?.id !== undefined) {
+    const started = Date.now();
+    try {
+      const pong = (await chrome.tabs.sendMessage(tab.id, { type: "PING" } satisfies ExtensionMessage)) as ExtensionResponse;
+      ifoodContentScript =
+        pong.ok && pong.type === "PONG"
+          ? { status: "connected", context: pong.context, latencyMs: Date.now() - started }
+          : { status: "not-responding", context: null, latencyMs: null };
+    } catch {
+      ifoodContentScript = { status: "not-responding", context: null, latencyMs: null };
+    }
+  }
+  const health = await executorHealth(settings);
+  return {
+    checkedAt: new Date().toISOString(),
+    extensionVersion: chrome.runtime.getManifest().version,
+    extensionId: chrome.runtime.id,
+    background: "connected",
+    ifoodContentScript,
+    agentApi: {
+      configured: health.agentApiConfigured,
+      origin: health.agentApiOrigin,
+      executorRegistered: health.registered,
+      executorId: health.executorId,
+      lastPoll: health.lastPoll
+    },
+    webOrigin
+  };
+}
 
 chrome.runtime.onMessageExternal.addListener((message: ExternalMessage, sender, sendResponse) => {
   handleExternal(message, sender.origin ?? (sender.url ? new URL(sender.url).origin : undefined))
@@ -309,9 +354,12 @@ async function handle(message: ExtensionMessage, tabId: number | undefined): Pro
     case "CLEAR_OBSERVATIONS":
       await chrome.storage.local.set({ observations: [] });
       return { ok: true, type: "DONE" };
+    case "GET_CONNECTIVITY":
+      return { ok: true, type: "CONNECTIVITY", report: await connectivity(await getSettings(), null) };
     case "GET_SNAPSHOT":
     case "GET_DOM_CAPTURE":
     case "GET_PAGE_CAPTURE":
+    case "PING":
       return { ok: false, error: "handled by the content script" };
     default:
       return { ok: false, error: `unsupported message ${(message as { type: string }).type}` };
@@ -319,7 +367,7 @@ async function handle(message: ExtensionMessage, tabId: number | undefined): Pro
 }
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse: (r: ExtensionResponse) => void) => {
-  if (message.type === "GET_SNAPSHOT" || message.type === "GET_DOM_CAPTURE" || message.type === "GET_PAGE_CAPTURE") return false; // content script
+  if (message.type === "GET_SNAPSHOT" || message.type === "GET_DOM_CAPTURE" || message.type === "GET_PAGE_CAPTURE" || message.type === "PING") return false; // content script
   // Messages from the popup carry the tab id explicitly; content scripts via sender.
   const tabId = message.type === "RECORD_SNAPSHOT" ? (message.tabId ?? sender.tab?.id) : sender.tab?.id;
   handle(message, tabId)

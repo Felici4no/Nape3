@@ -188,6 +188,15 @@ function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; marke
   const [pageCapture, setPageCapture] = useState<string | null>(null);
   const [redactions, setRedactions] = useState("");
   const [structureOnly, setStructureOnly] = useState(false);
+  const [connectivity, setConnectivity] = useState<string | null>(null);
+  async function runConnectivity() {
+    try {
+      const response = (await chrome.runtime.sendMessage({ type: "GET_CONNECTIVITY" } satisfies ExtensionMessage)) as ExtensionResponse;
+      setConnectivity(response.ok && response.type === "CONNECTIVITY" ? JSON.stringify(response.report, null, 2) : `error: ${response.ok ? "unexpected" : response.error}`);
+    } catch (error) {
+      setConnectivity(`error: ${errorMessage(error)}`);
+    }
+  }
   const cart = snapshot.cart;
   const time = (iso: string) => `${new Date(iso).toLocaleTimeString("pt-BR")} (${iso})`;
   async function loadCapture() {
@@ -255,6 +264,8 @@ function DebugPanel({ snapshot, market, tabId }: { snapshot: PageSnapshot; marke
           </ul>
         </>
       )}
+      <button className="secondary" onClick={() => void runConnectivity()}>Run connectivity test</button>
+      {connectivity && <textarea readOnly value={connectivity} rows={8} />}
       <p className="small">
         <strong>Calibration capture (any page).</strong> Detected context, signals, what was extracted and a sanitized page structure.
         Header, navigation, footer and input values are left out. E-mails, phones, CEPs, CPFs, long numbers, street addresses and Pix codes are removed.

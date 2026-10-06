@@ -19,8 +19,10 @@ export default defineManifest({
   // Only the UPAY3FOOD Pay page (wallet connection lives there: wallets do not
   // inject into extension pages) may message the extension. The background also
   // checks the sender origin against settings.fundingAppUrl.
+  // Keep in sync with TRUSTED_WEB_ORIGINS (src/shared/payment.ts). The public
+  // site only; docs.upay3food.com and preview deployments are not included.
   externally_connectable: {
-    matches: ["http://localhost/*", "http://127.0.0.1/*"]
+    matches: ["https://upay3food.com/*", "http://localhost/*", "http://127.0.0.1/*"]
   },
   action: {
     default_popup: "src/popup/index.html"

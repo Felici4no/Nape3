@@ -2,7 +2,18 @@
 
 import "@nape3/pay/polyfills";
 import { useEffect, useState } from "react";
-import { clearRpcTrace, onRpcTrace, rpcTrace, systemDiagnostics, type RpcTraceEntry, type SystemDiagnostics } from "@nape3/pay";
+import {
+  clearRpcTrace,
+  currentExtensionId,
+  onRpcTrace,
+  pingExtension,
+  rpcTrace,
+  setExtensionId,
+  systemDiagnostics,
+  type ExtensionPing,
+  type RpcTraceEntry,
+  type SystemDiagnostics
+} from "@nape3/pay";
 import styles from "./money.module.css";
 
 /**
@@ -21,10 +32,44 @@ function Row({ name, status, detail }: { name: string; status: string; detail: s
   );
 }
 
+function ExtensionReport({ report }: { report: Record<string, unknown> }) {
+  const r = report as {
+    extensionVersion?: string;
+    background?: string;
+    ifoodContentScript?: { status: string; context: string | null; latencyMs: number | null };
+    agentApi?: { configured: boolean; origin: string | null; executorRegistered: boolean; lastPoll: { at: string; status: string; commands: number; detail: string | null } | null };
+    webOrigin?: string | null;
+  };
+  const poll = r.agentApi?.lastPoll;
+  const ago = poll ? `${Math.round((Date.now() - Date.parse(poll.at)) / 1000)} s ago` : "never";
+  return (
+    <>
+      <Row name="Background service worker" status={r.background === "connected" ? "OK" : "FAIL"} detail={`v${r.extensionVersion ?? "?"}`} />
+      <Row
+        name="iFood content script"
+        status={r.ifoodContentScript?.status === "connected" ? "OK" : "FAIL"}
+        detail={r.ifoodContentScript?.status === "connected" ? `${r.ifoodContentScript.context} · ${r.ifoodContentScript.latencyMs} ms` : r.ifoodContentScript?.status ?? ""}
+      />
+      <Row name="Agent API configured" status={r.agentApi?.configured ? "YES" : "NO"} detail={r.agentApi?.origin ?? "not set in the extension settings"} />
+      <Row name="Browser executor registered" status={r.agentApi?.executorRegistered ? "YES" : "NO"} detail="" />
+      <Row name="Last poll" status={poll ? poll.status.toUpperCase() : "—"} detail={poll ? `${ago} · ${poll.commands} command(s)${poll.detail ? ` · ${poll.detail}` : ""}` : "never"} />
+    </>
+  );
+}
+
 export default function DiagnosticsScreen() {
   const [diag, setDiag] = useState<SystemDiagnostics | null>(null);
   const [busy, setBusy] = useState(false);
   const [trace, setTrace] = useState<readonly RpcTraceEntry[]>(rpcTrace());
+  const [ping, setPing] = useState<ExtensionPing | null>(null);
+  const [extId, setExtId] = useState("");
+
+  useEffect(() => setExtId(currentExtensionId() ?? ""), []);
+
+  async function testExtension() {
+    if (extId && extId !== currentExtensionId()) setExtensionId(extId.trim());
+    setPing(await pingExtension());
+  }
 
   useEffect(() => onRpcTrace((entries) => setTrace([...entries])), []);
 
@@ -39,6 +84,8 @@ export default function DiagnosticsScreen() {
 
   useEffect(() => {
     void run();
+    void testExtension();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -61,6 +108,27 @@ export default function DiagnosticsScreen() {
             <Row name="Wallet address" status={diag.wallet.address ? "YES" : "—"} detail={diag.wallet.address ?? "not connected to this site yet (no prompt here)"} />
             <Row name="Cloak SDK / relay" status={diag.cloak.status} detail={diag.cloak.detail} />
             <p className="small muted">Checked {new Date(diag.checkedAt).toLocaleTimeString()}</p>
+          </div>
+        )}
+
+        <h2 className="display" style={{ fontSize: 28, marginTop: 24 }}>Extension</h2>
+        <div className={styles.row}>
+          <input
+            className={styles.paste}
+            style={{ maxWidth: 360 }}
+            placeholder="extension id (chrome://extensions)"
+            spellCheck={false}
+            value={extId}
+            onChange={(e) => setExtId(e.target.value.trim())}
+          />
+          <button className="btn ghost" style={{ color: "var(--night-ink)", boxShadow: "inset 0 0 0 1.5px var(--night-ink)" }} onClick={() => void testExtension()}>
+            Run connectivity test
+          </button>
+        </div>
+        {ping && (
+          <div className={styles.card}>
+            <Row name="UPAY3FOOD web → extension" status={ping.reachable ? "OK" : "FAIL"} detail={ping.reachable ? `${ping.latencyMs} ms` : `${ping.failure}: ${ping.detail ?? ""}`} />
+            {ping.report && <ExtensionReport report={ping.report} />}
           </div>
         )}
 

@@ -151,6 +151,10 @@ void whenPageSettled(window).then(() => {
 // The popup always gets a *fresh* extraction — never a cached snapshot.
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, _sender, sendResponse: (response: ExtensionResponse) => void) => {
+    if (message.type === "PING") {
+      sendResponse({ ok: true, type: "PONG", context: takeSnapshot(document, location.href).detection.context, at: new Date().toISOString() });
+      return false;
+    }
     if (message.type !== "GET_SNAPSHOT" && message.type !== "GET_DOM_CAPTURE" && message.type !== "GET_PAGE_CAPTURE") return false;
     try {
       if (message.type === "GET_PAGE_CAPTURE") {

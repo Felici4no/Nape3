@@ -2,7 +2,17 @@ export * from "./flow";
 export * from "./runtime";
 export * from "./shield-intent";
 export * from "./shield-op";
-export { connectedToExtension, loadPaymentRequest, notifyRunStarted, reportDisconnected, requestExecutor } from "./bridge";
+export {
+  connectedToExtension,
+  currentExtensionId,
+  loadPaymentRequest,
+  notifyRunStarted,
+  pingExtension,
+  reportDisconnected,
+  requestExecutor,
+  setExtensionId,
+  type ExtensionPing
+} from "./bridge";
 export { findWallet } from "./wallet";
 export * from "./shield-diagnosis";
 export { captureTransport, readAccountsBatched, GET_MULTIPLE_ACCOUNTS_MAX, createCapturingCloakRpc, dryRunSigner, DRY_RUN_ERROR_CODE, DRY_RUN_MESSAGE, type CaptureMode, type SimulationOutcome } from "./rpc-capture";

@@ -136,7 +136,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   includeFixtures: false,
   debug: false,
   showBadge: false,
-  fundingAppUrl: "http://localhost:3000/pay"
+  fundingAppUrl: "https://upay3food.com/pay"
 };
 
 export interface MarketView {
@@ -151,6 +151,10 @@ export type ExtensionMessage =
   | { type: "GET_SNAPSHOT" }
   | { type: "GET_DOM_CAPTURE" }
   | { type: "GET_PAGE_CAPTURE"; redactions: string[]; structureOnly?: boolean }
+  /** Connectivity test: content script answers with its context only. */
+  | { type: "PING" }
+  /** Popup → background: run the connectivity test. */
+  | { type: "GET_CONNECTIVITY" }
   | { type: "RECORD_SNAPSHOT"; snapshot: PageSnapshot; tabId?: number }
   | { type: "PLAN_INTENT"; request: string; snapshot: PageSnapshot | null }
   | { type: "GET_SETTINGS" }
@@ -176,6 +180,27 @@ export type ExtensionResponse =
   | { ok: true; type: "DONE" }
   | { ok: true; type: "DOM_CAPTURE"; capture: string }
   | { ok: true; type: "PAGE_CAPTURE"; capture: string }
+  | { ok: true; type: "PONG"; context: PageContext; at: string }
+  | { ok: true; type: "CONNECTIVITY"; report: ConnectivityReport }
   | { ok: true; type: "PAYMENT_CREATED"; paymentId: string; url: string }
   | { ok: true; type: "WALLET_STATUS"; status: WalletStatus | null }
   | { ok: false; error: string };
+
+/** What the connectivity test proves, link by link. No page content, no URLs with ids, no tokens. */
+export interface ConnectivityReport {
+  checkedAt: string;
+  extensionVersion: string;
+  extensionId: string;
+  background: "connected";
+  /** content script in the most recent iFood tab answered PING. */
+  ifoodContentScript: { status: "connected" | "no-ifood-tab" | "not-responding"; context: PageContext | null; latencyMs: number | null };
+  agentApi: {
+    configured: boolean;
+    origin: string | null;
+    executorRegistered: boolean;
+    executorId: string | null;
+    lastPoll: { at: string; status: "ok" | "unauthorized" | "error"; commands: number; detail: string | null } | null;
+  };
+  /** The origin that asked (web app), when it came from the web. */
+  webOrigin: string | null;
+}

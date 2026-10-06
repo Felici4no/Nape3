@@ -133,9 +133,17 @@ export function walletSummary(status: WalletStatus | null, now: Date, staleAfter
   };
 }
 
-/** The Pay page may only talk to us from the configured origin. */
+/**
+ * Web origins that may message the extension. Must match `externally_connectable`
+ * in manifest.ts (Chrome enforces that list first). No wildcards: preview
+ * deployments are reached through `fundingAppUrl` (Settings) instead.
+ */
+export const TRUSTED_WEB_ORIGINS: readonly string[] = ["https://upay3food.com"];
+
+/** The UPAY3FOOD site (production) or the configured Pay page origin (development) may talk to us. */
 export function isAllowedPayOrigin(origin: string | undefined, fundingAppUrl: string): boolean {
   if (!origin) return false;
+  if (TRUSTED_WEB_ORIGINS.includes(origin)) return true;
   try {
     return new URL(fundingAppUrl).origin === origin;
   } catch {
