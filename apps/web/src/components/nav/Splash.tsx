@@ -67,5 +67,5 @@ export function Splash() {
   );
 }
 
-/** Runs before paint: hides the splash when this session already saw it, or when motion is reduced. */
-export const SPLASH_BOOT = `try{if(sessionStorage.getItem("${SPLASH_KEY}")||matchMedia("(prefers-reduced-motion: reduce)").matches)document.documentElement.classList.add("splash-seen")}catch(e){}`;
+/** Runs before paint: hides the splash when this session already saw it, when motion is reduced, or on the docs. */
+export const SPLASH_BOOT = `try{if(/^docs\\./.test(location.hostname)||/^\\/docs(\\/|$)/.test(location.pathname)||sessionStorage.getItem("${SPLASH_KEY}")||matchMedia("(prefers-reduced-motion: reduce)").matches)document.documentElement.classList.add("splash-seen")}catch(e){}`;

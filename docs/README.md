@@ -13,6 +13,11 @@
 | `08-proofs/` | confirmed, externally verifiable milestones |
 | `decisions/` | ADRs |
 | `incidents/` | failures, investigations and postmortems |
+| `spikes/` | time-boxed investigations before a design decision |
+
+App READMEs (`apps/*/README.md`) are published with the docs under **Apps**.
+
+Latest notes: [HTTP 403 and web ↔ extension transport](incidents/2026-10-06-rpc-403-and-web-extension-transport.md) · [Extension Dev Bridge](05-architecture/dev-bridge.md) · [Spike: delivery context](spikes/2026-10-06-delivery-context-discovery.md)
 
 Current mainnet milestone: [first confirmed 1 USDC Cloak shield](08-proofs/2026-10-05-mainnet-shield.md).
 
