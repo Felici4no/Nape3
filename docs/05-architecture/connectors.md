@@ -20,7 +20,10 @@ Possible progression:
 1. controlled fixture dataset;
 2. manually imported real observations;
 3. browser-assisted capture;
-4. documented or partner APIs where available.
+4. documented or partner APIs where available (merchant-side only, see
+   [data sources](../03-market/data-sources.md)).
+
+No dedicated accounts or headless scrapers ([ADR-007](../decisions/ADR-007-no-headless-scraping.md)).
 
 ## Constraint
 
