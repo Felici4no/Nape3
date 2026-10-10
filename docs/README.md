@@ -1,5 +1,6 @@
 # UPAY3FOOD documentation
 
+> [!NOTE]
 > **Você paga 3 vezes pela comida:** the food, the fees, and the difference to
 > the cheapest option. UPAY3FOOD shows all three on iFood, compares the menu
 > per litre, and takes you to the item that is worth it. It can then fund the

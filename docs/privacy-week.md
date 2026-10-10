@@ -5,6 +5,7 @@ explainable decision). Cloak is its **private funding layer**: the USDC that
 pays for that purchase leaves a shielded pool instead of the user's public
 Solana wallet.
 
+> [!TIP]
 > Your purchase funding is shielded before settlement.
 
 ```

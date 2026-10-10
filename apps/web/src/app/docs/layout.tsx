@@ -1,36 +1,38 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { groups } from "@/lib/docs";
-import { DocsSidebar } from "./DocsSidebar";
-import styles from "./docs.module.css";
+import { docs, plainTitle, vaultTree } from "@/lib/docs";
+import { Ribbon, Tabs } from "./_vault/Chrome";
+import { Explorer } from "./_vault/Explorer";
+import { QuickSwitcher } from "./_vault/QuickSwitcher";
+import styles from "./_vault/vault.module.css";
 
 export const metadata: Metadata = {
   title: { default: "Docs", template: "%s · UPAY3FOOD docs" },
-  description: "UPAY3FOOD build log: product, architecture, decisions, incidents, spikes and on-chain proofs."
+  description: "UPAY3FOOD vault: product, architecture, decisions, incidents, spikes and on-chain proofs, linked like a knowledge base."
 };
 
-/** Dark documentation shell. The site's own header, banner, footer and bottom bar are hidden here (globals.css, [data-docs]). */
+const REPO = "https://github.com/Felici4no/Nape3-UPAY3FOOD/tree/claude/youthful-hypatia-a3c9mn";
+
+/**
+ * Docs as a vault: ribbon, file explorer, tabs, the note, and a right pane
+ * (outline, local graph). The site's own header, footer and bottom bar are
+ * hidden here (globals.css, [data-docs]).
+ */
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
-  const nav = groups().map((g) => ({ key: g.key, label: g.label, items: g.docs.map((d) => ({ slug: d.slug, title: d.title.replace(/`/g, "") })) }));
+  const { root, folders } = vaultTree();
+  const titles: Record<string, string> = Object.fromEntries(docs.map((d) => [d.slug, plainTitle(d.title)]));
+  titles["proofs/2026-10-05-mainnet-shield"] = "Proof · first mainnet Cloak shield";
+  const notes = docs.map((d) => ({ slug: d.slug, title: plainTitle(d.title), path: d.source.replace(/^docs\//, ""), summary: d.summary }));
   return (
-    <div className={styles.shell} data-docs>
-      <div className={styles.top}>
-        <Link href="/docs" className={styles.brand}>
-          <strong>
-            UPAY<span>3</span>FOOD
-          </strong>
-          <em>DOCS</em>
-        </Link>
-        <nav className={styles.topLinks} aria-label="Docs">
-          <a href="https://upay3food.com">Site</a>
-          <a href="https://upay3food.com/diagnostics">Diagnostics</a>
-          <a href="https://github.com/Felici4no/Nape3-UPAY3FOOD/tree/claude/youthful-hypatia-a3c9mn" target="_blank" rel="noreferrer">GitHub</a>
-        </nav>
+    <div className={styles.app} data-docs>
+      <Ribbon repo={REPO} />
+      <aside className={styles.left}>
+        <Explorer root={root} folders={folders} vaultName="upay3food" />
+      </aside>
+      <div className={styles.workspace}>
+        <Tabs titles={titles} />
+        <div className={styles.view}>{children}</div>
       </div>
-      <div className={styles.body}>
-        <DocsSidebar nav={nav} />
-        <main className={styles.main}>{children}</main>
-      </div>
+      <QuickSwitcher notes={notes} />
     </div>
   );
 }

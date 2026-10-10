@@ -1,5 +1,6 @@
 # Agent runtime
 
+> [!IMPORTANT]
 > The LLM may interpret intent. The deterministic agent controls money and execution.
 
 Goal: one persistent run per purchase.
