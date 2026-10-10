@@ -61,3 +61,8 @@
   .windowBody { height: 440px; }
   .popup { width: 250px; }
 }
+
+.onPhone { display: none; gap: 6px; margin-top: 14px; padding: 14px 16px; border-radius: var(--radius-l); border: 1px dashed var(--burger); color: var(--night-ink); font-size: 14px; }
+.onPhone p { margin: 0; color: var(--night-ink-2); }
+.onPhone a { color: var(--burger); font-weight: 600; }
+@media (max-width: 700px) { .onPhone { display: grid; } }

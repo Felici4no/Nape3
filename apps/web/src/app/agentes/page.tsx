@@ -10,6 +10,7 @@ const URL_MCP = "https://upay3food.com/api/mcp";
 
 const CLIENTS = [
   { name: "Claude (claude.ai e app)", how: "Configurações → Conectores → Adicionar conector personalizado → cole a URL." , code: URL_MCP },
+  { name: "No celular (app do Claude)", how: "Adicione o conector uma vez no claude.ai; ele aparece no app. Mande um print do cardápio do iFood e peça:", code: "Leia este print e use o UPAY3FOOD: qual açaí compensa por litro?" },
   { name: "Claude Code", how: "No terminal:", code: `claude mcp add --transport http upay3food ${URL_MCP}` },
   { name: "Cursor / VS Code / Windsurf", how: "No mcp.json do editor:", code: `{\n  "mcpServers": {\n    "upay3food": { "url": "${URL_MCP}" }\n  }\n}` },
   { name: "ChatGPT", how: "Com o modo de desenvolvedor ligado: Configurações → Conectores → Criar → cole a URL.", code: URL_MCP },

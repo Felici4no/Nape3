@@ -69,6 +69,14 @@ export default function Instalar() {
                 )}
               </div>
             </div>
+            <div className={styles.onPhone}>
+              <strong>Está no celular?</strong>
+              <p>
+                A extensão roda no navegador do computador. No celular você já pode tirar um print do cardápio e mandar para o Claude com o
+                conector UPAY3FOOD: ele lê os itens e o UPAY3FOOD faz a conta por litro e por grama. O link do item que compensa abre direto no app do iFood.
+              </p>
+              <Link href="/agentes">Plugar no Claude ou ChatGPT →</Link>
+            </div>
             <p className={styles.enLine}>English: a browser extension that shows the food, the fees and the difference on every iFood page.</p>
           </div>
           <div className={styles.window} aria-hidden="true">

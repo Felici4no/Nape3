@@ -26,7 +26,14 @@ user-initiated, no private APIs, no bots, no personal data.
 ## Phases
 
 1. **Hackathon (now):**
-   - `upay3food.com/instalar` and the docs work on phones;
+   - `upay3food.com/instalar` and the docs work on phones; on a phone,
+     /instalar says the extension is for the computer and points to the
+     agent path below;
+   - **print → Claude → UPAY3FOOD:** connectors added once on claude.ai also
+     appear in the Claude app. The user sends a screenshot of an iFood menu,
+     Claude reads the items, and the UPAY3FOOD MCP does the math (per litre,
+     per gram, the three layers). The screenshot stays in the user's own
+     chat; UPAY3FOOD only receives the item names and prices;
    - recommendations link to the item, which opens the iFood app;
    - the pitch shows the roadmap below.
 2. **Phase 1 (2–4 weeks): "Compartilhar print".**

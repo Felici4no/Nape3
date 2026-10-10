@@ -65,7 +65,7 @@
 .bands { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .band { display: grid; gap: 10px; padding: 28px; border-radius: var(--radius-xl); color: var(--night-ink); text-decoration: none; min-height: 220px; align-content: end; transition: transform 0.15s ease; }
 .band:hover { transform: translateY(-2px); }
-.band .display { font-size: clamp(26px, 3vw, 40px); line-height: 1; }
+.band :global(.display) { display: block; font-size: clamp(26px, 3vw, 40px); line-height: 1.08; }
 .band code { color: var(--burger); font-size: 15px; }
 .bandAgents { background: linear-gradient(150deg, #241034, var(--acai)); }
 .bandTransp { background: linear-gradient(150deg, #0f2a24, var(--sushi)); }

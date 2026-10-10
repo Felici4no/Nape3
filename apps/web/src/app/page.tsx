@@ -96,7 +96,7 @@ export default async function Home() {
       <section className="wrap" id="market-now">
         <div className={styles.head}>
           <h2 className={`display ${styles.h2}`}>Painel do mercado</h2>
-          <Link href="/market" className={styles.headLink}>Full market →</Link>
+          <Link href="/market" className={styles.headLink}>Mercado completo →</Link>
         </div>
         <p className={`small ${styles.demoNote}`}>
           {source.mode === "demo"
@@ -117,21 +117,21 @@ export default async function Home() {
       <section className="wrap">
         <div className={`night ${styles.privacyBand}`}>
           <div>
-            <span className="eyebrow">Private payment</span>
-            <h2 className={`display ${styles.h2}`}>Your purchase funding is shielded before settlement.</h2>
-            <p>USDC leaves the Cloak shielded pool, not your wallet. Pix itself is not private: what we hide is your wallet.</p>
+            <span className="eyebrow">Pagamento privado · Solana</span>
+            <h2 className={`display ${styles.h2}`}>Seu USDC protegido antes de pagar.</h2>
+            <p>O USDC sai do pool protegido da Cloak, não da sua carteira. O Pix em si não é privado: o que escondemos é a sua carteira. Pagar o Pix do pedido com USDC liga quando houver um parceiro licenciado.</p>
           </div>
           <div className={styles.privacyCtas}>
-            <Link className="btn light" href="/wallet">Connect wallet</Link>
-            <Link className="btn ghost" style={{ color: "var(--night-ink)", boxShadow: "inset 0 0 0 1.5px var(--night-ink)" }} href="/privacy">What stays private</Link>
+            <Link className="btn light" href="/wallet">Conectar carteira</Link>
+            <Link className="btn ghost" style={{ color: "var(--night-ink)", boxShadow: "inset 0 0 0 1.5px var(--night-ink)" }} href="/privacy">O que fica privado</Link>
           </div>
         </div>
       </section>
 
       <div className="wrap">
         <p className="muted small">
-          <Freshness minutes={acai.summary.freshness.newestAgeMinutes} count={quotes.reduce((n, q) => n + q.summary.sampleSize, 0)} /> across{" "}
-          {quotes.length} markets.
+          <Freshness minutes={acai.summary.freshness.newestAgeMinutes} count={quotes.reduce((n, q) => n + q.summary.sampleSize, 0)} /> em{" "}
+          {quotes.length} mercados.
         </p>
       </div>
     </>
