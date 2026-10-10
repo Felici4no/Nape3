@@ -218,6 +218,13 @@ async function handlePlan(request: string, snapshot: PageSnapshot | null): Promi
   const menuAdvice = plan.intent.ok
     ? adviseFromMenus(plan.intent.intent, await getMenus(now.getTime()), { now, ...(settings.marketRegion ? { marketRegion: settings.marketRegion } : {}) })
     : null;
+  // The agent's pick is outlined on that shop's page (content/highlight.ts).
+  const pick = menuAdvice?.bestForRequest ?? menuAdvice?.nearest ?? null;
+  await chrome.storage.local.set({
+    recommended: pick
+      ? { merchantKey: pick.merchantPath ?? pick.merchantName, title: pick.title, priceCents: pick.priceCents, estimatedTotalCents: pick.estimatedTotalCents, at: now.toISOString() }
+      : null
+  });
   log.info("agent.planned", { state: plan.agent.state, status: plan.decision?.status ?? null, menuItems: menuAdvice?.itemsConsidered ?? 0 });
   return {
     ok: true,
@@ -476,6 +483,7 @@ async function handle(message: ExtensionMessage, tabId: number | undefined): Pro
     case "GET_BRIDGE_STATUS":
       return { ok: true, type: "BRIDGE_STATUS", status: bridgeStatus(await getSettings()) };
     case "GET_SNAPSHOT":
+    case "REVEAL_ITEM":
     case "GET_DOM_CAPTURE":
     case "GET_PAGE_CAPTURE":
     case "PING":
@@ -486,7 +494,7 @@ async function handle(message: ExtensionMessage, tabId: number | undefined): Pro
 }
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse: (r: ExtensionResponse) => void) => {
-  if (message.type === "GET_SNAPSHOT" || message.type === "GET_DOM_CAPTURE" || message.type === "GET_PAGE_CAPTURE" || message.type === "PING") return false; // content script
+  if (message.type === "GET_SNAPSHOT" || message.type === "GET_DOM_CAPTURE" || message.type === "GET_PAGE_CAPTURE" || message.type === "PING" || message.type === "REVEAL_ITEM") return false; // content script
   // Messages from the popup carry the tab id explicitly; content scripts via sender.
   const tabId = message.type === "RECORD_SNAPSHOT" ? (message.tabId ?? sender.tab?.id) : sender.tab?.id;
   handle(message, tabId)

@@ -251,7 +251,7 @@ export function MenuValueCard({ menu }: { menu: readonly MenuCard[] }) {
 
 const per = (c: MenuCandidate) => (c.unit === "ml" ? `${brl(c.pricePer100Cents! * 10)}/L` : `${brl(c.pricePer100Cents!)}/100 g`);
 
-function CandidateBlock({ c, lead }: { c: MenuCandidate; lead?: string }) {
+function CandidateBlock({ c, lead, onReveal }: { c: MenuCandidate; lead?: string; onReveal?: (c: MenuCandidate) => void }) {
   return (
     <div className="advice__best">
       {lead && <span className="eyebrow">{lead}</span>}
@@ -264,6 +264,11 @@ function CandidateBlock({ c, lead }: { c: MenuCandidate; lead?: string }) {
         {c.quantity > 1 ? ` × ${c.quantity}` : ""} + frete {brl(c.deliveryFeeCents ?? 0)} + serviço {brl(c.serviceFeeCents)}
         {c.pricePer100Cents ? ` · ${per(c)}` : ""}
       </span>
+      {onReveal && (
+        <button className="secondary advice__reveal" onClick={() => onReveal(c)}>
+          Ver no cardápio
+        </button>
+      )}
       {(c.itemUrl ?? c.merchantPath) && (
         <a className="advice__link" href={c.itemUrl ?? `https://www.ifood.com.br${c.merchantPath}`} target="_blank" rel="noreferrer">
           {c.itemUrl ? "Abrir este item no iFood →" : "Abrir a loja no iFood →"}
@@ -274,7 +279,7 @@ function CandidateBlock({ c, lead }: { c: MenuCandidate; lead?: string }) {
 }
 
 /** "Pesquisa no cardápio": the agent's answer from the menus already read — estimates, never offers. */
-export function MenuAdvicePanel({ advice }: { advice: MenuAdvice }) {
+export function MenuAdvicePanel({ advice, onReveal }: { advice: MenuAdvice; onReveal?: (c: MenuCandidate) => void }) {
   if (advice.itemsConsidered === 0) {
     return (
       <section className="xray">
@@ -291,11 +296,11 @@ export function MenuAdvicePanel({ advice }: { advice: MenuAdvice }) {
         <span className="chip chip--warn">estimativa</span>
       </div>
       {best ? (
-        <CandidateBlock c={best} />
+        <CandidateBlock c={best} {...(onReveal ? { onReveal } : {})} />
       ) : nearest ? (
         <>
           <p className="small">Nada no tamanho pedido cabe no orçamento. O tamanho mais próximo que cabe:</p>
-          <CandidateBlock c={nearest} />
+          <CandidateBlock c={nearest} {...(onReveal ? { onReveal } : {})} />
         </>
       ) : (
         <p className="small">Nada no tamanho e no orçamento pedidos entre as lojas lidas.</p>

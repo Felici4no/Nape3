@@ -158,6 +158,8 @@ export interface ExtensionSettings {
   debug: boolean;
   /** On-page badge (experimental, off by default: injecting into iFood's React tree is risky). */
   showBadge: boolean;
+  /** Outline the best items on restaurant pages (our own overlay; on unless set to false). */
+  highlightMenu?: boolean;
   /** UPAY3FOOD Pay page (apps/web /pay). The checkout is fetched from the extension by id, never put in the URL. */
   fundingAppUrl: string;
   /**
@@ -206,6 +208,8 @@ export type ExtensionMessage =
   | { type: "RECORD_MENU"; menu: MenuObservation }
   /** Popup → background: the menus read in the last 24 h, for "Copiar para o seu agente". */
   | { type: "GET_MENUS" }
+  /** Popup → content: scroll to an item on the open restaurant page and pulse its outline. */
+  | { type: "REVEAL_ITEM"; title: string; priceCents: number }
   | { type: "PLAN_INTENT"; request: string; snapshot: PageSnapshot | null }
   | { type: "GET_SETTINGS" }
   | { type: "SAVE_SETTINGS"; settings: ExtensionSettings }
@@ -230,6 +234,7 @@ export type ExtensionResponse =
     }
   | { ok: true; type: "SETTINGS"; settings: ExtensionSettings }
   | { ok: true; type: "MENUS"; menus: MenuObservation[] }
+  | { ok: true; type: "REVEALED"; found: boolean }
   | { ok: true; type: "DONE" }
   | { ok: true; type: "DOM_CAPTURE"; capture: string }
   | { ok: true; type: "PAGE_CAPTURE"; capture: string }

@@ -156,6 +156,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .advice__best { display: grid; gap: 3px; }
 .advice__best .display { font-size: 32px; }
+.advice__reveal { margin-top: 6px; padding: 8px 12px; font-size: 13px; }
 .advice__link { font-size: 12px; font-weight: 600; color: var(--acai); }
 .reasons { margin: 4px 0 0; padding-left: 16px; font-size: 11.5px; color: var(--ink-2); display: grid; gap: 3px; }
 

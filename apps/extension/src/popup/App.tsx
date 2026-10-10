@@ -470,6 +470,10 @@ function SettingsPanel({ settings, onSave, onClear }: { settings: ExtensionSetti
         </select>
       </label>
       <label className="inline">
+        <input type="checkbox" checked={draft.highlightMenu !== false} onChange={(e) => setDraft({ ...draft, highlightMenu: e.target.checked })} />
+        Destacar os melhores itens no cardápio (contorno sobre os cards; nada é clicado)
+      </label>
+      <label className="inline">
         <input type="checkbox" checked={draft.showBadge} onChange={(e) => setDraft({ ...draft, showBadge: e.target.checked })} />
         On-page badge (experimental; mounted only after the page loads)
       </label>
@@ -569,6 +573,17 @@ export function App() {
       setNotice(errorMessage(error));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function reveal(title: string, priceCents: number, shop: string) {
+    try {
+      const response = tabId === null ? null : ((await chrome.tabs.sendMessage(tabId, { type: "REVEAL_ITEM", title, priceCents } satisfies ExtensionMessage)) as ExtensionResponse);
+      const found = response?.ok === true && response.type === "REVEALED" && response.found;
+      if (found) window.close();
+      else setNotice(`Abra a loja ${shop} (link acima): o item aparece contornado no cardápio.`);
+    } catch {
+      setNotice(`Abra a loja ${shop} (link acima): o item aparece contornado no cardápio.`);
     }
   }
 
@@ -750,7 +765,7 @@ export function App() {
       {plan && !plan.currentCheckout.used && snapshot?.cart && (
         <p className="small warn">Your checkout was not used by the agent: {plan.currentCheckout.reason}</p>
       )}
-      {plan?.menuAdvice && <MenuAdvicePanel advice={plan.menuAdvice} />}
+      {plan?.menuAdvice && <MenuAdvicePanel advice={plan.menuAdvice} onReveal={(c) => void reveal(c.title, c.priceCents, c.merchantName)} />}
       {plan?.menuAdvice && plan.menuAdvice.itemsConsidered > 0 && (
         <button className="secondary" onClick={() => void copyForAgent()}>
           Copiar para o seu agente (Claude, ChatGPT…)

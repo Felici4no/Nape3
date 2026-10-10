@@ -13,6 +13,8 @@ import { captureOrderDom, capturePage } from "./capture";
 import { takeSnapshot } from "./extract";
 import { bridgeKey, buildBridgePayload, MIN_INTERVAL_MS } from "./devbridge";
 import { createMerchantMemory } from "./merchant";
+import type { MenuCard } from "../shared/types";
+import { clearHighlights, pickHighlights, renderHighlights, revealItem, type RecommendedItem } from "./highlight";
 
 /** Keeps the restaurant (from its URL) while the user opens a product, the bag or checkout in this tab. */
 const merchants = createMerchantMemory();
@@ -91,6 +93,29 @@ function sendToBridge(snapshot: PageSnapshot) {
   }
 }
 
+let recommended: RecommendedItem | null = null;
+let lastMenu: MenuCard[] | undefined;
+
+/** Outlines the best items (and the agent's pick for this shop) once the page has settled. */
+function highlight(snapshot: PageSnapshot) {
+  if (settings.highlightMenu === false || !pageSettled) return;
+  const context = snapshot.detection.context;
+  if (context === "RESTAURANT" && snapshot.restaurant?.menu?.length) lastMenu = snapshot.restaurant.menu;
+  else if (context !== "PRODUCT") {
+    lastMenu = undefined;
+    clearHighlights();
+    return;
+  }
+  if (!lastMenu?.length) return;
+  const key = snapshot.merchant?.path ?? snapshot.merchant?.name ?? snapshot.restaurant?.merchantName.value ?? null;
+  const pick = recommended && key && (recommended.merchantKey === key || recommended.merchantKey === snapshot.merchant?.name) ? recommended : null;
+  try {
+    renderHighlights(document, pickHighlights(lastMenu, pick));
+  } catch (error) {
+    log.warn("highlight.failed", { error: errorMessage(error) });
+  }
+}
+
 let lastMenuKey = "";
 
 /** Restaurant pages: hand the visible menu (titles and prices only) to the background, once per change. */
@@ -122,6 +147,7 @@ async function observe(trigger: string): Promise<void> {
   }
   sendToBridge(snapshot);
   recordMenu(snapshot);
+  highlight(snapshot);
   if (!ORDER_CONTEXTS.has(snapshot.detection.context)) {
     lastFingerprint = "";
     lastSnapshot = null;
@@ -200,19 +226,32 @@ chrome.storage.local.get("settings").then(({ settings: stored }) => {
   settings = { ...DEFAULT_SETTINGS, ...(stored as Partial<ExtensionSettings> | undefined) };
   void observe("initial");
 });
+chrome.storage.local.get("recommended").then(({ recommended: stored }) => {
+  recommended = (stored as RecommendedItem | null | undefined) ?? null;
+});
 chrome.storage.onChanged.addListener((changes) => {
+  if (changes.recommended) {
+    recommended = (changes.recommended.newValue as RecommendedItem | null | undefined) ?? null;
+    lastFingerprint = "";
+    void observe("recommendation");
+  }
   if (!changes.settings) return;
   settings = { ...DEFAULT_SETTINGS, ...(changes.settings.newValue as Partial<ExtensionSettings> | undefined) };
   if (lastSnapshot) renderBadge(document, lastSnapshot, lastMarket, settings.debug);
 });
 void whenPageSettled(window).then(() => {
   pageSettled = true;
+  void observe("settled");
   if (lastSnapshot) renderBadge(document, lastSnapshot, lastMarket, settings.debug);
 });
 
 // The popup always gets a *fresh* extraction — never a cached snapshot.
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, _sender, sendResponse: (response: ExtensionResponse) => void) => {
+    if (message.type === "REVEAL_ITEM") {
+      sendResponse({ ok: true, type: "REVEALED", found: revealItem(document, message.title, message.priceCents) });
+      return false;
+    }
     if (message.type === "PING") {
       sendResponse({ ok: true, type: "PONG", context: takeSnapshot(document, location.href, new Date(), merchants).detection.context, at: new Date().toISOString() });
       return false;

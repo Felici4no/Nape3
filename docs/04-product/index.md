@@ -37,6 +37,25 @@ Every drink on the menu priced per litre, compared only within its kind
 (refrigerante with refrigerante, cerveja with cerveja). Packs count every
 unit: "Lata 269ml com 15un" = 4,035 L.
 
+## Destaque no cardápio
+
+On a restaurant page the extension outlines the best items right on iFood's
+menu:
+
+- **★ Melhor por litro** (green): the cup with the lowest price per litre.
+- **Pote** (dashed): the best bulk option.
+- **★ Melhor por 100 g de carne**: for burgers.
+- **★ <tipo>: melhor por litro**: for each drink kind.
+- **Recomendado · R$X estimado** (red): the agent's pick from the last
+  search, for that shop.
+
+"Ver no cardápio" in the popup scrolls to the item and pulses its outline.
+
+The outlines are drawn on a layer of the extension's own (closed Shadow DOM,
+mounted after the page settles), positioned over the cards. Nothing is
+clicked and no iFood element is changed. The option can be turned off under
+*Settings*.
+
 ## Pesquisa no cardápio
 
 Ask "quero açaí 500ml até R$25". The agent answers from the menus you opened:
