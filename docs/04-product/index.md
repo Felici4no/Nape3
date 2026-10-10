@@ -1,43 +1,67 @@
 # Product
 
-## MVP
+UPAY3FOOD is a browser extension (plus a website) that reads what iFood
+already shows you and turns it into three numbers and a recommendation.
+Install: https://upay3food.com/instalar
 
-Nape3 is a multi-delivery comparison engine.
+## Você paga 3 vezes
 
-Input:
+| Layer | Example (real bag, 2026-10-10) |
+|---|---|
+| 1. Comida | R$31,99 |
+| 2. Taxas (delivery + service) | R$0,99 |
+| 3. Diferença (above the cheapest real comparable observation) | shown once a comparison exists |
 
-> "açaí 500 ml"
+On a product page the total is an estimate until the bag confirms it
+(delivery fee from the shop's card, service fee R$0,99).
 
-Output:
+![Bag read from the page](https://upay3food.com/instalar/sacola.png)
 
-Comparable offers from multiple delivery sources ranked using transparent pricing fields.
+## Raio-X do preço
 
-## Core pipeline
+The same product seen as the market compares it: per 100 ml, per litre,
+per 100 g, per person, the real 100 ml once fees are included, and the fees
+expressed in the product itself ("as taxas valem 175 ml deste açaí").
 
-```
-intent
-→ source offers
-→ normalization
-→ equivalence matching
-→ effective price
-→ comparison
-```
+## Tamanho que compensa
 
-## MVP capabilities
+The shop's whole menu, ranked by price per 100 ml (açaí) or per 100 g of
+meat (burgers), with potes kept apart and what each combo charges for its
+extras ("batata + refri custam R$12,00 a mais").
 
-- Structured search intent.
-- Source-specific connectors or controlled imports.
-- Canonical offer model.
-- Effective-price calculation.
-- Offer comparison.
-- Explanation of normalization and price calculation.
+![Tamanho que compensa on a real menu](https://upay3food.com/instalar/tamanho.png)
 
-## Not MVP
+## Bebidas por litro
 
-- autonomous checkout;
-- autonomous negotiation;
-- generic web shopping;
-- unrestricted wallet delegation;
-- broad marketplace coverage.
+Every drink on the menu priced per litre, compared only within its kind
+(refrigerante with refrigerante, cerveja with cerveja). Packs count every
+unit: "Lata 269ml com 15un" = 4,035 L.
 
-These remain research directions until the comparison core is validated.
+## Pesquisa no cardápio
+
+Ask "quero açaí 500ml até R$25". The agent answers from the menus you opened:
+
+- the cheapest estimated checkout for the size you asked;
+- if nothing fits, the closest size that does;
+- the best price per litre;
+- a link straight to the item on iFood.
+
+Every number is an estimate to confirm in the bag. iFood shop pages can be
+browsed without logging in, so a link can send anyone to the item.
+
+The formulas are public: [price calculations](../05-architecture/price-calculations.md).
+
+## What it never does
+
+- read passwords, cookies, tokens or login data;
+- click "Fazer pedido" or pay on its own;
+- call private APIs or intercept iFood's network traffic;
+- send your address, name, phone or CPF;
+- run bots or dedicated accounts ([ADR-007](../decisions/ADR-007-no-headless-scraping.md)).
+
+## Next
+
+- **Other platforms:** Keeta, 99Food and Rappi with the same per-litre and
+  three-layer views. The recommendation links to whichever platform is
+  cheapest.
+- **Mobile:** [plan](mobile.md).

@@ -1,4 +1,5 @@
 import { readBurger } from "./burger";
+import { drinkUnits, liquidKind } from "./liquids";
 import { parseServings, parseVolumeMl, parseWeightG } from "./volume";
 
 /**
@@ -86,8 +87,16 @@ export interface UnitInsights {
   discountPct: number | null;
 }
 
+/** Volume of the whole item: drinks packs count every unit ("269ml com 15un"); açaí "2x" means toppings. */
+function itemVolumeMl(title: string): number | null {
+  const ml = parseVolumeMl(title);
+  if (!ml) return null;
+  const kind = liquidKind(title);
+  return kind && kind !== "acai" ? ml * drinkUnits(title) : ml;
+}
+
 export function unitInsights(input: { title: string | null; priceCents: number; originalPriceCents?: number | null }): UnitInsights {
-  const volumeMl = input.title ? parseVolumeMl(input.title) : null;
+  const volumeMl = input.title ? itemVolumeMl(input.title) : null;
   const original = input.originalPriceCents ?? null;
   const discount = original !== null && original > input.priceCents ? original - input.priceCents : null;
   return {

@@ -46,6 +46,17 @@ the bag confirms them.
 - Menu prices only, no fees. The same comparison between shops needs the
   checkout totals (layer 3).
 
+## Bebidas por litro (`liquidValue`)
+
+- **Kinds:** açaí, refrigerante, suco, água, cerveja, chá, milk-shake,
+  energético and café, from words in the title.
+- **Comparison:** price per litre, only within the same kind.
+- **Packs:** total volume = units × unit volume ("269ml com 15un",
+  "6x350ml", "fardo 12"). For açaí, "2x" means toppings, so packs are never
+  counted.
+- **Bulk:** potes, baldes, caixas and anything ≥ 1,5 L stay out of cup
+  comparisons ("Potes à parte") unless a bulk size is asked.
+
 ## Hambúrguer (`readBurger`, `comboPremiums`)
 
 | View | Rule |

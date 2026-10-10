@@ -77,6 +77,19 @@ This fits UPAY3FOOD as a *merchant-verified* layer: a connector that reads
 `GET /v1/merchant` from opted-in restaurants and compares their own price with
 what users observe on each marketplace.
 
+## Public pages and routing (founder check, 2026-10-10)
+
+iFood shop pages and menus can be browsed **without logging in** once an
+address area is set. This has two consequences:
+
+- the extension's menu views work for anyone, logged in or not;
+- a recommendation can send any user to a shop or item link, and on phones
+  that link opens the iFood app.
+
+The same routing will point to other platforms (Keeta, 99Food, Rappi) when
+they are the cheapest. UPAY3FOOD still does not fetch those pages from a
+server (ADR-007); it only links to them.
+
 ## Other legitimate sources
 
 - **Partner restaurants:** a few açaí shops listed on 2–3 platforms share

@@ -1,5 +1,5 @@
 import type { MenuAdvice, MenuCandidate } from "@nape3/agent";
-import { comboPremiums, costInsights, formatBRL, menuValue, priceLayers, readBurger, unitInsights, type Cents } from "@nape3/domain";
+import { comboPremiums, costInsights, formatBRL, liquidValue, menuValue, priceLayers, readBurger, unitInsights, type Cents } from "@nape3/domain";
 import type { CartSnapshot, MenuCard, PageSnapshot } from "../shared/types";
 
 const brl = (cents: number) => formatBRL(cents as Cents);
@@ -320,6 +320,34 @@ export function MenuAdvicePanel({ advice }: { advice: MenuAdvice }) {
         </ul>
       </details>
       <p className="muted small">Preços do cardápio com o frete mostrado na loja. Cupons, Clube e endereço podem mudar o valor: confirme na sacola.</p>
+    </section>
+  );
+}
+
+/** "Bebidas por litro": every drink on the menu priced per litre, compared only within its kind. */
+export function DrinksPerLiterCard({ menu }: { menu: readonly MenuCard[] }) {
+  const groups = liquidValue(menu).filter((g) => g.kind !== "acai" && g.ranked.length >= 2);
+  if (groups.length === 0) return null;
+  return (
+    <section className="xray">
+      <span className="eyebrow">Bebidas por litro</span>
+      <ul>
+        {groups.slice(0, 4).map((g) => {
+          const best = g.ranked[0]!;
+          return (
+            <li key={g.kind}>
+              <span className="num">{brl(best.pricePerLiterCents)}/L</span>
+              <span>
+                <strong>{g.label}:</strong> {best.title}
+                <small className="muted">
+                  {best.units > 1 ? ` · ${best.units} un = ${(best.totalMl / 1000).toLocaleString("pt-BR")} L` : ""} · {pct(g.spreadPct ?? 0)} mais barato por litro que o pior de {g.ranked.length}
+                </small>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="muted small">Cada tipo só é comparado com o próprio tipo. Packs contam todas as unidades.</p>
     </section>
   );
 }

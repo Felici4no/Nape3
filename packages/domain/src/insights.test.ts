@@ -102,3 +102,9 @@ describe("bulk formats (real menu, Açaí Godoi, 2026-10-10)", () => {
     expect(v.bulkBest).toMatchObject({ title: "Pote de açaí 5 litros", pricePer100mlCents: 176 });
   });
 });
+
+describe("costInsights for drinks packs", () => {
+  it("prices the whole pack per litre", () => {
+    expect(costInsights({ title: "Cerveja Pilsen Lata Skol 269ml com 15un", priceCents: 5990 })).toMatchObject({ volumeMl: 4035, pricePerLiterCents: 1485 });
+  });
+});
