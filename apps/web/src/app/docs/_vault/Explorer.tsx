@@ -50,7 +50,12 @@ export function Explorer({ root, folders, vaultName }: { root: File[]; folders: 
         </button>
       </div>
       <div className={styles.vaultName}>
-        <Icon name="folderOpen" size={15} /> {vaultName}
+        <Icon name="folderOpen" size={15} />
+        <span>
+          {vaultName.split("3")[0]}
+          <span className={styles.three}>3</span>
+          {vaultName.split("3").slice(1).join("3")}
+        </span>
       </div>
       <nav className={styles.tree} aria-label="All notes">
         {folders.map((f) => (

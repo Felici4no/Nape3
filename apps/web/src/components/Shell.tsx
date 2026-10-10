@@ -3,9 +3,9 @@ import { getMarketSource } from "@/lib/source.server";
 import styles from "./Shell.module.css";
 
 const NAV = [
-  { href: "/#como-funciona", label: "Como funciona" },
-  { href: "/agentes", label: "Agentes" },
-  { href: "/transparencia", label: "Transparência" },
+  { href: "/#how-it-works", label: "How it works" },
+  { href: "/agentes", label: "Agents" },
+  { href: "/transparencia", label: "Transparency" },
   { href: "/docs", label: "Docs" }
 ];
 
@@ -14,15 +14,15 @@ export function TopBar() {
   return (
     <header className={styles.bar}>
       <div className={`wrap ${styles.inner}`}>
-        <Link href="/" className={styles.word} aria-label="UPAY3FOOD, início">
+        <Link href="/" className={styles.word} aria-label="UPAY3FOOD home">
           UPAY<span>3</span>FOOD
         </Link>
-        <nav className={styles.links} aria-label="Principal">
+        <nav className={styles.links} aria-label="Main">
           {NAV.map((n) => (
             <Link key={n.href} href={n.href}>{n.label}</Link>
           ))}
         </nav>
-        <Link href="/instalar" className={`btn ${styles.cta}`}>Instalar</Link>
+        <Link href="/instalar" className={`btn ${styles.cta}`}>Install</Link>
       </div>
     </header>
   );
@@ -74,9 +74,9 @@ export async function DataBanner() {
 }
 
 const FOOTER = [
-  { title: "Produto", links: [["/instalar", "Extensão"], ["/agentes", "Agentes (MCP)"], ["/#como-funciona", "Como funciona"], ["/market", "Painel do mercado (demo)"]] },
-  { title: "Solana", links: [["/transparencia", "Transparência"], ["/wallet", "Carteira"], ["/shield", "Shield Cloak"], ["/privacy", "O que fica privado"]] },
-  { title: "Projeto", links: [["/docs", "Documentação"], ["/docs/07-hackathon", "Hackathon"], ["https://github.com/Felici4no/Nape3-UPAY3FOOD", "GitHub"]] }
+  { title: "Product", links: [["/instalar", "Extension"], ["/agentes", "Agents (MCP)"], ["/#how-it-works", "How it works"], ["/market", "Market board (demo)"]] },
+  { title: "Solana", links: [["/transparencia", "Transparency"], ["/wallet", "Wallet"], ["/shield", "Cloak shield"], ["/privacy", "What stays private"]] },
+  { title: "Project", links: [["/docs", "Docs"], ["/docs/07-hackathon", "Hackathon"], ["https://github.com/Felici4no/Nape3-UPAY3FOOD", "GitHub"]] }
 ] as const;
 
 export function Footer() {
@@ -84,8 +84,8 @@ export function Footer() {
     <footer className={`night ${styles.footer}`}>
       <div className="wrap">
         <div className={styles.top}>
-          <p className={`display ${styles.sentence}`}>Pare de pagar a terceira vez.</p>
-          <Link href="/instalar" className={`btn ${styles.footCta}`}>Instalar a extensão</Link>
+          <p className={`display ${styles.sentence}`}>Stop paying the third time.</p>
+          <Link href="/instalar" className={`btn ${styles.footCta}`}>Install the extension</Link>
         </div>
         <div className={styles.cols}>
           {FOOTER.map((c) => (
@@ -100,9 +100,9 @@ export function Footer() {
           ))}
         </div>
         <p className={`small ${styles.fine}`}>
-          Lê só o que está na sua tela, na sua sessão do iFood. Nunca faz pedido nem paga sozinha. Preços de cardápio são estimativas até a sacola:
-          cupons, Clube e endereço mudam o valor. O repasse para Pix fica desligado até existir um parceiro licenciado. Sem afiliação com iFood, Rappi,
-          99Food ou Keeta.
+          Reads only what is on your screen, in your own iFood session. Never places an order or pays on its own. Menu prices are estimates until the
+          bag confirms them: coupons, membership and address change the total. The Pix off-ramp stays off until a licensed partner exists. Not affiliated
+          with iFood, Rappi, 99Food or Keeta.
         </p>
       </div>
     </footer>

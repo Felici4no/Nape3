@@ -2,31 +2,31 @@ import Link from "next/link";
 import styles from "./agentes.module.css";
 
 export const metadata = {
-  title: "Para agentes",
-  description: "Plugue seu agente (Claude, ChatGPT, Cursor) no UPAY3FOOD: preço real do delivery, por litro e por grama, via MCP."
+  title: "For agents",
+  description: "Plug your agent (Claude, ChatGPT, Cursor) into UPAY3FOOD: the real price of delivery food, per litre and per gram, over MCP."
 };
 
 const URL_MCP = "https://upay3food.com/api/mcp";
 
 const CLIENTS = [
-  { name: "Claude (claude.ai e app)", how: "Configurações → Conectores → Adicionar conector personalizado → cole a URL." , code: URL_MCP },
-  { name: "No celular (app do Claude)", how: "Adicione o conector uma vez no claude.ai; ele aparece no app. Mande um print do cardápio do iFood e peça:", code: "Leia este print e use o UPAY3FOOD: qual açaí compensa por litro?" },
-  { name: "Claude Code", how: "No terminal:", code: `claude mcp add --transport http upay3food ${URL_MCP}` },
-  { name: "Cursor / VS Code / Windsurf", how: "No mcp.json do editor:", code: `{\n  "mcpServers": {\n    "upay3food": { "url": "${URL_MCP}" }\n  }\n}` },
-  { name: "ChatGPT", how: "Com o modo de desenvolvedor ligado: Configurações → Conectores → Criar → cole a URL.", code: URL_MCP },
-  { name: "Clientes só com stdio", how: "Via mcp-remote:", code: `npx -y mcp-remote ${URL_MCP}` }
+  { name: "Claude (claude.ai and apps)", how: "Settings → Connectors → Add custom connector → paste the URL.", code: URL_MCP },
+  { name: "On your phone (Claude app)", how: "Add the connector once on claude.ai and it shows up in the app. Send a screenshot of an iFood menu and ask:", code: "Read this screenshot and use UPAY3FOOD: which açaí is the best value per litre?" },
+  { name: "Claude Code", how: "In the terminal:", code: `claude mcp add --transport http upay3food ${URL_MCP}` },
+  { name: "Cursor / VS Code / Windsurf", how: "In the editor's mcp.json:", code: `{\n  "mcpServers": {\n    "upay3food": { "url": "${URL_MCP}" }\n  }\n}` },
+  { name: "ChatGPT", how: "With developer mode on: Settings → Connectors → Create → paste the URL.", code: URL_MCP },
+  { name: "stdio-only clients", how: "Through mcp-remote:", code: `npx -y mcp-remote ${URL_MCP}` }
 ];
 
 const TOOLS = [
-  ["price_breakdown", "Você paga 3 vezes", "comida, taxas e a diferença para o mais barato; taxas no total"],
-  ["item_cost", "Raio-X do preço", "por 100 ml, litro, 100 g, por pessoa, 100 ml com taxas, taxas em ml do produto, gramas de carne"],
-  ["rank_menu", "Tamanho que compensa", "cardápio por 100 ml ou por 100 g de carne, potes à parte, combos, bebidas por litro"],
-  ["advise", "Pesquisa no cardápio", "“quero açaí 500ml até R$25” → total estimado, tamanho mais próximo, melhor por litro, link do item"],
-  ["read_menu_text", "Ler cardápio (texto)", "cole o texto da página da loja → itens, preço riscado, porções, frete e resumo por litro"],
-  ["read_bag_text", "Ler sacola (texto)", "cole o texto da sacola → linhas, taxas, total conferido e as 3 camadas"],
-  ["compare_bags", "Comparar sacolas", "sacolas reais da mesma compra → ranking e a diferença real para a mais barata"],
-  ["parse_ifood_link", "Ler link do iFood", "cidade, loja, id da loja e do item; descarta tokens e rastreio"],
-  ["methodology", "Metodologia", "como cada número é calculado e o que nunca afirmamos"]
+  ["price_breakdown", "You pay 3 times", "food, fees and the difference to the cheapest option; the fees' share of the total"],
+  ["item_cost", "Price X-ray", "per 100 ml, per litre, per 100 g, per person, per 100 ml with fees, the fees in ml of the product, grams of meat"],
+  ["rank_menu", "The size worth buying", "the menu per 100 ml or per 100 g of meat, tubs apart, combos, drinks per litre"],
+  ["advise", "Menu search", "“açaí 500 ml under R$25” → estimated total, nearest size, best per litre, link to the item"],
+  ["read_menu_text", "Read a menu (text)", "paste the shop page text → items, struck-through prices, servings, delivery fee and a per-litre summary"],
+  ["read_bag_text", "Read a bag (text)", "paste the bag text → lines, fees, a checked total and the 3 layers"],
+  ["compare_bags", "Compare bags", "real bags for the same purchase → ranking and the real difference to the cheapest"],
+  ["parse_ifood_link", "Read an iFood link", "city, shop, shop and item ids; drops tokens and tracking"],
+  ["methodology", "Methodology", "how each number is computed and what we never claim"]
 ];
 
 export default function Agentes() {
@@ -34,21 +34,21 @@ export default function Agentes() {
     <div className={styles.page}>
       <section className={styles.hero}>
         <div className="wrap">
-          <span className={styles.kicker}>MCP · aberto · sem login · sem guardar nada</span>
-          <h1 className={`display ${styles.title}`}>Plugue o seu agente no preço real do delivery.</h1>
+          <span className={styles.kicker}>MCP · open · no login · stores nothing</span>
+          <h1 className={`display ${styles.title}`}>Plug your agent into the real price of delivery.</h1>
           <p className={styles.lede}>
-            O seu agente lê o cardápio ou a sacola; o UPAY3FOOD devolve as 3 camadas do preço, o custo por litro e por grama, o ranking do cardápio e uma recomendação com
-            link para o item. As mesmas contas da extensão, com metodologia pública.
+            Your agent reads the menu or the bag; UPAY3FOOD returns the 3 layers of the price, the cost per litre and per gram, the menu ranking and a recommendation with a
+            link to the item. The same math as the extension, with a public methodology.
           </p>
           <div className={styles.url}>
-            <span className={styles.urlLabel}>URL do conector</span>
+            <span className={styles.urlLabel}>Connector URL</span>
             <code className="num">{URL_MCP}</code>
           </div>
         </div>
       </section>
 
       <section className="wrap">
-        <h2 className={`display ${styles.h2}`}>Conectar</h2>
+        <h2 className={`display ${styles.h2}`}>Connect</h2>
         <div className={styles.clients}>
           {CLIENTS.map((c) => (
             <article key={c.name} className={styles.client}>
@@ -58,11 +58,11 @@ export default function Agentes() {
             </article>
           ))}
         </div>
-        <p className="muted small">Também há o prompt <code>pesquisar_delivery</code>, que guia o agente passo a passo. Os nomes dos menus mudam entre versões de cada app; o que vale é adicionar um servidor MCP remoto por URL (Streamable HTTP).</p>
+        <p className="muted small">There is also a <code>pesquisar_delivery</code> prompt that walks the agent through a search. Menu names change between app versions; what matters is adding a remote MCP server by URL (Streamable HTTP).</p>
       </section>
 
       <section className="wrap">
-        <h2 className={`display ${styles.h2}`}>Ferramentas</h2>
+        <h2 className={`display ${styles.h2}`}>Tools</h2>
         <table className={styles.tools}>
           <tbody>
             {TOOLS.map(([id, name, what]) => (
@@ -78,28 +78,28 @@ export default function Agentes() {
 
       <section className={styles.flow}>
         <div className="wrap">
-          <h2 className={`display ${styles.h2}`}>Extensão + agente</h2>
+          <h2 className={`display ${styles.h2}`}>Extension + agent</h2>
           <ol>
-            <li>Abra algumas lojas no iFood com a <Link href="/instalar">extensão</Link> — não precisa estar logado.</li>
-            <li>No popup, peça “quero açaí 500ml até R$25” e clique em <b>Copiar para o seu agente</b>.</li>
-            <li>Cole no seu agente com o conector UPAY3FOOD ligado. Ele chama <code>advise</code> com os cardápios que você leu e responde com o link do item.</li>
+            <li>Open a few iFood shops with the <Link href="/instalar">extension</Link>. No login needed.</li>
+            <li>In the popup, ask “quero açaí 500ml até R$25” (açaí 500 ml under R$25) and click <b>Copiar para o seu agente</b> (copy for your agent).</li>
+            <li>Paste it into your agent with the UPAY3FOOD connector on. It calls <code>advise</code> with the menus you read and answers with the link to the item.</li>
           </ol>
-          <pre className={styles.code}><code>{`Pesquise para mim: "quero açaí 500ml até R$25".
-Use o servidor MCP do UPAY3FOOD, ferramenta advise,
-com estes cardápios que eu li no iFood…`}</code></pre>
+          <pre className={styles.code}><code>{`Search for me: "açaí 500 ml under R$25".
+Use the UPAY3FOOD MCP server, tool advise,
+with these menus I read on iFood…`}</code></pre>
         </div>
       </section>
 
       <section className={`wrap ${styles.rules}`}>
-        <h2 className={`display ${styles.h2}`}>Regras para agentes</h2>
+        <h2 className={`display ${styles.h2}`}>Rules for agents</h2>
         <ul>
-          <li>Leia só o que o usuário pode ver. Páginas de loja do iFood abrem sem login.</li>
-          <li>Nunca finalize pedido nem pague: o UPAY3FOOD recomenda, o usuário confirma na sacola.</li>
-          <li>Nada de cookies, tokens, endereço ou dados pessoais nas chamadas: as ferramentas não precisam deles.</li>
-          <li>Todo resultado de cardápio é estimativa. Cupons, Clube e endereço mudam o preço.</li>
+          <li>Read only what the user can see. iFood shop pages open without login.</li>
+          <li>Never place an order or pay: UPAY3FOOD recommends, the user confirms in the bag.</li>
+          <li>No cookies, tokens, addresses or personal data in the calls: the tools do not need them.</li>
+          <li>Every menu result is an estimate. Coupons, membership and address change the price.</li>
         </ul>
         <p className="muted small">
-          O servidor não guarda nada e não acessa nenhuma plataforma: só calcula com o que o agente envia. <Link href="/docs/05-architecture/agents">Documentação técnica</Link> · <Link href="/llms.txt">llms.txt</Link>
+          The server stores nothing and calls no platform: it only computes with what the agent sends. <Link href="/docs/05-architecture/agents">Technical docs</Link> · <Link href="/llms.txt">llms.txt</Link>
         </p>
       </section>
     </div>

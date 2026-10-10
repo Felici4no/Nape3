@@ -3,8 +3,8 @@ import packed from "@/generated/extension-info.json";
 import styles from "./instalar.module.css";
 
 export const metadata = {
-  title: "Instalar a extensão",
-  description: "Você paga 3 vezes pela comida. A extensão UPAY3FOOD mostra as três e te leva ao mais barato."
+  title: "Install the extension",
+  description: "You pay three times for food. The UPAY3FOOD extension shows all three and takes you to the cheaper option."
 };
 
 type ExtensionInfo = { version: string; sizeBytes: number; sha256: string; builtAt: string; commit: string | null };
@@ -15,16 +15,16 @@ function extensionInfo(): ExtensionInfo | null {
 }
 
 const STEPS = [
-  { t: "Baixe e extraia", d: "Baixe o .zip e extraia numa pasta que você não vai apagar, por exemplo Documentos/upay3food.", visual: "zip" },
-  { t: "Ligue o modo do desenvolvedor", d: "No Chrome, Edge ou Brave, abra chrome://extensions e ligue a chave no canto superior direito.", visual: "toggle" },
-  { t: "Carregue a pasta", d: "Clique em “Carregar sem compactação” e escolha a pasta que tem o manifest.json.", visual: "load" },
-  { t: "Abra o iFood", d: "Fixe o ícone na barra, entre em ifood.com.br e abra uma loja. Não precisa estar logado.", visual: "ifood" }
+  { t: "Download and unzip", d: "Download the .zip and unzip it into a folder you will keep, for example Documents/upay3food.", visual: "zip" },
+  { t: "Turn on developer mode", d: "In Chrome, Edge or Brave, open chrome://extensions and flip the switch in the top-right corner.", visual: "toggle" },
+  { t: "Load the folder", d: "Click “Load unpacked” and pick the folder that contains manifest.json.", visual: "load" },
+  { t: "Open iFood", d: "Pin the icon to the toolbar, go to ifood.com.br and open a shop. No login needed.", visual: "ifood" }
 ] as const;
 
 const VIEWS = [
-  { img: "/instalar/raio-x.png", w: 760, h: 1332, t: "No produto", d: "As três camadas do preço e o Raio-X: por 100 ml, por litro, por pessoa, e quanto as taxas valem do próprio produto." },
-  { img: "/instalar/tamanho.png", w: 760, h: 626, t: "Na loja", d: "O cardápio inteiro ordenado por preço por 100 ml (ou por 100 g de carne). Potes e bebidas ficam em comparações próprias." },
-  { img: "/instalar/sacola.png", w: 760, h: 1240, t: "Na sacola", d: "Cada número vem da página e é conferido contra o total: subtotal, frete, serviço e desconto." }
+  { img: "/instalar/raio-x.png", w: 760, h: 1332, t: "On a product", d: "The three layers of the price and the Price X-ray: per 100 ml, per litre, per person, and how much of the product the fees are worth." },
+  { img: "/instalar/tamanho.png", w: 760, h: 626, t: "In a shop", d: "The whole menu ranked by price per 100 ml (or per 100 g of meat). Tubs and drinks get their own comparisons." },
+  { img: "/instalar/sacola.png", w: 760, h: 1240, t: "In the bag", d: "Every number comes from the page and is checked against the total: subtotal, delivery, service fee and discount." }
 ];
 
 function StepVisual({ kind }: { kind: (typeof STEPS)[number]["visual"] }) {
@@ -33,10 +33,10 @@ function StepVisual({ kind }: { kind: (typeof STEPS)[number]["visual"] }) {
     return (
       <div className={styles.vBar}>
         <span className="num">chrome://extensions</span>
-        <span className={styles.vToggle}>Modo do desenvolvedor <i /></span>
+        <span className={styles.vToggle}>Developer mode <i /></span>
       </div>
     );
-  if (kind === "load") return <div className={styles.vBtns}><span className={styles.vBtnOn}>Carregar sem compactação</span><span>Compactar</span></div>;
+  if (kind === "load") return <div className={styles.vBtns}><span className={styles.vBtnOn}>Load unpacked</span><span>Pack extension</span></div>;
   return <div className={styles.vBar}><span className="num">ifood.com.br/delivery/…</span><span className={styles.vBadge}>U3</span></div>;
 }
 
@@ -47,21 +47,21 @@ export default function Instalar() {
       <section className={styles.hero}>
         <div className={`wrap ${styles.heroGrid}`}>
           <div className={styles.heroCopy}>
-            <span className={styles.kicker}>Instalar · extensão para navegador</span>
+            <span className={styles.kicker}>Install · browser extension</span>
             <h1 className={`display ${styles.title}`}>
-              Leve o <span className={styles.three}>3</span> para o seu iFood.
+              Bring the <span className={styles.three}>3</span> to your iFood.
             </h1>
             <p className={styles.lede}>
-              Você paga 3 vezes pela comida: a comida, as taxas e a diferença para a opção mais barata. A extensão mostra as três em cada loja, produto e sacola,
-              e te leva ao item que compensa.
+              You pay three times for food: the food, the fees, and the difference to the cheapest option. The extension shows all three on every shop, product
+              and bag, and takes you to the item worth buying.
             </p>
             <div className={styles.download}>
               <a className={`btn ${styles.dl}`} href="/downloads/upay3food-extension.zip" download>
-                Baixar a extensão
+                Download the extension
               </a>
               <div className={styles.dlMeta}>
-                <span className="num">{info ? `v${info.version} · ${(info.sizeBytes / 1024).toFixed(0)} KB` : "versão de desenvolvimento"}</span>
-                <span>Chrome · Edge · Brave · computador</span>
+                <span className="num">{info ? `v${info.version} · ${(info.sizeBytes / 1024).toFixed(0)} KB` : "development build"}</span>
+                <span>Chrome · Edge · Brave · desktop</span>
                 {info && (
                   <span className="num" title={info.sha256}>
                     SHA-256 {info.sha256.slice(0, 12)}…{info.commit ? ` · ${info.commit}` : ""}
@@ -70,14 +70,14 @@ export default function Instalar() {
               </div>
             </div>
             <div className={styles.onPhone}>
-              <strong>Está no celular?</strong>
+              <strong>On your phone?</strong>
               <p>
-                A extensão roda no navegador do computador. No celular você já pode tirar um print do cardápio e mandar para o Claude com o
-                conector UPAY3FOOD: ele lê os itens e o UPAY3FOOD faz a conta por litro e por grama. O link do item que compensa abre direto no app do iFood.
+                The extension runs in a desktop browser. On a phone you can already send a screenshot of the menu to Claude with the UPAY3FOOD
+                connector: Claude reads the items and UPAY3FOOD does the math per litre and per gram. The link to the item opens straight in the iFood app.
               </p>
-              <Link href="/agentes">Plugar no Claude ou ChatGPT →</Link>
+              <Link href="/agentes">Plug it into Claude or ChatGPT →</Link>
             </div>
-            <p className={styles.enLine}>English: a browser extension that shows the food, the fees and the difference on every iFood page.</p>
+            <p className={styles.enLine}>The extension’s interface is in Portuguese, for Brazilian iFood users.</p>
           </div>
           <div className={styles.window} aria-hidden="true">
             <div className={styles.windowBar}>
@@ -95,8 +95,8 @@ export default function Instalar() {
       </section>
 
       <section className={`wrap ${styles.stepsWrap}`}>
-        <span className="eyebrow">Em 2 minutos</span>
-        <h2 className={`display ${styles.h2}`}>Como instalar</h2>
+        <span className="eyebrow">In 2 minutes</span>
+        <h2 className={`display ${styles.h2}`}>How to install</h2>
         <ol className={styles.steps}>
           {STEPS.map((s, i) => (
             <li key={s.t} className={styles.step}>
@@ -108,14 +108,14 @@ export default function Instalar() {
           ))}
         </ol>
         <p className="muted small">
-          Ainda não está na Chrome Web Store, por isso a instalação é pelo modo do desenvolvedor. No celular: veja o <Link href="/docs/04-product/mobile">plano para mobile</Link>. Tem um agente (Claude, ChatGPT)? <Link href="/agentes">Plugue o UPAY3FOOD nele</Link>.
+          Not on the Chrome Web Store yet, so it installs through developer mode. On a phone, see the <Link href="/docs/04-product/mobile">mobile plan</Link>. Have an agent (Claude, ChatGPT)? <Link href="/agentes">Plug UPAY3FOOD into it</Link>.
         </p>
       </section>
 
       <section className={styles.views}>
         <div className="wrap">
-          <span className="eyebrow">Telas reais · Maranata Açaí, São Paulo · 10/10/2026</span>
-          <h2 className={`display ${styles.h2}`}>O que aparece</h2>
+          <span className="eyebrow">Real screens · Maranata Açaí, São Paulo · 2026-10-10</span>
+          <h2 className={`display ${styles.h2}`}>What you see</h2>
           <div className={styles.viewRow}>
             {VIEWS.map((v) => (
               <figure key={v.t} className={styles.view}>
@@ -127,18 +127,18 @@ export default function Instalar() {
               </figure>
             ))}
           </div>
-          <p className="muted small">Preços do cardápio são estimativas até a sacola. Os números seguem uma <Link href="/docs/05-architecture/price-calculations">metodologia pública</Link>.</p>
+          <p className="muted small">Menu prices are estimates until the bag confirms them. The numbers follow a <Link href="/docs/05-architecture/price-calculations">public methodology</Link>.</p>
         </div>
       </section>
 
       <section className={`wrap ${styles.never}`}>
-        <h2 className={`display ${styles.h2}`}>O que ela nunca faz</h2>
+        <h2 className={`display ${styles.h2}`}>What it never does</h2>
         <ul>
-          <li><b>×</b> Ler senha, cookie, token ou dados de login.</li>
-          <li><b>×</b> Clicar em “Fazer pedido” ou pagar sozinha.</li>
-          <li><b>×</b> Usar APIs privadas ou interceptar a rede do iFood.</li>
-          <li><b>×</b> Enviar seu endereço, nome, telefone ou CPF.</li>
-          <li><b>✓</b> Só lê o que já está na sua tela, na sua sessão.</li>
+          <li><b>×</b> Read passwords, cookies, tokens or login data.</li>
+          <li><b>×</b> Click “Fazer pedido” (place order) or pay on its own.</li>
+          <li><b>×</b> Use private APIs or intercept iFood’s network traffic.</li>
+          <li><b>×</b> Send your address, name, phone or CPF.</li>
+          <li><b>✓</b> Reads only what is already on your screen, in your session.</li>
         </ul>
       </section>
     </div>

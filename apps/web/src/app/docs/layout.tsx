@@ -26,7 +26,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
     <div className={styles.app} data-docs>
       <Ribbon repo={REPO} />
       <aside className={styles.left}>
-        <Explorer root={root} folders={folders} vaultName="upay3food" />
+        <Explorer root={root} folders={folders} vaultName="UPAY3FOOD" />
       </aside>
       <div className={styles.workspace}>
         <Tabs titles={titles} />

@@ -58,7 +58,7 @@ export function Splash() {
             </span>
           ))}
         </p>
-        <p className={styles.tag}>O preço real do delivery</p>
+        <p className={styles.tag}>The real price of delivery</p>
         <div className={styles.progress}>
           <i />
         </div>

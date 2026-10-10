@@ -184,4 +184,4 @@ body:has([data-docs]) > header,
 body:has([data-docs]) > div[role="note"],
 body:has([data-docs]) > div[role="alert"],
 body:has([data-docs]) > footer,
-body:has([data-docs]) > nav[aria-label="Atalhos"] { display: none; }
+body:has([data-docs]) > nav[aria-label="Shortcuts"] { display: none; }

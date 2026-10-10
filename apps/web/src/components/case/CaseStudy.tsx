@@ -3,7 +3,7 @@ import data from "@/generated/case-study.json";
 import { itemCost, readMenuFromText } from "@/lib/agent-tools";
 import styles from "./CaseStudy.module.css";
 
-const brl = (v: number) => `R$${v.toFixed(2).replace(".", ",")}`;
+const brl = (v: number) => `R$${v.toFixed(2)}`;
 const IFOOD_SERVICE_FEE_BRL = 0.99;
 
 type Row = { ml: number; price: number; perLiter: number; count: number; example: string };
@@ -38,43 +38,43 @@ export function CaseStudy() {
     <section className={`wrap ${styles.case}`} aria-labelledby="case-title">
       <div className={styles.head}>
         <span className="eyebrow">
-          Loja real · {data.shop}, {data.city} · {data.observedOn.split("-").reverse().join("/")}
+          Real shop · {data.shop}, {data.city} · {data.observedOn}
         </span>
-        <h2 id="case-title" className={`display ${styles.h2}`}>Um cardápio, {read.items_read} itens, uma conta.</h2>
+        <h2 id="case-title" className={`display ${styles.h2}`}>One menu, {read.items_read} items, one calculation.</h2>
         <p className={styles.lede}>
-          A extensão leu o cardápio desta loja como ele aparece na tela, sem login. O mesmo motor que roda na extensão e no MCP calcula os números
-          abaixo, ao vivo, a cada carregamento desta página.
+          The extension read this shop’s menu as it appears on screen, without login. The same engine that runs in the extension and the MCP server
+          computes the numbers below, live, every time this page loads.
         </p>
       </div>
 
       <div className={styles.stats}>
         <div className={styles.stat}>
           <span className={`num ${styles.big}`}>+{extraPct}%</span>
-          <span>é quanto o litro mais caro custa a mais que o mais barato, no mesmo açaí.</span>
+          <span>more per litre for the dearest açaí than for the cheapest, in the same shop.</span>
         </div>
         <div className={styles.stat}>
           <span className={`num ${styles.big}`}>{cost.fees_as_product_ml ?? "—"} ml</span>
           <span>
-            é o que as taxas ({brl(fees)}) valem no Marmitex de 700 ml. Você paga por açaí que não vem.
+            of the 700 ml bowl is what the fees ({brl(fees)}) are worth. You pay for açaí that never arrives.
           </span>
         </div>
         <div className={styles.stat}>
           <span className={`num ${styles.big}`}>{read.items_read}</span>
-          <span>itens lidos da página: preço, preço riscado, tamanho e porções.</span>
+          <span>items read from the page: price, struck-through price, size and servings.</span>
         </div>
       </div>
 
       <figure className={styles.chart}>
         <figcaption className={styles.chartHead}>
-          <strong>Preço por litro, mesma loja</strong>
-          <span className="muted small">Itens de mesmo tamanho e preço agrupados · preço do cardápio, sem taxas</span>
+          <strong>Price per litre, same shop</strong>
+          <span className="muted small">Items with the same size and price grouped · menu price, before fees</span>
         </figcaption>
         <ol className={styles.bars}>
           {rows.map((r, i) => (
             <li key={`${r.ml}-${r.price}`} className={i === 0 ? styles.best : undefined} title={`${r.example} · ${brl(r.price)}`}>
               <span className={styles.label}>
-                <strong>{r.ml} ml · {brl(r.price)}{i === 0 && <em className={styles.tag}>melhor por litro</em>}</strong>
-                <span className="muted">{r.count > 1 ? `${r.count} opções, ex.: ` : ""}{r.example}</span>
+                <strong>{r.ml} ml · {brl(r.price)}{i === 0 && <em className={styles.tag}>best per litre</em>}</strong>
+                <span className="muted">{r.count > 1 ? `${r.count} options, e.g. ` : ""}{r.example}</span>
               </span>
               <span className={styles.track} aria-hidden="true">
                 <i style={{ width: `${(r.perLiter / max) * 100}%` }} />
@@ -88,8 +88,8 @@ export function CaseStudy() {
       </figure>
 
       <p className="muted small">
-        Fonte: texto da página, sanitizado e versionado em <code>{data.source}</code>. Preços do cardápio são estimativas até a sacola.{" "}
-        <Link href="/transparencia">Como garantimos que a regra não muda →</Link>
+        Source: the page text, sanitized and versioned in <code>{data.source}</code>. Menu prices are estimates until the bag confirms them.{" "}
+        <Link href="/transparencia">How we prove the rule doesn’t change →</Link>
       </p>
     </section>
   );

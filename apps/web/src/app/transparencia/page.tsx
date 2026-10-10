@@ -5,8 +5,8 @@ import { AnchorPanel } from "./AnchorPanel";
 import styles from "./transparencia.module.css";
 
 export const metadata = {
-  title: "Transparência",
-  description: "A metodologia e o código dos cálculos do UPAY3FOOD, com o hash registrado na Solana mainnet. Qualquer pessoa pode verificar."
+  title: "Transparency",
+  description: "UPAY3FOOD's methodology and calculation code, with their hash anchored on Solana mainnet. Anyone can verify it."
 };
 
 export type Anchor = { signature: string; slot: number | null; signer: string; methodologySha256: string; engineSha256: string; commit: string | null; anchoredAt: string };
@@ -17,27 +17,27 @@ export default function Transparencia() {
     <div className={styles.page}>
       <section className={styles.hero}>
         <div className="wrap">
-          <span className={styles.kicker}>Solana mainnet · SPL Memo · verificável por qualquer pessoa</span>
-          <h1 className={`display ${styles.title}`}>Os números não mudam depois.</h1>
+          <span className={styles.kicker}>Solana mainnet · SPL Memo · verifiable by anyone</span>
+          <h1 className={`display ${styles.title}`}>The numbers can’t quietly change.</h1>
           <p className={styles.lede}>
-            Cada versão da metodologia e do código que calcula o preço por litro, as 3 camadas e a recomendação vira um hash SHA-256. Esse hash é registrado
-            na Solana. Se alguém alterar a regra depois, o hash não bate mais.
+            Every version of the methodology and of the code that computes the price per litre, the 3 layers and the recommendation becomes a SHA-256 hash.
+            That hash is anchored on Solana. If anyone changes the rule later, the hash no longer matches.
           </p>
         </div>
       </section>
 
       <section className="wrap">
-        <h2 className={`display ${styles.h2}`}>Esta versão</h2>
+        <h2 className={`display ${styles.h2}`}>This version</h2>
         <dl className={styles.hashes}>
           <div>
-            <dt>Metodologia</dt>
+            <dt>Methodology</dt>
             <dd>
               <Link href="/docs/05-architecture/price-calculations">{info.methodologyFile}</Link>
               <code className="num">{info.methodologySha256}</code>
             </dd>
           </div>
           <div>
-            <dt>Código dos cálculos</dt>
+            <dt>Calculation code</dt>
             <dd>
               <span className="muted small">{info.engineFiles.join(" + ")}</span>
               <code className="num">{info.engineSha256}</code>
@@ -50,24 +50,24 @@ export default function Transparencia() {
             </dd>
           </div>
         </dl>
-        <pre className={styles.cmd}><code>{`# confira você mesmo, no repositório
+        <pre className={styles.cmd}><code>{`# check it yourself, in the repository
 sha256sum ${info.methodologyFile}
 cat ${info.engineFiles.join(" ")} | sha256sum`}</code></pre>
       </section>
 
       <section className="wrap">
-        <h2 className={`display ${styles.h2}`}>Registros na Solana</h2>
+        <h2 className={`display ${styles.h2}`}>Anchors on Solana</h2>
         <AnchorPanel current={{ methodologySha256: info.methodologySha256, engineSha256: info.engineSha256, commit: info.commit }} anchors={list} />
       </section>
 
       <section className={`wrap ${styles.why}`}>
-        <h2 className={`display ${styles.h2}`}>Por que isso importa</h2>
+        <h2 className={`display ${styles.h2}`}>Why it matters</h2>
         <ul>
-          <li><b>Para quem usa:</b> a regra que diz “o 700 ml sai mais barato por litro” é pública e não muda escondida.</li>
-          <li><b>Para as plataformas:</b> comparação com critério objetivo e publicado — o que faltou no caso Taxômetro (99Food, 2026).</li>
-          <li><b>Para reguladores e pesquisa:</b> índices futuros de preço de delivery poderão ser verificados lote a lote, do mesmo jeito.</li>
+          <li><b>For users:</b> the rule that says “the 700 ml is cheaper per litre” is public and cannot change behind their back.</li>
+          <li><b>For platforms:</b> a comparison with objective, published criteria — what was missing in the Taxômetro case (99Food, 2026).</li>
+          <li><b>For regulators and researchers:</b> future delivery price indexes can be verified batch by batch, the same way.</li>
         </ul>
-        <p className="muted small">O registro guarda só hashes. Nenhum preço de usuário, endereço ou dado pessoal vai para a blockchain.</p>
+        <p className="muted small">The anchor stores only hashes. No user price, address or personal data goes on-chain.</p>
       </section>
     </div>
   );

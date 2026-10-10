@@ -18,20 +18,21 @@ export interface GraphProps {
 
 /** Folder colors, the way a vault colors groups in its graph view. */
 const GROUP_COLOR: Record<string, string> = {
-  "": "#a68af9",
-  "00-overview": "#a68af9",
-  "01-problem": "#e5739a",
-  "02-user": "#e5739a",
-  "03-market": "#f0b35a",
-  "04-product": "#f2d06b",
-  "05-architecture": "#6fc3df",
+  // the site's food tones (globals.css): night ink, burger, pizza, açaí, sushi, cheaper/pricier
+  "": "#f3ede1",
+  "00-overview": "#f3ede1",
+  "01-problem": "#d7322b",
+  "02-user": "#d7322b",
+  "03-market": "#f28c6b",
+  "04-product": "#f2b705",
+  "05-architecture": "#c9a6e8",
   "06-business": "#7bd389",
-  "07-hackathon": "#f28c6b",
+  "07-hackathon": "#d9412b",
   "08-proofs": "#7bd389",
-  decisions: "#c9a6e8",
+  decisions: "#f6c445",
   incidents: "#ff8a7a",
-  spikes: "#f6c445",
-  apps: "#8fa3b8"
+  spikes: "#b9ad9b",
+  apps: "#8c8170"
 };
 
 /**

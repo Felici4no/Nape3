@@ -52,11 +52,11 @@ const ICONS = {
 };
 
 const ITEMS: Array<{ href: string; label: string; icon: keyof typeof ICONS }> = [
-  { href: "/", label: "Início", icon: "home" },
-  { href: "/instalar", label: "Instalar", icon: "extension" },
-  { href: "/agentes", label: "Agentes", icon: "agent" },
-  { href: "/transparencia", label: "Prova", icon: "proof" },
-  { href: "/wallet", label: "Carteira", icon: "wallet" }
+  { href: "/", label: "Home", icon: "home" },
+  { href: "/instalar", label: "Install", icon: "extension" },
+  { href: "/agentes", label: "Agents", icon: "agent" },
+  { href: "/transparencia", label: "Proof", icon: "proof" },
+  { href: "/wallet", label: "Wallet", icon: "wallet" }
 ];
 
 /**
@@ -67,7 +67,7 @@ const ITEMS: Array<{ href: string; label: string; icon: keyof typeof ICONS }> = 
 export function BottomNav() {
   const pathname = usePathname() ?? "/";
   return (
-    <nav className={styles.dock} aria-label="Atalhos">
+    <nav className={styles.dock} aria-label="Shortcuts">
       <ul className={styles.bar}>
         {ITEMS.map((item) => {
           const active = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`);
