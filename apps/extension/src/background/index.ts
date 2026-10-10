@@ -322,11 +322,16 @@ async function bridgeStart(): Promise<ExtensionResponse> {
   const settings = await getSettings();
   const origin = bridgeOrigin(settings);
   if (!origin || !settings.devBridgeToken) return { ok: false, error: "set the bridge URL and token first" };
-  const response = await fetch(`${origin}/api/dev/extension/session`, {
-    method: "POST",
-    credentials: "omit",
-    headers: { authorization: `Bearer ${settings.devBridgeToken}` }
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${origin}/api/dev/extension/session`, {
+      method: "POST",
+      credentials: "omit",
+      headers: { authorization: `Bearer ${settings.devBridgeToken}` }
+    });
+  } catch {
+    return { ok: false, error: `could not reach ${origin} (network or site access blocked; check chrome://extensions → Details → Site access)` };
+  }
   if (!response.ok) return { ok: false, error: `bridge answered HTTP ${response.status}${response.status === 404 ? " (bridge not configured on the server)" : response.status === 401 ? " (wrong token)" : ""}` };
   const { sessionId } = (await response.json()) as { sessionId: string };
   const next = { ...settings, devBridgeEnabled: true, devBridgeSessionId: sessionId };

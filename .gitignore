@@ -12,3 +12,4 @@ apps/agent-api/data/
 .next
 next-env.d.ts
 *.tsbuildinfo
+out/
