@@ -179,3 +179,16 @@ describe("regression: real iFood product modal without a heading (2026-10-10 cap
     expect(snapshot.merchant).toMatchObject({ platformId: "28dbb602-58b9-4a3c-a1c1-812533f2b12f", slug: "maranata-acai-cidade-lider", via: "url" });
   });
 });
+
+describe("regression: real iFood restaurant menu cards (2026-10-10 capture)", () => {
+  it("reads each card once with current price, struck price and servings", async () => {
+    const { extractMenu } = await import("../src/content/extractors/restaurant");
+    const doc = load("restaurant-real-menu", "https://www.ifood.com.br/delivery/sao-paulo-sp/maranata-acai-cidade-lider/28dbb602-58b9-4a3c-a1c1-812533f2b12f");
+    const menu = extractMenu(doc.body);
+    expect(menu).toEqual([
+      { title: "*Açaí + 2x Amendoim + 2x Leite Condensado 300ml", priceCents: 1999, originalPriceCents: 3000, servingsText: null },
+      { title: "*Marmitex de Açaí 700ml", priceCents: 3199, originalPriceCents: 5790, servingsText: null },
+      { title: "*Açaí + 2x Morangos Premium + 2x Leite em Pó 300ml", priceCents: 2099, originalPriceCents: null, servingsText: "Serve 1 pessoa" }
+    ]);
+  });
+});

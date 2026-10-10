@@ -50,3 +50,27 @@ export function parsePackQuantity(text: string): number {
   }
   return 1;
 }
+
+const GRAM_RE = /(\d{2,4})\s*(?:g|gr|gramas?)\b/;
+const KILO_RE = /(\d+(?:[.,]\d{1,3})?)\s*(?:kg|quilos?)\b/;
+
+/** Weight in grams from a title ("Marmita 500g", "1 kg", "0,5kg"); null when absent. */
+export function parseWeightG(text: string): number | null {
+  const normalized = normalizeText(text);
+  const grams = GRAM_RE.exec(normalized);
+  if (grams) return Number.parseInt(grams[1]!, 10);
+  const kilos = KILO_RE.exec(normalized);
+  if (kilos) {
+    const value = Math.round(Number.parseFloat(kilos[1]!.replace(",", ".")) * 1000);
+    return value > 0 ? value : null;
+  }
+  return null;
+}
+
+/** People served, from "Serve 1 pessoa" / "Serve 2 pessoas"; null when absent. */
+export function parseServings(text: string): number | null {
+  const match = /\bserve\s*(?:ate\s*)?(\d{1,2})\s*pessoas?\b/.exec(normalizeText(text));
+  if (!match) return null;
+  const value = Number.parseInt(match[1]!, 10);
+  return value >= 1 && value <= 20 ? value : null;
+}

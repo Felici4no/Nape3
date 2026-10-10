@@ -3,7 +3,7 @@ import type { CandidateEvaluation, Decision } from "@nape3/agent";
 import { formatBRL, type Cents, type Membership } from "@nape3/domain";
 import { PRIVACY_COPY } from "@nape3/payments/privacy-copy";
 import { errorMessage } from "../shared/log";
-import { PriceCard } from "./PriceCard";
+import { CostXray, MenuValueCard, PriceCard } from "./PriceCard";
 import { abbreviateAddress, payability, walletSummary, type WalletStatus } from "../shared/payment";
 import type {
   BridgeStatus,
@@ -711,6 +711,8 @@ export function App() {
       )}
 
       {snapshot?.product && <PriceCard snapshot={snapshot} cheapestComparableCents={cheapest} />}
+      {snapshot && (snapshot.product || (snapshot.cart?.validity.valid && snapshot.cart.lines.length === 1)) && <CostXray snapshot={snapshot} />}
+      {snapshot?.restaurant?.menu && <MenuValueCard menu={snapshot.restaurant.menu} />}
 
       {snapshot?.product && (
         <section>

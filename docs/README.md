@@ -17,7 +17,7 @@
 
 App READMEs (`apps/*/README.md`) are published with the docs under **Apps**.
 
-Latest notes: [Modelo de negócio e pitch (pt-BR)](06-business/business-model-and-pitch.pt-BR.md) · [Benchmark vs past winners](07-hackathon/benchmark.md) · [Data sources](03-market/data-sources.md) · [ADR-007: no headless scraping](decisions/ADR-007-no-headless-scraping.md) · [HTTP 403 and web ↔ extension transport](incidents/2026-10-06-rpc-403-and-web-extension-transport.md) · [Extension Dev Bridge](05-architecture/dev-bridge.md) · [Spike: delivery context](spikes/2026-10-06-delivery-context-discovery.md)
+Latest notes: [Price calculations](05-architecture/price-calculations.md) · [Modelo de negócio e pitch (pt-BR)](06-business/business-model-and-pitch.pt-BR.md) · [Benchmark vs past winners](07-hackathon/benchmark.md) · [Data sources](03-market/data-sources.md) · [ADR-007: no headless scraping](decisions/ADR-007-no-headless-scraping.md) · [HTTP 403 and web ↔ extension transport](incidents/2026-10-06-rpc-403-and-web-extension-transport.md) · [Extension Dev Bridge](05-architecture/dev-bridge.md) · [Spike: delivery context](spikes/2026-10-06-delivery-context-discovery.md)
 
 Current mainnet milestone: [first confirmed 1 USDC Cloak shield](08-proofs/2026-10-05-mainnet-shield.md).
 

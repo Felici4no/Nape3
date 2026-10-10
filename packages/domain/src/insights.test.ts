@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { priceLayers, unitInsights } from "./insights";
+import { costInsights, menuValue, priceLayers, unitInsights } from "./insights";
+import { parseServings, parseWeightG } from "./volume";
 
 describe("priceLayers (you pay 3 times for food)", () => {
   it("splits a real bag: R$31,99 food + R$0,00 delivery + R$0,99 service = R$32,98", () => {
@@ -36,5 +37,50 @@ describe("unitInsights", () => {
     });
     expect(unitInsights({ title: "*Açaí + 2x Amendoim + 2x Leite Condensado 300ml", priceCents: 1999 })).toMatchObject({ volumeMl: 300, pricePer100mlCents: 666, discountCents: null });
     expect(unitInsights({ title: null, priceCents: 1000 }).pricePer100mlCents).toBeNull();
+  });
+});
+
+describe("costInsights", () => {
+  it("shows the real cost of 100 ml once fees are included, and the fees in product", () => {
+    const c = costInsights({ title: "*Marmitex de Açaí 700ml", priceCents: 3199, originalPriceCents: 5790, servingsText: "Serve 1 pessoa", feesCents: 798 });
+    expect(c).toMatchObject({
+      volumeMl: 700,
+      pricePer100mlCents: 457,
+      pricePerLiterCents: 4570,
+      effectivePer100mlCents: 571,
+      feesAsProductMl: 175,
+      servings: 1,
+      totalPerServingCents: 3997,
+      discountPct: 44.7
+    });
+  });
+
+  it("handles weight and missing data", () => {
+    expect(costInsights({ title: "Marmita fit 500g", priceCents: 2500, feesCents: 500 })).toMatchObject({ weightG: 500, pricePer100gCents: 500, feesAsProductG: 100, volumeMl: null });
+    expect(costInsights({ title: "Açaí 300ml", priceCents: 1999 })).toMatchObject({ effectivePer100mlCents: null, feesAsProductMl: null, totalPerServingCents: null });
+  });
+
+  it("parses weights and servings", () => {
+    expect(parseWeightG("Marmita 1,2 kg")).toBe(1200);
+    expect(parseWeightG("Açaí 500ml")).toBeNull();
+    expect(parseServings("Serve 2 pessoas")).toBe(2);
+    expect(parseServings("Serve até 4 pessoas")).toBe(4);
+    expect(parseServings("Delicioso")).toBeNull();
+  });
+});
+
+describe("menuValue (tamanho que compensa)", () => {
+  it("ranks a real menu by price per 100 ml and counts duplicate cards once", () => {
+    const menu = menuValue([
+      { title: "*Açaí + 2x Amendoim + 2x Leite Condensado 300ml", priceCents: 1999 },
+      { title: "*Açaí + 2x Amendoim + 2x Leite Condensado 300ml", priceCents: 1999 },
+      { title: "*Marmitex de Açaí 700ml", priceCents: 3199 },
+      { title: "*Açaí + 2x Morangos Premium + 2x Leite em Pó 300ml", priceCents: 2099 },
+      { title: "Água mineral", priceCents: 400 }
+    ]);
+    expect(menu.ranked.map((i) => i.pricePer100mlCents)).toEqual([457, 666, 700]);
+    expect(menu.best?.volumeMl).toBe(700);
+    expect(menu.spreadPct).toBe(34.7);
+    expect(menu.unranked).toBe(1);
   });
 });

@@ -1,5 +1,5 @@
-import { formatBRL, priceLayers, unitInsights, type Cents } from "@nape3/domain";
-import type { CartSnapshot, PageSnapshot } from "../shared/types";
+import { costInsights, formatBRL, menuValue, priceLayers, unitInsights, type Cents } from "@nape3/domain";
+import type { CartSnapshot, MenuCard, PageSnapshot } from "../shared/types";
 
 const brl = (cents: number) => formatBRL(cents as Cents);
 const pct = (value: number) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
@@ -92,7 +92,7 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: "
 type CardInput = {
   label: string;
   layers: { foodCents: number; deliveryFeeCents: number | null; serviceFeeCents: number | null; discountCents?: number | null; totalCents?: number | null };
-  unit: { title: string | null; priceCents: number; originalPriceCents?: number | null };
+  unit: { title: string | null; priceCents: number; originalPriceCents?: number | null; servingsText?: string | null };
 };
 
 function fromSnapshot(snapshot: PageSnapshot): CardInput | null {
@@ -107,7 +107,12 @@ function fromSnapshot(snapshot: PageSnapshot): CardInput | null {
         deliveryFeeCents: product.deliveryFeeCents?.value ?? null,
         serviceFeeCents: null
       },
-      unit: { title: product.title.value, priceCents: product.unitPriceCents.value, originalPriceCents: product.originalUnitPriceCents.value }
+      unit: {
+        title: product.title.value,
+        priceCents: product.unitPriceCents.value,
+        originalPriceCents: product.originalUnitPriceCents.value,
+        servingsText: product.servingsText ?? null
+      }
     };
   }
   return null;
@@ -129,4 +134,87 @@ function fromCart(cart: CartSnapshot): CardInput {
       ? { title: single.sourceTitle, priceCents: Math.round(single.lineTotalCents / Math.max(1, single.quantity)) }
       : { title: null, priceCents: cart.itemsSubtotalCents.value! }
   };
+}
+
+const ml = (value: number) => `${value.toLocaleString("pt-BR")} ml`;
+
+/**
+ * "Raio-X do preço": the same product seen as the market compares it — per
+ * 100 ml, per litre, per 100 g, per person, the real per-100 ml with the fees,
+ * and the fees converted into product. One sentence per view; only views
+ * with data are shown.
+ */
+export function CostXray({ snapshot }: { snapshot: PageSnapshot }) {
+  const input = fromSnapshot(snapshot);
+  if (!input || !input.unit.title) return null;
+  const layers = priceLayers(input.layers);
+  const c = costInsights({ ...input.unit, feesCents: layers.feesCents });
+  const rows: Array<{ k: string; value: string; text: string }> = [];
+  if (c.pricePer100mlCents !== null) {
+    rows.push({
+      k: "100ml",
+      value: brl(c.pricePer100mlCents),
+      text:
+        c.effectivePer100mlCents !== null && c.effectivePer100mlCents !== c.pricePer100mlCents
+          ? `cada 100 ml no cardápio · com as taxas, ${brl(c.effectivePer100mlCents)}`
+          : "cada 100 ml"
+    });
+  }
+  if (c.pricePerLiterCents !== null) rows.push({ k: "litro", value: brl(c.pricePerLiterCents), text: "o litro, para comparar com outros tamanhos" });
+  if (c.pricePer100gCents !== null) rows.push({ k: "100g", value: brl(c.pricePer100gCents), text: "cada 100 g" });
+  if (c.feesAsProductMl !== null && layers.feesCents > 0) {
+    rows.push({ k: "fees-ml", value: ml(c.feesAsProductMl), text: `é o que as taxas (${brl(layers.feesCents)}) valem deste produto` });
+  } else if (c.feesAsProductG !== null && layers.feesCents > 0) {
+    rows.push({ k: "fees-g", value: `${c.feesAsProductG} g`, text: `é o que as taxas (${brl(layers.feesCents)}) valem deste produto` });
+  }
+  if (c.totalPerServingCents !== null) {
+    rows.push({ k: "pessoa", value: brl(c.totalPerServingCents), text: `por pessoa com taxas (serve ${c.servings})` });
+  }
+  if (c.discountPct !== null && c.discountCents !== null) {
+    rows.push({ k: "desconto", value: `−${pct(c.discountPct)}`, text: `${brl(c.discountCents)} abaixo do preço riscado, informado pela loja` });
+  }
+  if (rows.length === 0) return null;
+  return (
+    <section className="xray">
+      <span className="eyebrow">Raio-X do preço</span>
+      <ul>
+        {rows.map((row) => (
+          <li key={row.k}>
+            <span className="num">{row.value}</span>
+            <span>{row.text}</span>
+          </li>
+        ))}
+      </ul>
+      {layers.estimated && <p className="muted small">Com taxas estimadas até a sacola.</p>}
+    </section>
+  );
+}
+
+/** "Tamanho que compensa": the shop's açaí menu ranked by price per 100 ml. */
+export function MenuValueCard({ menu }: { menu: readonly MenuCard[] }) {
+  const value = menuValue(menu.filter((item) => /a[cç]a[ií]/i.test(item.title)));
+  if (!value.best || !value.worst || value.ranked.length < 2) return null;
+  const top = value.ranked.slice(0, 3);
+  return (
+    <section className="xray">
+      <span className="eyebrow">Tamanho que compensa</span>
+      <p className="small">
+        Nesta loja, o mais barato por ml sai <strong>{pct(value.spreadPct ?? 0)} mais barato</strong> por 100 ml que o mais caro.
+      </p>
+      <ul>
+        {top.map((item, index) => (
+          <li key={`${item.title}|${item.priceCents}`}>
+            <span className="num">{brl(item.pricePer100mlCents)}</span>
+            <span>
+              {index === 0 ? "★ " : ""}
+              {item.title} <small className="muted">· {brl(item.priceCents)}</small>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="muted small">
+        {value.ranked.length} itens com tamanho em ml{value.unranked ? ` · ${value.unranked} sem tamanho ficaram de fora` : ""} · preço do cardápio, sem taxas.
+      </p>
+    </section>
+  );
 }

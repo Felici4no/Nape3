@@ -38,6 +38,15 @@ export interface RestaurantSnapshot {
   deliveryFeeCents: Field<Cents>;
   minimumOrderCents: Field<Cents>;
   eta: Field<EtaRange>;
+  /** Menu cards visible on the page (title + current/struck price), for size-vs-price views. */
+  menu?: MenuCard[];
+}
+
+export interface MenuCard {
+  title: string;
+  priceCents: Cents;
+  originalPriceCents: Cents | null;
+  servingsText: string | null;
 }
 
 export interface ProductSnapshot {
@@ -46,6 +55,8 @@ export interface ProductSnapshot {
   originalUnitPriceCents: Field<Cents>;
   /** The restaurant's delivery fee as the product modal shows it (may change in the bag). */
   deliveryFeeCents?: Field<Cents>;
+  /** "Serve 1 pessoa" as shown, when present. */
+  servingsText?: string | null;
 }
 
 export interface ExtractedLine {

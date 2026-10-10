@@ -1,6 +1,7 @@
 import { parseBRL } from "@nape3/domain";
-import type { RestaurantSnapshot } from "../../shared/types";
-import { amountForLabel, clean, field, findByOwnText, isVisible, missing, parseEta, textOf } from "../dom";
+import { parseAllBRL, type Cents } from "@nape3/domain";
+import type { MenuCard, RestaurantSnapshot } from "../../shared/types";
+import { amountForLabel, clean, field, findByOwnText, isStruckThrough, isVisible, missing, parseEta, textOf } from "../dom";
 
 /** iFood document titles look like "<Merchant> - <Neighbourhood> ... | iFood" (assumption). */
 function merchantFromTitle(title: string): string | null {
@@ -33,9 +34,38 @@ export function extractRestaurant(doc: Document): RestaurantSnapshot {
   const eta = etaLabel ? parseEta(textOf(etaLabel)) : null;
 
   return {
+    menu: extractMenu(root),
     merchantName,
     deliveryFeeCents,
     minimumOrderCents: minimumOrderCents as RestaurantSnapshot["minimumOrderCents"],
     eta: eta ? field(eta, "medium", `"${textOf(etaLabel!)}"`) : missing("ETA not found")
   };
+}
+
+/**
+ * Menu cards (iFood 2026: a.dish-card with __description, __price--discount,
+ * __price--original, dish-info-serves). Read-only; duplicates from the
+ * "Destaques" carousel are removed by title + price. At most 200 cards.
+ */
+export function extractMenu(root: Element): MenuCard[] {
+  const out: MenuCard[] = [];
+  const seen = new Set<string>();
+  for (const card of Array.from(root.querySelectorAll('[class~="dish-card"], a[class*="dish-card"]')).slice(0, 400)) {
+    const title = clean(textOf(card.querySelector('[class*="dish-card__description"]') ?? card.querySelector("h3") ?? card));
+    if (!title) continue;
+    const priceBox = card.querySelector('[class*="dish-card__price"]');
+    if (!priceBox) continue;
+    const current = card.querySelector('[class*="price--discount"]') ?? priceBox;
+    const struckEl = card.querySelector('[class*="price--original"]');
+    const priceCents = parseAllBRL(textOf(current)).find(() => true) ?? null;
+    if (priceCents === null || isStruckThrough(current)) continue;
+    const original = struckEl ? (parseAllBRL(textOf(struckEl))[0] ?? null) : null;
+    const key = `${title}|${priceCents}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const serves = card.querySelector('[class*="dish-info-serves"]');
+    out.push({ title, priceCents: priceCents as Cents, originalPriceCents: original as Cents | null, servingsText: serves ? clean(textOf(serves)) : null });
+    if (out.length >= 200) break;
+  }
+  return out;
 }

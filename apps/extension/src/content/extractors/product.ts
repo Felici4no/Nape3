@@ -69,10 +69,13 @@ export function extractProduct(doc: Document): ProductSnapshot {
   const feeValue = /gr[aá]tis/i.test(feeText) ? (0 as Cents) : parseAllBRL(feeText)[0] ?? null;
   const deliveryFeeCents = feeValue !== null ? field(feeValue, "medium", `restaurant card in dialog "${feeText}"`) : missing<Cents>("no delivery fee in dialog");
 
+  const serves = dialog.querySelector('[class*="dish-info-serves"]');
+
   return {
     title,
     unitPriceCents,
     deliveryFeeCents,
+    servingsText: serves ? clean(textOf(serves)) || null : null,
     originalUnitPriceCents: struck[0] ? field(struck[0].cents, "high", `struck "${struck[0].text}"`) : missing("no struck price")
   };
 }
