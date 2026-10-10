@@ -184,10 +184,13 @@ export async function listSnapshots(store: BridgeStore, id: string, now: number)
   return objects.filter((o) => o.pathname.startsWith(snapshotPrefix(id))).sort((a, b) => a.pathname.localeCompare(b.pathname));
 }
 
-export async function latestSnapshot(store: BridgeStore, id: string, now: number): Promise<{ found: false } | { found: true; snapshot: unknown; count: number }> {
+/** The newest snapshot, or the one at `index` (0 = oldest) when given. */
+export async function latestSnapshot(store: BridgeStore, id: string, now: number, index?: number): Promise<{ found: false } | { found: true; snapshot: unknown; count: number }> {
   const snaps = await listSnapshots(store, id, now);
   if (!snaps || snaps.length === 0) return { found: false };
-  const body = await store.get(snaps[snaps.length - 1]!.pathname);
+  const pick = index === undefined ? snaps[snaps.length - 1] : snaps[index];
+  if (!pick) return { found: false };
+  const body = await store.get(pick.pathname);
   return body ? { found: true, snapshot: JSON.parse(body), count: snaps.length } : { found: false };
 }
 
