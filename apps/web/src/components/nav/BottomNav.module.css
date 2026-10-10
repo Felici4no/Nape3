@@ -100,3 +100,7 @@
   .item, .label span, .icon { transition: none; }
   .active .icon { animation: none; }
 }
+
+@media (min-width: 761px) {
+  .dock { display: none; }
+}

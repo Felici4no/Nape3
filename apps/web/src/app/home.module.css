@@ -6,8 +6,8 @@
 .ctas { display: flex; gap: 10px; flex-wrap: wrap; }
 .heroBoard { background: var(--paper); border-radius: var(--radius-xl); padding: 18px 22px 10px; border: 1px solid var(--line); }
 
-.head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; margin: 72px 0 20px; }
-.h2 { font-size: clamp(40px, 5.5vw, 72px); }
+.head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin: 72px 0 20px; }
+.h2 { font-size: clamp(40px, 5.5vw, 72px); margin: 0; }
 .headLink { font-weight: 700; text-decoration: none; }
 
 .bento { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
@@ -75,3 +75,8 @@
   .heroShot { justify-self: center; }
   .heroShot img { width: 280px; transform: none; }
 }
+.trust { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 22px 0 0; padding: 0; font-size: 13.5px; color: var(--ink-2); }
+.trust li { display: flex; align-items: center; gap: 7px; }
+.trust li::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--cheaper); }
+.how li { position: relative; }
+.how img { -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent); mask-image: linear-gradient(to bottom, #000 82%, transparent); }

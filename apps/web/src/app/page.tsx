@@ -1,35 +1,8 @@
 import Link from "next/link";
-import { Change, Freshness, Price, SourceTag } from "@/components/bits";
-import { DecisionCard } from "@/components/DecisionCard";
-import { EmptyMarket, marketIsEmpty } from "@/components/EmptyMarket";
-import { FoodArt } from "@/components/FoodArt";
-import { InstrumentCard } from "@/components/InstrumentCard";
-import { MarketRows } from "@/components/MarketRows";
-import { Watchlist } from "@/components/watchlist";
-import { agentPicks, brl, freshnessLabel, quoteAll, REGION, USDC_RATE } from "@/lib/market";
-import { getMarketSource } from "@/lib/source.server";
+import { CaseStudy } from "@/components/case/CaseStudy";
 import styles from "./home.module.css";
 
-export const dynamic = "force-dynamic";
-
-export default async function Home() {
-  const source = await getMarketSource();
-  const now = new Date(source.fetchedAt);
-  const quotes = quoteAll(source, now);
-  const empty = marketIsEmpty(quotes);
-  const [acai, burger, pizza, sushi, acai300] = quotes as [typeof quotes[number], typeof quotes[number], typeof quotes[number], typeof quotes[number], typeof quotes[number]];
-  const picks = agentPicks(source, now);
-
-  const cheapest = quotes
-    .filter((q) => q.observations.length > 0)
-    .map((q) => ({ q, best: q.observations[0]! }))
-    .sort((a, b) => a.best.ageMinutes - b.best.ageMinutes);
-
-  const drops = quotes
-    .filter((q) => q.change && q.change.changeCents < 0)
-    .sort((a, b) => a.change!.changeBps - b.change!.changeBps);
-  const noHistory = quotes.filter((q) => q.summary.sufficient && !q.change);
-
+export default function Home() {
   return (
     <>
       <section className={styles.hero}>
@@ -46,6 +19,11 @@ export default async function Home() {
               <Link className="btn" href="/instalar">Instalar a extensão</Link>
               <Link className="btn ghost" href="/agentes">Plugue o seu agente</Link>
             </div>
+            <ul className={styles.trust}>
+              <li>Sem login</li>
+              <li>Sem API privada</li>
+              <li>Nunca faz pedido nem paga sozinha</li>
+            </ul>
           </div>
           <figure className={styles.heroShot}>
             <img src="/instalar/raio-x.png" width={380} height={666} alt="Popup da extensão num produto real: Você paga 3 vezes e Raio-X do preço" />
@@ -54,10 +32,10 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="wrap">
+      <section className="wrap" id="como-funciona">
         <div className={styles.head}>
           <h2 className={`display ${styles.h2}`}>Como funciona</h2>
-          <Link href="/docs/04-product" className={styles.headLink}>Produto →</Link>
+          <Link href="/docs/04-product" className={styles.headLink}>Tudo o que ela faz →</Link>
         </div>
         <ol className={styles.how}>
           <li>
@@ -93,26 +71,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="wrap" id="market-now">
-        <div className={styles.head}>
-          <h2 className={`display ${styles.h2}`}>Painel do mercado</h2>
-          <Link href="/market" className={styles.headLink}>Mercado completo →</Link>
-        </div>
-        <p className={`small ${styles.demoNote}`}>
-          {source.mode === "demo"
-            ? "Demonstração com dados fictícios: a rede de observações ainda não está publicada. Os números reais estão na extensão."
-            : "Observações reais registradas pela extensão. Observações, não ofertas."}{" "}
-          <SourceTag mode={source.mode} />
-        </p>
-        {!empty && <div className={styles.bento}>
-          <div className={styles.b1}><InstrumentCard quote={acai} size="xl" /></div>
-          <div className={styles.b2}><InstrumentCard quote={burger} size="l" /></div>
-          <div className={styles.b3}><InstrumentCard quote={pizza} size="m" /></div>
-          <div className={styles.b4}><InstrumentCard quote={sushi} size="m" /></div>
-          <div className={styles.b5}><InstrumentCard quote={acai300} size="s" /></div>
-        </div>}
-        {empty && <MarketRows quotes={quotes} />}
-      </section>
+      <CaseStudy />
 
       <section className="wrap">
         <div className={`night ${styles.privacyBand}`}>
@@ -128,12 +87,6 @@ export default async function Home() {
         </div>
       </section>
 
-      <div className="wrap">
-        <p className="muted small">
-          <Freshness minutes={acai.summary.freshness.newestAgeMinutes} count={quotes.reduce((n, q) => n + q.summary.sampleSize, 0)} /> em{" "}
-          {quotes.length} mercados.
-        </p>
-      </div>
     </>
   );
 }

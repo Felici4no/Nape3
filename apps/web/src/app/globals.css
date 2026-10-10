@@ -69,6 +69,8 @@ button { font: inherit; }
   line-height: 0.92;
   margin: 0;
 }
+/* the tight line-height clips accents (Ê, Ú, Á) into the label above a headline */
+h1.display { padding-top: 0.12em; }
 .eyebrow {
   font-size: 12px;
   font-weight: 600;
@@ -180,4 +182,4 @@ body:has([data-docs]) > header,
 body:has([data-docs]) > div[role="note"],
 body:has([data-docs]) > div[role="alert"],
 body:has([data-docs]) > footer,
-body:has([data-docs]) > nav[aria-label="Main"] { display: none; }
+body:has([data-docs]) > nav[aria-label="Atalhos"] { display: none; }

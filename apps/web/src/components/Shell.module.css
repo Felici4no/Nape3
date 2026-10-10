@@ -1,5 +1,5 @@
 .bar { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--cream) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
-.inner { display: flex; align-items: center; justify-content: center; height: 60px; }
+.inner { display: flex; align-items: center; gap: 28px; height: 64px; }
 .word {
   font-family: var(--font-display);
   font-size: 26px;
@@ -20,13 +20,27 @@
 .bannerWarn { background: #ffe1d6; border-bottom-color: #f0a58f; color: #6b1d0c; }
 .toggle { margin-left: 8px; font-weight: 600; white-space: nowrap; }
 /* leaves room for the floating bottom navigation */
-.footer { padding: 64px 0 calc(136px + env(safe-area-inset-bottom)); margin-top: 96px; }
-.sentence { font-size: clamp(40px, 6vw, 88px); max-width: 14ch; }
-.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 32px; color: var(--night-ink-2); }
+.links { display: flex; gap: 26px; margin-left: auto; font-size: 14.5px; font-weight: 600; }
+.links a { text-decoration: none; color: var(--ink-2); transition: color 0.12s ease; }
+.links a:hover { color: var(--ink); }
+.cta { padding: 9px 18px; font-size: 14px; box-shadow: none; }
+.footer { padding: 72px 0 48px; margin-top: 112px; }
+.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.sentence { font-size: clamp(40px, 6vw, 88px); max-width: 14ch; margin: 0; }
+.footCta { background: var(--burger); color: var(--ink); box-shadow: none; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--night-line, #3a3229); }
+.cols ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.cols a { color: var(--night-ink); text-decoration: none; }
+.cols a:hover { text-decoration: underline; }
+.fine { margin: 40px 0 0; max-width: 90ch; color: var(--night-ink-2); line-height: 1.6; }
 @media (max-width: 760px) {
   .word { font-size: 22px; }
-  .inner { height: 54px; }
-  .cols { grid-template-columns: 1fr; }
+  .inner { height: 56px; }
+  .links { display: none; }
+  .cta { margin-left: auto; padding: 7px 14px; font-size: 13px; }
+  .cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  /* leaves room for the floating bottom navigation */
+  .footer { padding-bottom: calc(120px + env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .word { animation: none; }

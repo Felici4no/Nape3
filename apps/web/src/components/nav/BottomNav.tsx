@@ -27,7 +27,13 @@ const ICONS = {
       <path d="M20.5 11h-3.8a2 2 0 0 0 0 4h3.8" />
     </>
   ),
-  pay: <path d="M13.5 2.5 5 13.5h6.5l-1 8 8.5-11h-6.5Z" />,
+  install: (
+    <>
+      <path d="M12 3.5v11" />
+      <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
+      <path d="M4.5 16v2.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V16" />
+    </>
+  ),
   privacy: (
     <>
       <path d="M12 3 19.5 6v5.5c0 4.6-3.2 8-7.5 9.5-4.3-1.5-7.5-4.9-7.5-9.5V6Z" />
@@ -37,25 +43,25 @@ const ICONS = {
 };
 
 const ITEMS: Array<{ href: string; label: string; icon: keyof typeof ICONS }> = [
-  { href: "/market", label: "Market", icon: "market" },
-  { href: "/agent", label: "Agent", icon: "agent" },
-  { href: "/wallet", label: "Wallet", icon: "wallet" },
-  { href: "/pay", label: "Pay", icon: "pay" },
-  { href: "/privacy", label: "Privacy", icon: "privacy" }
+  { href: "/", label: "Início", icon: "market" },
+  { href: "/instalar", label: "Instalar", icon: "install" },
+  { href: "/agentes", label: "Agentes", icon: "agent" },
+  { href: "/transparencia", label: "Prova", icon: "privacy" },
+  { href: "/wallet", label: "Carteira", icon: "wallet" }
 ];
 
 /**
- * Floating bottom navigation. Each destination is an icon; the current one
+ * Floating bottom navigation, phones only (the header carries the links on wider screens). Each destination is an icon; the current one
  * opens to show its name beside the icon (a grid 0fr → 1fr transition, so
  * the pill animates to the label's real width).
  */
 export function BottomNav() {
   const pathname = usePathname() ?? "/";
   return (
-    <nav className={styles.dock} aria-label="Main">
+    <nav className={styles.dock} aria-label="Atalhos">
       <ul className={styles.bar}>
         {ITEMS.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <li key={item.href}>
               <Link
