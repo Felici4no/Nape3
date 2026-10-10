@@ -1,4 +1,5 @@
-import { costInsights, formatBRL, menuValue, priceLayers, unitInsights, type Cents } from "@nape3/domain";
+import type { MenuAdvice, MenuCandidate } from "@nape3/agent";
+import { comboPremiums, costInsights, formatBRL, menuValue, priceLayers, readBurger, unitInsights, type Cents } from "@nape3/domain";
 import type { CartSnapshot, MenuCard, PageSnapshot } from "../shared/types";
 
 const brl = (cents: number) => formatBRL(cents as Cents);
@@ -190,31 +191,113 @@ export function CostXray({ snapshot }: { snapshot: PageSnapshot }) {
   );
 }
 
-/** "Tamanho que compensa": the shop's açaí menu ranked by price per 100 ml. */
+/**
+ * "Tamanho que compensa": the shop's menu ranked by price per 100 ml (açaí)
+ * or per 100 g of meat (burgers), plus what each combo charges for its extras.
+ */
 export function MenuValueCard({ menu }: { menu: readonly MenuCard[] }) {
-  const value = menuValue(menu.filter((item) => /a[cç]a[ií]/i.test(item.title)));
-  if (!value.best || !value.worst || value.ranked.length < 2) return null;
-  const top = value.ranked.slice(0, 3);
+  const acai = menu.filter((item) => /a[cç]a[ií]/i.test(item.title));
+  const burgers = menu.filter((item) => readBurger(item.title).meatGrams !== null || readBurger(item.title).isCombo);
+  const meat = acai.length < 2 && burgers.length >= 2;
+  const value = meat ? menuValue(burgers, "meat") : menuValue(acai, "volume");
+  const combos = meat ? comboPremiums(burgers) : [];
+  if ((!value.best || !value.worst || value.ranked.length < 2) && combos.length === 0) return null;
+  const unit = meat ? "100 g de carne" : "100 ml";
   return (
     <section className="xray">
       <span className="eyebrow">Tamanho que compensa</span>
-      <p className="small">
-        Nesta loja, o mais barato por ml sai <strong>{pct(value.spreadPct ?? 0)} mais barato</strong> por 100 ml que o mais caro.
-      </p>
-      <ul>
-        {top.map((item, index) => (
-          <li key={`${item.title}|${item.priceCents}`}>
-            <span className="num">{brl(item.pricePer100mlCents)}</span>
-            <span>
-              {index === 0 ? "★ " : ""}
-              {item.title} <small className="muted">· {brl(item.priceCents)}</small>
-            </span>
-          </li>
-        ))}
-      </ul>
+      {value.best && value.worst && value.ranked.length >= 2 && (
+        <>
+          <p className="small">
+            Nesta loja, o melhor custo sai <strong>{pct(value.spreadPct ?? 0)} mais barato</strong> por {unit} que o pior.
+          </p>
+          <ul>
+            {value.ranked.slice(0, 3).map((item, index) => {
+              const b = meat ? readBurger(item.title) : null;
+              return (
+                <li key={`${item.title}|${item.priceCents}`}>
+                  <span className="num">{brl(item.pricePer100mlCents)}</span>
+                  <span>
+                    {index === 0 ? "★ " : ""}
+                    {item.title}{" "}
+                    <small className="muted">
+                      · {brl(item.priceCents)}
+                      {b ? ` · ${b.meatGrams} g${b.meatType ? ` ${b.meatType}` : ""}${b.patties > 1 ? ` (${b.patties} carnes)` : ""}` : ""}
+                    </small>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+      {combos.slice(0, 2).map((combo) => (
+        <p className="small" key={combo.combo}>
+          No combo, {combo.extras.length ? combo.extras.join(" + ") : "os extras"} custam <strong className="num">{brl(combo.extrasCents)}</strong> a mais que o lanche sozinho.
+        </p>
+      ))}
       <p className="muted small">
-        {value.ranked.length} itens com tamanho em ml{value.unranked ? ` · ${value.unranked} sem tamanho ficaram de fora` : ""} · preço do cardápio, sem taxas.
+        {value.ranked.length} itens com {meat ? "gramas de carne" : "tamanho em ml"}
+        {value.unranked ? ` · ${value.unranked} sem medida ficaram de fora` : ""} · preço do cardápio, sem taxas.
       </p>
+    </section>
+  );
+}
+
+const per = (c: MenuCandidate) => (c.unit === "ml" ? `${brl(c.pricePer100Cents! * 10)}/L` : `${brl(c.pricePer100Cents!)}/100 g`);
+
+/** "Pesquisa no cardápio": the agent's answer from the menus already read — estimates, never offers. */
+export function MenuAdvicePanel({ advice }: { advice: MenuAdvice }) {
+  if (advice.itemsConsidered === 0) {
+    return (
+      <section className="xray">
+        <span className="eyebrow">Pesquisa no cardápio</span>
+        <p className="small">Abra a página de algumas lojas no iFood: o cardápio de cada uma entra na pesquisa.</p>
+      </section>
+    );
+  }
+  const best = advice.bestForRequest;
+  const value = advice.bestValue;
+  return (
+    <section className="xray advice">
+      <div className="price-card__top">
+        <span className="eyebrow">Pesquisa no cardápio</span>
+        <span className="chip chip--warn">estimativa</span>
+      </div>
+      {best ? (
+        <div className="advice__best">
+          <span className="display num">{brl(best.estimatedTotalCents!)}</span>
+          <span className="small">
+            <strong>{best.title}</strong> · {best.merchantName}
+          </span>
+          <span className="muted small">
+            {brl(best.priceCents)}{best.quantity > 1 ? ` × ${best.quantity}` : ""} + frete {brl(best.deliveryFeeCents ?? 0)} + serviço {brl(best.serviceFeeCents)}
+            {best.pricePer100Cents ? ` · ${per(best)}` : ""}
+          </span>
+          {best.merchantPath && (
+            <a className="advice__link" href={`https://www.ifood.com.br${best.merchantPath}`} target="_blank" rel="noreferrer">
+              Abrir a loja no iFood
+            </a>
+          )}
+        </div>
+      ) : (
+        <p className="small">Nada no tamanho e no orçamento pedidos entre as lojas lidas.</p>
+      )}
+      {value && value !== best && (
+        <p className="small">
+          Melhor custo por {value.unit === "ml" ? "litro" : "100 g de carne"}: <strong>{value.title}</strong> em {value.merchantName} · <span className="num">{per(value)}</span>
+          {advice.bestValueOverBudget ? <span className="muted"> · passa do orçamento no total</span> : null}
+        </p>
+      )}
+      <details>
+        <summary>Como o agente chegou nisso</summary>
+        <ul className="reasons">
+          {advice.reasoning.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      </details>
+      <p className="muted small">Preços do cardápio com o frete mostrado na loja. Cupons, Clube e endereço podem mudar o valor: confirme na sacola.</p>
     </section>
   );
 }

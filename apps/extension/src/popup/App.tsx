@@ -3,7 +3,7 @@ import type { CandidateEvaluation, Decision } from "@nape3/agent";
 import { formatBRL, type Cents, type Membership } from "@nape3/domain";
 import { PRIVACY_COPY } from "@nape3/payments/privacy-copy";
 import { errorMessage } from "../shared/log";
-import { CostXray, MenuValueCard, PriceCard } from "./PriceCard";
+import { CostXray, MenuAdvicePanel, MenuValueCard, PriceCard } from "./PriceCard";
 import { abbreviateAddress, payability, walletSummary, type WalletStatus } from "../shared/payment";
 import type {
   BridgeStatus,
@@ -738,6 +738,7 @@ export function App() {
       {plan && !plan.currentCheckout.used && snapshot?.cart && (
         <p className="small warn">Your checkout was not used by the agent: {plan.currentCheckout.reason}</p>
       )}
+      {plan?.menuAdvice && <MenuAdvicePanel advice={plan.menuAdvice} />}
       {plan && <DecisionPanel decision={plan.decision} notes={plan.notes} intentError={plan.intentError} agentState={plan.agentState} />}
 
       {settings?.debug && snapshot && <DebugPanel snapshot={snapshot} market={market} tabId={tabId} />}

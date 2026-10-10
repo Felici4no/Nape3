@@ -1,3 +1,4 @@
+import { readBurger } from "./burger";
 import { parseServings, parseVolumeMl, parseWeightG } from "./volume";
 
 /**
@@ -149,8 +150,13 @@ export interface MenuItemInput {
   originalPriceCents?: number | null;
 }
 
+/** What a menu is ranked by: açaí per 100 ml, burgers per 100 g of meat. */
+export type MenuMeasure = "volume" | "meat";
+
 export interface MenuValue {
   /** Items with a volume, cheapest per 100 ml first. */
+  measure: MenuMeasure;
+  /** Items with a measure, cheapest per 100 units first. `volumeMl` holds ml or meat grams. */
   ranked: Array<MenuItemInput & { volumeMl: number; pricePer100mlCents: number }>;
   best: (MenuItemInput & { volumeMl: number; pricePer100mlCents: number }) | null;
   worst: (MenuItemInput & { volumeMl: number; pricePer100mlCents: number }) | null;
@@ -161,7 +167,7 @@ export interface MenuValue {
 }
 
 /** "Tamanho que compensa": ranks a shop's menu by price per 100 ml. Duplicate cards are counted once. */
-export function menuValue(items: readonly MenuItemInput[]): MenuValue {
+export function menuValue(items: readonly MenuItemInput[], measure: MenuMeasure = "volume"): MenuValue {
   const seen = new Set<string>();
   const ranked: MenuValue["ranked"] = [];
   let unranked = 0;
@@ -169,7 +175,7 @@ export function menuValue(items: readonly MenuItemInput[]): MenuValue {
     const key = `${item.title.trim().toLowerCase()}|${item.priceCents}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const volumeMl = parseVolumeMl(item.title);
+    const volumeMl = measure === "meat" ? readBurger(item.title).meatGrams : parseVolumeMl(item.title);
     if (!volumeMl || item.priceCents <= 0) {
       unranked += 1;
       continue;
@@ -180,6 +186,7 @@ export function menuValue(items: readonly MenuItemInput[]): MenuValue {
   const best = ranked[0] ?? null;
   const worst = ranked.length > 1 ? ranked[ranked.length - 1]! : null;
   return {
+    measure,
     ranked,
     best,
     worst,

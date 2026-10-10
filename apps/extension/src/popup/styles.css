@@ -149,10 +149,15 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .metric--ok .num { color: var(--cheaper); }
 
 /* raio-X + tamanho que compensa */
-.xray ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
-.xray li { display: grid; grid-template-columns: 76px 1fr; gap: 10px; align-items: baseline; font-size: 12.5px; color: var(--ink-2); }
-.xray li .num { font-size: 14px; font-weight: 700; color: var(--ink); text-align: right; }
+.xray > ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.xray > ul > li { display: grid; grid-template-columns: 76px 1fr; gap: 10px; align-items: baseline; font-size: 12.5px; color: var(--ink-2); }
+.xray > ul > li .num { font-size: 14px; font-weight: 700; color: var(--ink); text-align: right; }
 .xray strong { color: var(--cheaper); }
+
+.advice__best { display: grid; gap: 3px; }
+.advice__best .display { font-size: 32px; }
+.advice__link { font-size: 12px; font-weight: 600; color: var(--acai); }
+.reasons { margin: 4px 0 0; padding-left: 16px; font-size: 11.5px; color: var(--ink-2); display: grid; gap: 3px; }
 
 /* breakdown, market, decision */
 details summary { cursor: pointer; font-size: 12px; margin: 4px 0; color: var(--ink-2); }

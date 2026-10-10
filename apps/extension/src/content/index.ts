@@ -1,3 +1,4 @@
+import type { MenuObservation } from "@nape3/agent";
 import { createLogger, errorMessage } from "../shared/log";
 import {
   DEFAULT_SETTINGS,
@@ -90,6 +91,27 @@ function sendToBridge(snapshot: PageSnapshot) {
   }
 }
 
+let lastMenuKey = "";
+
+/** Restaurant pages: hand the visible menu (titles and prices only) to the background, once per change. */
+function recordMenu(snapshot: PageSnapshot) {
+  const restaurant = snapshot.restaurant;
+  if (!restaurant?.menu?.length) return;
+  const name = snapshot.merchant?.name ?? restaurant.merchantName.value;
+  if (!name) return;
+  const key = `${snapshot.merchant?.platformId ?? name}|${restaurant.menu.length}|${restaurant.deliveryFeeCents.value}`;
+  if (key === lastMenuKey) return;
+  lastMenuKey = key;
+  const menu: MenuObservation = {
+    merchant: { name, ...(snapshot.merchant ? { platformId: snapshot.merchant.platformId, path: snapshot.merchant.path } : {}) },
+    source: snapshot.source,
+    observedAt: snapshot.capturedAt,
+    deliveryFeeCents: restaurant.deliveryFeeCents.value,
+    items: restaurant.menu.map((item) => ({ title: item.title, priceCents: item.priceCents, originalPriceCents: item.originalPriceCents }))
+  };
+  void chrome.runtime.sendMessage({ type: "RECORD_MENU", menu } satisfies ExtensionMessage).catch(() => undefined);
+}
+
 async function observe(trigger: string): Promise<void> {
   let snapshot: PageSnapshot;
   try {
@@ -99,6 +121,7 @@ async function observe(trigger: string): Promise<void> {
     return;
   }
   sendToBridge(snapshot);
+  recordMenu(snapshot);
   if (!ORDER_CONTEXTS.has(snapshot.detection.context)) {
     lastFingerprint = "";
     lastSnapshot = null;

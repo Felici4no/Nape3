@@ -4,3 +4,4 @@ export * from "./state-machine";
 export * from "./plan";
 export * from "./funding";
 export * from "./run";
+export * from "./menu-advisor";

@@ -1,3 +1,4 @@
+import type { MenuAdvice, MenuObservation } from "@nape3/agent";
 import type { Decision } from "@nape3/agent";
 import type { Cents, CartQuoteObservation, Membership } from "@nape3/domain";
 import type { CheckoutComparison, MarketSummary } from "@nape3/market";
@@ -199,6 +200,8 @@ export type ExtensionMessage =
   | { type: "BRIDGE_START" }
   | { type: "GET_BRIDGE_STATUS" }
   | { type: "RECORD_SNAPSHOT"; snapshot: PageSnapshot; tabId?: number }
+  /** Content → background: the menu of the restaurant page being viewed (commercial data only). */
+  | { type: "RECORD_MENU"; menu: MenuObservation }
   | { type: "PLAN_INTENT"; request: string; snapshot: PageSnapshot | null }
   | { type: "GET_SETTINGS" }
   | { type: "SAVE_SETTINGS"; settings: ExtensionSettings }
@@ -218,6 +221,8 @@ export type ExtensionResponse =
       notes: string[];
       /** Whether the page's checkout was given to the decision engine, and why not. */
       currentCheckout: { used: boolean; reason: string | null };
+      /** Estimated answer from the menus already read (never an executable offer). */
+      menuAdvice: MenuAdvice | null;
     }
   | { ok: true; type: "SETTINGS"; settings: ExtensionSettings }
   | { ok: true; type: "DONE" }

@@ -1,4 +1,4 @@
-import { planPurchase } from "@nape3/agent";
+import { adviseFromMenus, planPurchase, type MenuObservation } from "@nape3/agent";
 import type { CartQuoteObservation, MarketObservation } from "@nape3/domain";
 import { acaiFixtures } from "@nape3/fixtures";
 import { compareCheckout, summarizeMarket, type MarketSummary } from "@nape3/market";
@@ -178,6 +178,28 @@ async function handleRecord(snapshot: PageSnapshot, tabId: number | undefined): 
   return { summary, comparison: compareCheckout(observation.quote.totalCents, summary), observation, notRecordedReason: null };
 }
 
+// --------------------------------------------------------------------------
+// Menus read on restaurant pages (local only, 24 h, at most 60 shops)
+// --------------------------------------------------------------------------
+
+const MENU_TTL_MS = 24 * 60 * 60_000;
+const MAX_MENUS = 60;
+
+async function getMenus(now = Date.now()): Promise<MenuObservation[]> {
+  const { menus } = (await chrome.storage.local.get("menus")) as { menus?: MenuObservation[] };
+  return (menus ?? []).filter((m) => now - Date.parse(m.observedAt) <= MENU_TTL_MS);
+}
+
+async function recordMenu(menu: MenuObservation): Promise<ExtensionResponse> {
+  const settings = await getSettings();
+  const entry: MenuObservation = { ...menu, ...(settings.marketRegion ? { marketRegion: settings.marketRegion } : {}) };
+  const key = (m: MenuObservation) => m.merchant.platformId ?? m.merchant.name;
+  const menus = [entry, ...(await getMenus()).filter((m) => key(m) !== key(entry))].slice(0, MAX_MENUS);
+  await chrome.storage.local.set({ menus });
+  log.info("menu.recorded", { merchant: entry.merchant.name, items: entry.items.length, shops: menus.length });
+  return { ok: true, type: "DONE" };
+}
+
 async function handlePlan(request: string, snapshot: PageSnapshot | null): Promise<ExtensionResponse> {
   const settings = await getSettings();
   const observerId = await getObserverId();
@@ -193,7 +215,10 @@ async function handlePlan(request: string, snapshot: PageSnapshot | null): Promi
     },
     ...(current?.ok ? { currentCheckout: current.observation } : {})
   });
-  log.info("agent.planned", { state: plan.agent.state, status: plan.decision?.status ?? null });
+  const menuAdvice = plan.intent.ok
+    ? adviseFromMenus(plan.intent.intent, await getMenus(now.getTime()), { now, ...(settings.marketRegion ? { marketRegion: settings.marketRegion } : {}) })
+    : null;
+  log.info("agent.planned", { state: plan.agent.state, status: plan.decision?.status ?? null, menuItems: menuAdvice?.itemsConsidered ?? 0 });
   return {
     ok: true,
     type: "PLAN",
@@ -203,7 +228,8 @@ async function handlePlan(request: string, snapshot: PageSnapshot | null): Promi
     notes: plan.intent.ok ? [...plan.intent.intent.parsing.notes, ...plan.intent.intent.parsing.missing.map((m) => `missing: ${m}`)] : [],
     currentCheckout: current?.ok
       ? { used: true, reason: null }
-      : { used: false, reason: current ? current.reason : "no checkout on this page" }
+      : { used: false, reason: current ? current.reason : "no checkout on this page" },
+    menuAdvice
   };
 }
 
@@ -427,6 +453,8 @@ async function handle(message: ExtensionMessage, tabId: number | undefined): Pro
     case "RECORD_SNAPSHOT":
       executor.nudge("page-changed");
       return { ok: true, type: "MARKET", market: await handleRecord(message.snapshot, tabId) };
+    case "RECORD_MENU":
+      return recordMenu(message.menu);
     case "PLAN_INTENT":
       return handlePlan(message.request, message.snapshot);
     case "GET_SETTINGS":
@@ -435,7 +463,7 @@ async function handle(message: ExtensionMessage, tabId: number | undefined): Pro
       await chrome.storage.local.set({ settings: message.settings });
       return { ok: true, type: "SETTINGS", settings: await getSettings() };
     case "CLEAR_OBSERVATIONS":
-      await chrome.storage.local.set({ observations: [] });
+      await chrome.storage.local.set({ observations: [], menus: [] });
       return { ok: true, type: "DONE" };
     case "GET_CONNECTIVITY":
       return { ok: true, type: "CONNECTIVITY", report: await connectivity(await getSettings(), null) };
