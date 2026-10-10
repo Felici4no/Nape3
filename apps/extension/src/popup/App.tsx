@@ -695,6 +695,16 @@ export function App() {
         </section>
       )}
 
+      {snapshot?.merchant && !snapshot.restaurant && (
+        <section>
+          <span className="label">Restaurant</span>
+          <div className="kv small">
+            <span>{snapshot.merchant.name ?? snapshot.merchant.slug}</span>
+            <span className="muted">{snapshot.merchant.via === "url" ? "from link" : "from restaurant page"}</span>
+          </div>
+        </section>
+      )}
+
       {snapshot?.product && (
         <section>
           <span className="label">Product</span>

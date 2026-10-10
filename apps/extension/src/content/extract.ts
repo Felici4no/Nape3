@@ -4,9 +4,10 @@ import { extractCart, extractCheckout } from "./extractors/cart";
 import { extractPixPayment } from "./extractors/pix";
 import { extractProduct } from "./extractors/product";
 import { extractRestaurant } from "./extractors/restaurant";
+import type { MerchantMemory } from "./merchant";
 
 /** Read-only: inspects the document and returns a snapshot. Never mutates the page. */
-export function takeSnapshot(doc: Document, url: string, now: Date = new Date()): PageSnapshot {
+export function takeSnapshot(doc: Document, url: string, now: Date = new Date(), merchants?: MerchantMemory): PageSnapshot {
   const detection = detectPageContext(doc, url);
   const snapshot: PageSnapshot = {
     source: "ifood",
@@ -37,5 +38,8 @@ export function takeSnapshot(doc: Document, url: string, now: Date = new Date())
     default:
       break;
   }
+  const pageMerchantName = snapshot.restaurant?.merchantName.value ?? snapshot.cart?.merchantName.value ?? null;
+  const merchant = merchants?.resolve(url, detection.context, pageMerchantName, now);
+  if (merchant) snapshot.merchant = merchant;
   return snapshot;
 }

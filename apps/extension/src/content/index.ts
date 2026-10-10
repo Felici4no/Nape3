@@ -11,6 +11,10 @@ import { removeBadge, renderBadge as renderBadgeNow, whenPageSettled } from "./b
 import { captureOrderDom, capturePage } from "./capture";
 import { takeSnapshot } from "./extract";
 import { bridgeKey, buildBridgePayload, MIN_INTERVAL_MS } from "./devbridge";
+import { createMerchantMemory } from "./merchant";
+
+/** Keeps the restaurant (from its URL) while the user opens a product, the bag or checkout in this tab. */
+const merchants = createMerchantMemory();
 
 const log = createLogger("content");
 const ORDER_CONTEXTS = new Set(["CART", "CHECKOUT", "PIX_PAYMENT"]);
@@ -75,7 +79,7 @@ function sendToBridge(snapshot: PageSnapshot) {
 async function observe(trigger: string): Promise<void> {
   let snapshot: PageSnapshot;
   try {
-    snapshot = takeSnapshot(document, location.href);
+    snapshot = takeSnapshot(document, location.href, new Date(), merchants);
   } catch (error) {
     log.error("snapshot.failed", { error: errorMessage(error) });
     return;
@@ -173,20 +177,20 @@ void whenPageSettled(window).then(() => {
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, _sender, sendResponse: (response: ExtensionResponse) => void) => {
     if (message.type === "PING") {
-      sendResponse({ ok: true, type: "PONG", context: takeSnapshot(document, location.href).detection.context, at: new Date().toISOString() });
+      sendResponse({ ok: true, type: "PONG", context: takeSnapshot(document, location.href, new Date(), merchants).detection.context, at: new Date().toISOString() });
       return false;
     }
     if (message.type !== "GET_SNAPSHOT" && message.type !== "GET_DOM_CAPTURE" && message.type !== "GET_PAGE_CAPTURE") return false;
     try {
       if (message.type === "GET_PAGE_CAPTURE") {
-        const capture = capturePage(document, takeSnapshot(document, location.href), { redactions: message.redactions, structureOnly: message.structureOnly ?? false });
+        const capture = capturePage(document, takeSnapshot(document, location.href, new Date(), merchants), { redactions: message.redactions, structureOnly: message.structureOnly ?? false });
         sendResponse({ ok: true, type: "PAGE_CAPTURE", capture });
         return false;
       }
       sendResponse(
         message.type === "GET_DOM_CAPTURE"
           ? { ok: true, type: "DOM_CAPTURE", capture: captureOrderDom(document) }
-          : { ok: true, type: "SNAPSHOT", snapshot: takeSnapshot(document, location.href) }
+          : { ok: true, type: "SNAPSHOT", snapshot: takeSnapshot(document, location.href, new Date(), merchants) }
       );
     } catch (error) {
       sendResponse({ ok: false, error: errorMessage(error) });

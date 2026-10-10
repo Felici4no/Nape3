@@ -13,6 +13,8 @@ export function buildBridgePayload(doc: Document, snapshot: PageSnapshot, extens
   const extracted = JSON.parse(
     scrub(JSON.stringify({ restaurant: snapshot.restaurant ?? null, product: snapshot.product ?? null, cart: snapshot.cart ?? null, pix: snapshot.pix ?? null }))
   ) as Record<string, unknown>;
+  // The restaurant's public path is built from a strict pattern (merchant.ts), not page text.
+  extracted.merchant = snapshot.merchant ?? null;
   return {
     schema: "upay3food.dev-snapshot.v1",
     capturedAt: snapshot.capturedAt,

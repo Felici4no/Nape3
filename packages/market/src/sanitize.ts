@@ -40,6 +40,8 @@ const STAGES: readonly QuoteStage[] = ["cart", "checkout", "pix-payment"];
 
 const REGION_RE = /^(BR-[A-Z]{2}(-[a-z0-9-]{1,40})?|cep:\d{3})$/;
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+/** Public restaurant path only: lowercase slugs and a UUID, no query, hash or anything else. */
+const MERCHANT_PATH_RE = /^\/delivery\/[a-z0-9-]{1,80}\/[a-z0-9-]{1,160}\/[0-9a-f-]{36}$/;
 const MAX_TEXT = 120;
 const MAX_LINES = 30;
 const MAX_CENTS = 10_000_000; // R$100.000,00 — anything above is a parsing error.
@@ -131,9 +133,12 @@ function merchant(c: Collector, value: unknown) {
   if (!isObject(value)) return c.fail("merchant: missing");
   const name = cleanText(c, value.name, "merchant.name");
   if (!name) return undefined;
-  const result: { name: string; sourceMerchantId?: string } = { name };
+  const result: { name: string; sourceMerchantId?: string; sourcePath?: string } = { name };
   if (typeof value.sourceMerchantId === "string" && ID_RE.test(value.sourceMerchantId)) {
     result.sourceMerchantId = value.sourceMerchantId;
+  }
+  if (typeof value.sourcePath === "string" && MERCHANT_PATH_RE.test(value.sourcePath)) {
+    result.sourcePath = value.sourcePath;
   }
   return result;
 }

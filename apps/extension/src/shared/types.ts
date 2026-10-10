@@ -92,6 +92,19 @@ export interface PixSnapshot {
   preferredEvidence: "pix-copy-paste" | "qr-code" | "pix-key" | null;
 }
 
+export interface PageMerchant {
+  /** Platform merchant id (the UUID in the restaurant URL). */
+  platformId: string;
+  city: string;
+  slug: string;
+  /** Canonical public path, e.g. /delivery/sao-paulo-sp/<slug>/<uuid>. */
+  path: string;
+  name: string | null;
+  /** "url": read from this page's URL; "carried": from the restaurant page opened before. */
+  via: "url" | "carried";
+  seenAt: string;
+}
+
 export interface PageSnapshot {
   source: "ifood";
   /** Unique per extraction; lets the UI prove the data is fresh. */
@@ -101,6 +114,8 @@ export interface PageSnapshot {
   /** Page kind only (e.g. "ifood:checkout"); never the URL, which can carry tokens. */
   pageRef: string;
   detection: ContextDetection;
+  /** The restaurant this page belongs to (public path on the platform; never query or hash). */
+  merchant?: PageMerchant;
   restaurant?: RestaurantSnapshot;
   product?: ProductSnapshot;
   cart?: CartSnapshot;

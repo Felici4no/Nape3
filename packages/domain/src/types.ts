@@ -40,7 +40,10 @@ export interface CanonicalProduct {
 
 export interface MerchantRef {
   name: string;
+  /** The platform's merchant id (for iFood, the UUID in the restaurant URL). */
   sourceMerchantId?: string;
+  /** Public restaurant path on the platform (no query or hash), e.g. /delivery/<city>/<slug>/<uuid>. */
+  sourcePath?: string;
 }
 
 /** A single item as listed by a platform (item-level price only). */

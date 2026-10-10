@@ -25,6 +25,18 @@ describe("sanitizeObservation", () => {
     for (const secret of ["session=abc", "Bearer", "Rua X", "Fulano"]) expect(serialized).not.toContain(secret);
   });
 
+  it("keeps the restaurant's public path and id, and drops anything else in it", () => {
+    const id = "2b1c6f7e-3d4a-4b5c-9d8e-1f2a3b4c5d6e";
+    const ok = JSON.parse(JSON.stringify(cart));
+    ok.quote.merchant = { name: "Maranata Açaí", sourceMerchantId: id, sourcePath: `/delivery/sao-paulo-sp/maranata-acai/${id}` };
+    const kept = sanitizeObservation(ok);
+    expect(kept.ok && kept.observation.kind === "cart-quote" && kept.observation.quote.merchant).toEqual(ok.quote.merchant);
+    const bad = JSON.parse(JSON.stringify(cart));
+    bad.quote.merchant = { name: "X", sourcePath: `/delivery/sao-paulo-sp/x/${id}?token=abc` };
+    const dropped = sanitizeObservation(bad);
+    expect(dropped.ok && dropped.observation.kind === "cart-quote" && dropped.observation.quote.merchant.sourcePath).toBeUndefined();
+  });
+
   it("scrubs e-mails and phone numbers from free text", () => {
     const input = JSON.parse(JSON.stringify(cart));
     input.quote.merchant.name = "Loja fulano@mail.com +55 (11) 98888-7777";

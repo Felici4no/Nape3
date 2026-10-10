@@ -64,7 +64,10 @@ export function snapshotToObservation(
     },
     quote: {
       source: snapshot.source,
-      merchant: { name: cart.merchantName.value ?? "unknown merchant" },
+      merchant: {
+        name: cart.merchantName.value ?? snapshot.merchant?.name ?? "unknown merchant",
+        ...(snapshot.merchant ? { sourceMerchantId: snapshot.merchant.platformId, sourcePath: snapshot.merchant.path } : {})
+      },
       stage: snapshot.detection.context === "PIX_PAYMENT" ? "pix-payment" : cart.stage,
       lines: cart.lines.map((line) => ({
         sourceTitle: line.sourceTitle,
