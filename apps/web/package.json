@@ -16,6 +16,7 @@
     "@fontsource-variable/inter": "^5.2.6",
     "@fontsource/anton": "^5.2.6",
     "@fontsource/jetbrains-mono": "^5.2.6",
+    "@modelcontextprotocol/server": "^2.3.1",
     "@nape3/agent": "workspace:*",
     "@nape3/chain": "workspace:*",
     "@nape3/domain": "workspace:*",
@@ -24,9 +25,11 @@
     "@nape3/pay": "workspace:*",
     "@nape3/payments": "workspace:*",
     "@vercel/blob": "^2.8.0",
+    "mcp-handler": "^2.3.0",
     "next": "^16.3.8",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",

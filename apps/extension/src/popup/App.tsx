@@ -3,7 +3,7 @@ import type { CandidateEvaluation, Decision } from "@nape3/agent";
 import { formatBRL, type Cents, type Membership } from "@nape3/domain";
 import { PRIVACY_COPY } from "@nape3/payments/privacy-copy";
 import { errorMessage } from "../shared/log";
-import { CostXray, DrinksPerLiterCard, MenuAdvicePanel, MenuValueCard, PriceCard } from "./PriceCard";
+import { agentExport, CostXray, DrinksPerLiterCard, MenuAdvicePanel, MenuValueCard, PriceCard } from "./PriceCard";
 import { abbreviateAddress, payability, walletSummary, type WalletStatus } from "../shared/payment";
 import type {
   BridgeStatus,
@@ -572,6 +572,17 @@ export function App() {
     }
   }
 
+  async function copyForAgent() {
+    try {
+      const response = await send({ type: "GET_MENUS" });
+      if (!(response.ok && response.type === "MENUS")) throw new Error("menus unavailable");
+      await navigator.clipboard.writeText(agentExport(request, response.menus));
+      setNotice(`Copiado: ${response.menus.length} loja(s) para colar no seu agente. Conecte https://upay3food.com/api/mcp nele.`);
+    } catch (error) {
+      setNotice(errorMessage(error));
+    }
+  }
+
   async function saveSettings(next: ExtensionSettings) {
     try {
       const origins = [next.networkEndpoint, next.agentApiUrl].filter((u): u is string => !!u).map((u) => `${new URL(u).origin}/*`);
@@ -740,6 +751,11 @@ export function App() {
         <p className="small warn">Your checkout was not used by the agent: {plan.currentCheckout.reason}</p>
       )}
       {plan?.menuAdvice && <MenuAdvicePanel advice={plan.menuAdvice} />}
+      {plan?.menuAdvice && plan.menuAdvice.itemsConsidered > 0 && (
+        <button className="secondary" onClick={() => void copyForAgent()}>
+          Copiar para o seu agente (Claude, ChatGPT…)
+        </button>
+      )}
       {plan && <DecisionPanel decision={plan.decision} notes={plan.notes} intentError={plan.intentError} agentState={plan.agentState} />}
 
       {settings?.debug && snapshot && <DebugPanel snapshot={snapshot} market={market} tabId={tabId} />}

@@ -351,3 +351,40 @@ export function DrinksPerLiterCard({ menu }: { menu: readonly MenuCard[] }) {
     </section>
   );
 }
+
+/** The menus read, in the shape of the UPAY3FOOD MCP tool `advise` (reais). Commercial data only. */
+export function agentExport(request: string, menus: readonly MenuObservationLike[]): string {
+  const payload = {
+    tool: "advise",
+    server: "https://upay3food.com/api/mcp",
+    arguments: {
+      request,
+      menus: menus.map((m) => ({
+        merchant_name: m.merchant.name,
+        merchant_url: m.merchant.path ? `https://www.ifood.com.br${m.merchant.path}` : null,
+        delivery_fee_brl: m.deliveryFeeCents === null ? null : m.deliveryFeeCents / 100,
+        observed_at: m.observedAt,
+        items: m.items.map((i) => ({
+          title: i.title,
+          price_brl: i.priceCents / 100,
+          item_url: m.merchant.path && i.itemId ? `https://www.ifood.com.br${m.merchant.path}?prato=${i.itemId}` : null
+        }))
+      }))
+    }
+  };
+  return [
+    `Pesquise para mim: "${request}".`,
+    "Use o servidor MCP do UPAY3FOOD (https://upay3food.com/api/mcp), ferramenta `advise`, com estes cardápios que eu li no iFood. Responda com o total estimado, o link do item e por quê. São estimativas: confirmo na sacola.",
+    "",
+    "```json",
+    JSON.stringify(payload, null, 2),
+    "```"
+  ].join("\n");
+}
+
+type MenuObservationLike = {
+  merchant: { name: string; path?: string };
+  deliveryFeeCents: number | null;
+  observedAt: string;
+  items: ReadonlyArray<{ title: string; priceCents: number; itemId?: string | null }>;
+};

@@ -44,7 +44,7 @@ export default async function Home() {
             <p className="muted small">You pay three times for food: the food, the fees, and the difference.</p>
             <div className={styles.ctas}>
               <Link className="btn" href="/instalar">Instalar a extensão</Link>
-              <Link className="btn ghost" href="/agent">Ask the agent</Link>
+              <Link className="btn ghost" href="/agentes">Plugue o seu agente</Link>
             </div>
           </div>
           <div className={styles.heroBoard}>

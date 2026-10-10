@@ -159,6 +159,9 @@ importers:
       '@fontsource/jetbrains-mono':
         specifier: ^5.2.6
         version: 5.3.0
+      '@modelcontextprotocol/server':
+        specifier: ^2.3.1
+        version: 2.3.1
       '@nape3/agent':
         specifier: workspace:*
         version: link:../../packages/agent
@@ -183,6 +186,9 @@ importers:
       '@vercel/blob':
         specifier: ^2.8.0
         version: 2.8.0
+      mcp-handler:
+        specifier: ^2.3.0
+        version: 2.3.0(@modelcontextprotocol/server@2.3.1)(next@16.3.8(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
       next:
         specifier: ^16.3.8
         version: 16.3.8(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -192,6 +198,9 @@ importers:
       react-dom:
         specifier: ^19.1.1
         version: 19.3.0(react@19.3.0)
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@types/node':
         specifier: ^22.18.0
@@ -885,6 +894,14 @@ packages:
 
   '@lightprotocol/hasher.rs@0.2.1':
     resolution: {integrity: sha512-uslXM+t8kIOeQKccS8eJIPhVglnaIrz06AUVYJjeR9RHM/26KFEKK431a5mBxvaAwVhRLM0s9ZFN+C9wKgNAjA==}
+
+  '@modelcontextprotocol/core@2.3.1':
+    resolution: {integrity: sha512-laVmIhPGpWi7rG9q+0UigblRN0Hws/Yjlb6qLFtVqryXVLkc4h+yN8z731POD2LnAGQlFe7/tXhUm7Bi0YB91g==}
+    engines: {node: '>=20'}
+
+  '@modelcontextprotocol/server@2.3.1':
+    resolution: {integrity: sha512-e59MfWuSssj6DoQ96JCTqdW1AXT5/XtnTl0WWd6MU1Ka434fFUGGosCLJbGNySDhHGvxQWoRWK137FXYFkYNWw==}
+    engines: {node: '>=20'}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -1806,6 +1823,10 @@ packages:
   client-only@0.0.1:
     resolution: {integrity: sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA==}
 
+  commander@11.1.0:
+    resolution: {integrity: sha512-yPVavfyCcRhmorC7rWlkHn15b4wDVgVmBA7kV4QVBsF7kv/9TKJAbAXVTxvTnwP8HHKjRCJDClKbciiYS7p0DQ==}
+    engines: {node: '>=16'}
+
   commander@14.0.2:
     resolution: {integrity: sha512-TywoWNNRbhoD0BXs1P3ZEScW8W5iKrnbithIl0YH+uCmBd0QpPOA8yc82DS3BIE5Ma6FnBVUsJ7wVUDz4dvOWQ==}
     engines: {node: '>=20'}
@@ -2152,6 +2173,17 @@ packages:
     resolution: {integrity: sha512-PamYXWWWg2nboG3oX5Ffzpy3EFZROqZJK9hSlMmUnekp7TxPs5DcT95vwd46m73/exfKCRVMtgXoPMI4FEJL6w==}
     engines: {node: '>= 20'}
     hasBin: true
+
+  mcp-handler@2.3.0:
+    resolution: {integrity: sha512-mvs+fJTLTa6kFv71CKPr+2ey+yXeuooM6WHz96pHhSvXe9m83qPizswU5NJ0yrUnJ2T+70VFPjsdstZtdB3evQ==}
+    engines: {node: '>=20'}
+    hasBin: true
+    peerDependencies:
+      '@modelcontextprotocol/server': ^2.0.0
+      next: '>=13.0.0'
+    peerDependenciesMeta:
+      next:
+        optional: true
 
   mdn-data@2.27.1:
     resolution: {integrity: sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ==}
@@ -2707,6 +2739,9 @@ packages:
 
   zod@4.1.11:
     resolution: {integrity: sha512-WPsqwxITS2tzx1bzhIKsEs19ABD5vmCVa4xBo2tq/SrV4RNZtfws1EnCWQXM6yh8bD08a1idvkB5MZSBiZsjwg==}
+
+  zod@4.6.5:
+    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
 snapshots:
 
@@ -3401,6 +3436,15 @@ snapshots:
   '@jup-ag/api@6.0.48': {}
 
   '@lightprotocol/hasher.rs@0.2.1': {}
+
+  '@modelcontextprotocol/core@2.3.1':
+    dependencies:
+      zod: 4.6.5
+
+  '@modelcontextprotocol/server@2.3.1':
+    dependencies:
+      '@modelcontextprotocol/core': 2.3.1
+      zod: 4.6.5
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
@@ -4401,6 +4445,8 @@ snapshots:
 
   client-only@0.0.1: {}
 
+  commander@11.1.0: {}
+
   commander@14.0.2: {}
 
   commander@15.0.0: {}
@@ -4811,6 +4857,14 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.6.0
 
   marked@18.1.0: {}
+
+  mcp-handler@2.3.0(@modelcontextprotocol/server@2.3.1)(next@16.3.8(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)):
+    dependencies:
+      '@modelcontextprotocol/server': 2.3.1
+      chalk: 5.6.2
+      commander: 11.1.0
+    optionalDependencies:
+      next: 16.3.8(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
 
   mdn-data@2.27.1: {}
 
@@ -5330,3 +5384,5 @@ snapshots:
   yallist@3.1.1: {}
 
   zod@4.1.11: {}
+
+  zod@4.6.5: {}

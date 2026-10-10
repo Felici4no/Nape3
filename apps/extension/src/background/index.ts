@@ -455,6 +455,8 @@ async function handle(message: ExtensionMessage, tabId: number | undefined): Pro
       return { ok: true, type: "MARKET", market: await handleRecord(message.snapshot, tabId) };
     case "RECORD_MENU":
       return recordMenu(message.menu);
+    case "GET_MENUS":
+      return { ok: true, type: "MENUS", menus: await getMenus() };
     case "PLAN_INTENT":
       return handlePlan(message.request, message.snapshot);
     case "GET_SETTINGS":

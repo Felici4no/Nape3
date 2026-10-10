@@ -13,7 +13,7 @@
 |---|---|
 | **A user** | [Install the extension](https://upay3food.com/instalar) · [What it shows](04-product/index.md) · [What it never does](04-product/index.md#what-it-never-does) |
 | **A judge** | [Product](04-product/index.md) · [Price calculations](05-architecture/price-calculations.md) · [Mainnet proof](08-proofs/2026-10-05-mainnet-shield.md) · [Business model and pitch (pt-BR)](06-business/business-model-and-pitch.pt-BR.md) · [Benchmark](07-hackathon/benchmark.md) |
-| **A developer** | [Architecture](05-architecture/index.md) · [Extension](apps/extension.md) · [Dev bridge](05-architecture/dev-bridge.md) · [Data sources](03-market/data-sources.md) · [ADRs](decisions/ADR-001-delivery-first.md) |
+| **A developer** | [Architecture](05-architecture/index.md) · [Extension](apps/extension.md) · [Dev bridge](05-architecture/dev-bridge.md) · [Plug your agent (MCP)](05-architecture/agents.md) · [Data sources](03-market/data-sources.md) · [ADRs](decisions/ADR-001-delivery-first.md) |
 
 ## What works today (2026-10-10)
 
@@ -26,6 +26,7 @@
 | Private funding: USDC shielded into Cloak | **Real on Solana mainnet** ([proof](08-proofs/2026-10-05-mainnet-shield.md)) |
 | Off-ramp to Pix | **Disabled** until a licensed provider is integrated (ADR-006) |
 | Website market board | **Synthetic demo data** until the observation network is deployed (the banner says so) |
+| Your own agent (Claude, ChatGPT, Cursor) via MCP | **Live**: `https://upay3food.com/api/mcp`, [how](05-architecture/agents.md) |
 | Mobile | [Plan](04-product/mobile.md) |
 
 ## How it works

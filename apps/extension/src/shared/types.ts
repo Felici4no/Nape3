@@ -204,6 +204,8 @@ export type ExtensionMessage =
   | { type: "RECORD_SNAPSHOT"; snapshot: PageSnapshot; tabId?: number }
   /** Content → background: the menu of the restaurant page being viewed (commercial data only). */
   | { type: "RECORD_MENU"; menu: MenuObservation }
+  /** Popup → background: the menus read in the last 24 h, for "Copiar para o seu agente". */
+  | { type: "GET_MENUS" }
   | { type: "PLAN_INTENT"; request: string; snapshot: PageSnapshot | null }
   | { type: "GET_SETTINGS" }
   | { type: "SAVE_SETTINGS"; settings: ExtensionSettings }
@@ -227,6 +229,7 @@ export type ExtensionResponse =
       menuAdvice: MenuAdvice | null;
     }
   | { ok: true; type: "SETTINGS"; settings: ExtensionSettings }
+  | { ok: true; type: "MENUS"; menus: MenuObservation[] }
   | { ok: true; type: "DONE" }
   | { ok: true; type: "DOM_CAPTURE"; capture: string }
   | { ok: true; type: "PAGE_CAPTURE"; capture: string }

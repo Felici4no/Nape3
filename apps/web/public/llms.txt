@@ -1,0 +1,21 @@
+# UPAY3FOOD
+
+> You pay three times for delivery food in Brazil: the food, the fees, and the difference to the cheapest option. UPAY3FOOD computes all three, plus price per litre / per 100 g of meat, menu rankings and an estimated recommendation with a link to the item.
+
+## MCP server
+
+- URL (Streamable HTTP, stateless, no auth): https://upay3food.com/api/mcp
+- Tools: price_breakdown, item_cost, rank_menu, advise, parse_ifood_link, methodology
+- Amounts in BRL (reais). Nothing is stored; the server never fetches any platform.
+
+## Rules for agents
+
+- Read only what the user can see (iFood shop pages work without login).
+- Never place orders or pay. Menu results are estimates; the bag confirms.
+- Do not send cookies, tokens, addresses or personal data.
+
+## Docs
+
+- Methodology: https://docs.upay3food.com/docs/05-architecture/price-calculations
+- Agents: https://docs.upay3food.com/docs/05-architecture/agents
+- Install the browser extension: https://upay3food.com/instalar

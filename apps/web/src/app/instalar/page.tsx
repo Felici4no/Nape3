@@ -100,7 +100,7 @@ export default function Instalar() {
           ))}
         </ol>
         <p className="muted small">
-          Ainda não está na Chrome Web Store, por isso a instalação é pelo modo do desenvolvedor. No celular: veja o <Link href="/docs/04-product/mobile">plano para mobile</Link>.
+          Ainda não está na Chrome Web Store, por isso a instalação é pelo modo do desenvolvedor. No celular: veja o <Link href="/docs/04-product/mobile">plano para mobile</Link>. Tem um agente (Claude, ChatGPT)? <Link href="/agentes">Plugue o UPAY3FOOD nele</Link>.
         </p>
       </section>
 

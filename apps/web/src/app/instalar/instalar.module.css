@@ -1,5 +1,6 @@
 /* /instalar has its own look: a night hero with the extension in a browser window,
    a numbered timeline with drawn UI, and the real screens at their natural size. */
+.page > :global(.wrap) { width: 100%; }
 .page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 80px; padding-bottom: 96px; }
 
 .hero { background: var(--night); color: var(--night-ink); padding: 64px 0 72px; overflow: hidden; }

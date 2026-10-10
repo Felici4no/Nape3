@@ -1,0 +1,24 @@
+/* /agentes: terminal-flavoured — acai night, mono code panels. */
+.page > :global(.wrap) { width: 100%; }
+.page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 72px; padding-bottom: 96px; }
+.hero { background: linear-gradient(160deg, #241034 0%, var(--acai) 55%, #2b1440 100%); color: var(--night-ink); padding: 72px 0; }
+.kicker { font-family: var(--font-num); font-size: 12px; letter-spacing: 0.08em; color: var(--acai-2); }
+.title { font-size: clamp(44px, 6.6vw, 96px); max-width: 15ch; margin: 14px 0 20px; }
+.lede { font-size: clamp(17px, 1.8vw, 20px); color: #e6d9f3; max-width: 58ch; margin: 0 0 28px; }
+.url { display: inline-grid; gap: 6px; padding: 16px 20px; border-radius: var(--radius-m); background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(201, 166, 232, 0.35); max-width: 100%; }
+.url code { font-size: clamp(15px, 2.2vw, 22px); color: var(--burger); overflow-wrap: anywhere; }
+.urlLabel { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--acai-2); }
+.h2 { font-size: clamp(34px, 4.6vw, 60px); margin: 0 0 24px; }
+.clients { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 12px; }
+.client { display: grid; gap: 6px; align-content: start; padding: 18px; border-radius: var(--radius-m); background: var(--paper); border: 1px solid var(--line); min-width: 0; }
+.client p { margin: 0; font-size: 14px; }
+.code { margin: 6px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--night); color: #f3ede1; font: 13px/1.5 var(--font-num); overflow-x: auto; white-space: pre; }
+.tools { width: 100%; border-collapse: collapse; }
+.tools td { padding: 14px 10px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 15px; }
+.tools code { color: var(--acai); font-size: 14px; }
+.flow { background: var(--paper-2); border-block: 1px solid var(--line); padding: 56px 0; }
+.flow ol { margin: 0 0 18px; padding-left: 22px; display: grid; gap: 10px; font-size: 17px; max-width: 70ch; }
+.rules ul { margin: 0 0 14px; padding-left: 20px; display: grid; gap: 10px; font-size: 17px; max-width: 72ch; }
+@media (max-width: 700px) {
+  .tools td:nth-child(3) { display: none; }
+}
