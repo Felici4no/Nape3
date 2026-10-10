@@ -159,3 +159,22 @@ describe("real iFood bag drawer (modelled on user screenshot)", () => {
     ]);
   });
 });
+
+describe("regression: real iFood product modal without a heading (2026-10-10 capture)", () => {
+  const URL_P = "https://www.ifood.com.br/delivery/sao-paulo-sp/maranata-acai-cidade-lider/28dbb602-58b9-4a3c-a1c1-812533f2b12f?item=x";
+
+  it("reads the item name from the modal title and the dish price", async () => {
+    const { extractProduct } = await import("../src/content/extractors/product");
+    const product = extractProduct(load("product-real-modal", URL_P));
+    expect(product.title).toMatchObject({ value: "*Marmitex de Açaí 700ml", confidence: "high" });
+    expect(product.unitPriceCents).toMatchObject({ value: 3199, confidence: "high" });
+    expect(product.originalUnitPriceCents.value).toBe(5790);
+  });
+
+  it("keeps the restaurant from the link while the product is open", async () => {
+    const { createMerchantMemory } = await import("../src/content/merchant");
+    const snapshot = takeSnapshot(load("product-real-modal", URL_P), URL_P, new Date(), createMerchantMemory());
+    expect(snapshot.detection.context).toBe("PRODUCT");
+    expect(snapshot.merchant).toMatchObject({ platformId: "28dbb602-58b9-4a3c-a1c1-812533f2b12f", slug: "maranata-acai-cidade-lider", via: "url" });
+  });
+});

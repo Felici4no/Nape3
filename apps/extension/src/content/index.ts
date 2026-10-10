@@ -59,13 +59,27 @@ function fingerprint(snapshot: PageSnapshot): string {
 
 let lastBridgeKey = "";
 let lastBridgeAt = 0;
+let bridgeRetry: ReturnType<typeof setTimeout> | undefined;
 
 /** Dev bridge (Debug mode + bridge on + a session): every page context, not only orders. */
 function sendToBridge(snapshot: PageSnapshot) {
   if (!settings.debug || !settings.devBridgeEnabled || !settings.devBridgeSessionId) return;
   const key = bridgeKey(document, snapshot);
   const now = Date.now();
-  if (key === lastBridgeKey || now - lastBridgeAt < MIN_INTERVAL_MS) return;
+  if (key === lastBridgeKey) return;
+  if (now - lastBridgeAt < MIN_INTERVAL_MS) {
+    // Too soon: send the page's state once the interval is over, so the last
+    // change (e.g. search results replacing the loading spinner) is not lost.
+    clearTimeout(bridgeRetry);
+    bridgeRetry = setTimeout(() => {
+      try {
+        sendToBridge(takeSnapshot(document, location.href, new Date(), merchants));
+      } catch (error) {
+        log.warn("bridge.retry_failed", { error: errorMessage(error) });
+      }
+    }, MIN_INTERVAL_MS - (now - lastBridgeAt) + 50);
+    return;
+  }
   lastBridgeKey = key;
   lastBridgeAt = now;
   try {
