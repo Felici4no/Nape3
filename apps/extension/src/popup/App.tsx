@@ -3,6 +3,7 @@ import type { CandidateEvaluation, Decision } from "@nape3/agent";
 import { formatBRL, type Cents, type Membership } from "@nape3/domain";
 import { PRIVACY_COPY } from "@nape3/payments/privacy-copy";
 import { errorMessage } from "../shared/log";
+import { PriceCard } from "./PriceCard";
 import { abbreviateAddress, payability, walletSummary, type WalletStatus } from "../shared/payment";
 import type {
   BridgeStatus,
@@ -601,10 +602,15 @@ export function App() {
   // Only a validated cart total (or a Pix amount when there is no summary). Never an item price.
   const total = snapshot?.cart ? (cartInvalid ? null : snapshot.cart.totalCents.value) : (snapshot?.pix?.amountCents.value ?? null);
 
+  // The third layer only against real, fresh, comparable observations.
+  const cheapest = market && market.summary.sufficient && !market.summary.containsSynthetic ? market.summary.lowestCents : null;
+
   return (
     <main className="shell">
-      <header>
-        <span className="eyebrow">UPAY3FOOD.agent</span>
+      <header className="top">
+        <span className="brand">
+          UPAY<span className="brand__three">3</span>FOOD
+        </span>
         {snapshot && (
           <span className="context" title={snapshot.detection.signals.join("\n")}>
             {context} · {Math.round(snapshot.detection.confidence * 100)}%
@@ -628,7 +634,7 @@ export function App() {
       {snapshot && (context === "CART" || context === "CHECKOUT" || context === "PIX_PAYMENT") && (
         <>
           <section className="current">
-            <span className="label">Current checkout</span>
+            {(cartInvalid || !snapshot.cart) && <span className="label">Current checkout</span>}
             {cartInvalid ? (
               <>
                 <strong className="price warn">Not validated</strong>
@@ -638,9 +644,8 @@ export function App() {
                 <span className="muted small">Not recorded and not used by the agent.</span>
               </>
             ) : (
-              <strong className="price">{money(total)}</strong>
+              snapshot.cart ? <PriceCard snapshot={snapshot} cheapestComparableCents={cheapest} /> : <strong className="price display num">{money(total)}</strong>
             )}
-            {snapshot.cart?.merchantName.value && <span className="muted small">{snapshot.cart.merchantName.value}</span>}
             {snapshot.cart && <Breakdown cart={snapshot.cart} />}
           </section>
           {!cartInvalid && <MarketPanel market={market} />}
@@ -704,6 +709,8 @@ export function App() {
           </div>
         </section>
       )}
+
+      {snapshot?.product && <PriceCard snapshot={snapshot} cheapestComparableCents={cheapest} />}
 
       {snapshot?.product && (
         <section>

@@ -1,5 +1,5 @@
 import type { ProductSnapshot } from "../../shared/types";
-import { parseAllBRL } from "@nape3/domain";
+import { parseAllBRL, type Cents } from "@nape3/domain";
 import { amountsIn, clean, field, findByOwnText, isStruckThrough, isVisible, missing, ownText, textOf } from "../dom";
 
 /**
@@ -64,9 +64,15 @@ export function extractProduct(doc: Document): ProductSnapshot {
     unitPriceCents = field(value.cents, "medium", `add button "${textOf(addButton)}" (includes selected options)`);
   }
 
+  const feeEl = dialog.querySelector('[class*="dish-restaurant__delivery-price"]');
+  const feeText = feeEl ? textOf(feeEl) : "";
+  const feeValue = /gr[aá]tis/i.test(feeText) ? (0 as Cents) : parseAllBRL(feeText)[0] ?? null;
+  const deliveryFeeCents = feeValue !== null ? field(feeValue, "medium", `restaurant card in dialog "${feeText}"`) : missing<Cents>("no delivery fee in dialog");
+
   return {
     title,
     unitPriceCents,
+    deliveryFeeCents,
     originalUnitPriceCents: struck[0] ? field(struck[0].cents, "high", `struck "${struck[0].text}"`) : missing("no struck price")
   };
 }

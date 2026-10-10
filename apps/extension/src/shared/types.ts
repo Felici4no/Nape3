@@ -44,6 +44,8 @@ export interface ProductSnapshot {
   title: Field<string>;
   unitPriceCents: Field<Cents>;
   originalUnitPriceCents: Field<Cents>;
+  /** The restaurant's delivery fee as the product modal shows it (may change in the bag). */
+  deliveryFeeCents?: Field<Cents>;
 }
 
 export interface ExtractedLine {

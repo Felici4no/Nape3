@@ -169,6 +169,7 @@ describe("regression: real iFood product modal without a heading (2026-10-10 cap
     expect(product.title).toMatchObject({ value: "*Marmitex de Açaí 700ml", confidence: "high" });
     expect(product.unitPriceCents).toMatchObject({ value: 3199, confidence: "high" });
     expect(product.originalUnitPriceCents.value).toBe(5790);
+    expect(product.deliveryFeeCents).toMatchObject({ value: 699, confidence: "medium" });
   });
 
   it("keeps the restaurant from the link while the product is open", async () => {
