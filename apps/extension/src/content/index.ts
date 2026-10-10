@@ -107,7 +107,7 @@ function recordMenu(snapshot: PageSnapshot) {
     source: snapshot.source,
     observedAt: snapshot.capturedAt,
     deliveryFeeCents: restaurant.deliveryFeeCents.value,
-    items: restaurant.menu.map((item) => ({ title: item.title, priceCents: item.priceCents, originalPriceCents: item.originalPriceCents }))
+    items: restaurant.menu.map((item) => ({ title: item.title, priceCents: item.priceCents, originalPriceCents: item.originalPriceCents, itemId: item.itemId ?? null }))
   };
   void chrome.runtime.sendMessage({ type: "RECORD_MENU", menu } satisfies ExtensionMessage).catch(() => undefined);
 }

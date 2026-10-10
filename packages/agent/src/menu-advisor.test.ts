@@ -73,3 +73,32 @@ describe("adviseFromMenus", () => {
     expect(advice.bestForRequest).toMatchObject({ title: "Smash Duplo 2x 90g", estimatedTotalCents: 3389 });
   });
 });
+
+describe("adviseFromMenus on a real menu with potes (Açaí Godoi, 2026-10-10)", () => {
+  const godoi: MenuObservation = {
+    merchant: { name: "Açaí Godoi", path: "/delivery/sao-paulo-sp/acai-godoi/11111111-2222-4333-8444-555555555555" },
+    source: "ifood",
+    observedAt: "2026-10-10T11:50:00Z",
+    deliveryFeeCents: 0,
+    items: [
+      { title: "Pote de açaí 5 litros", priceCents: 8791 },
+      { title: "Pote de açaí 2 litros", priceCents: 4590 },
+      { title: "Açaí Cremoso 300ml + 3 Complementos Grátis", priceCents: 876, itemId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" },
+      { title: "Açaí 700ml", priceCents: 2690 }
+    ]
+  };
+
+  it("keeps potes out, offers the nearest cup size within budget, links to the item", () => {
+    const advice = adviseFromMenus(intent("quero açaí 500ml até R$25"), [godoi], { now: NOW });
+    expect(advice.bestForRequest).toBeNull();
+    expect(advice.bestValue?.title).toBe("Açaí Cremoso 300ml + 3 Complementos Grátis");
+    expect(advice.nearest).toMatchObject({ title: "Açaí Cremoso 300ml + 3 Complementos Grátis", estimatedTotalCents: 975 });
+    expect(advice.nearest?.itemUrl).toBe("https://www.ifood.com.br/delivery/sao-paulo-sp/acai-godoi/11111111-2222-4333-8444-555555555555?prato=aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+    expect(advice.bulkBest).toMatchObject({ title: "Pote de açaí 5 litros", bulk: true });
+  });
+
+  it("lets potes compete when a bulk size is asked", () => {
+    const advice = adviseFromMenus(intent("quero açaí 2 litros até R$60"), [godoi], { now: NOW });
+    expect(advice.bestForRequest?.title).toBe("Pote de açaí 2 litros");
+  });
+});

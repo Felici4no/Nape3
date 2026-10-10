@@ -1,4 +1,4 @@
-import { IFOOD_SERVICE_FEE_CENTS, parseVolumeMl, readBurger, type PurchaseIntent, type SourcePlatform } from "@nape3/domain";
+import { IFOOD_SERVICE_FEE_CENTS, isBulkFormat, parseVolumeMl, readBurger, type PurchaseIntent, type SourcePlatform } from "@nape3/domain";
 
 /**
  * Menu advisor: answers an intent from the menus the user has already seen
@@ -15,7 +15,7 @@ export interface MenuObservation {
   /** Delivery fee shown on the restaurant page; null when not read. */
   deliveryFeeCents: number | null;
   marketRegion?: string;
-  items: ReadonlyArray<{ title: string; priceCents: number; originalPriceCents?: number | null }>;
+  items: ReadonlyArray<{ title: string; priceCents: number; originalPriceCents?: number | null; itemId?: string | null }>;
 }
 
 export interface MenuCandidate {
@@ -35,6 +35,10 @@ export interface MenuCandidate {
   /** Item price per 100 ml / 100 g of meat (menu price, no fees). */
   pricePer100Cents: number | null;
   sizeMatch: boolean;
+  /** Pote / balde / ≥ 1,5 L: a different purchase from a cup. */
+  bulk: boolean;
+  /** Direct link to the item on the platform (restaurant path + item id), when both are known. */
+  itemUrl: string | null;
   ageMinutes: number;
 }
 
@@ -44,6 +48,10 @@ export interface MenuAdvice {
   /** Best price per litre / per 100 g of meat among everything read (may be over budget: see `bestValueOverBudget`). */
   bestValue: MenuCandidate | null;
   bestValueOverBudget: boolean;
+  /** When nothing of the asked size fits: the closest size that does. */
+  nearest: MenuCandidate | null;
+  /** Best bulk option per litre (potes), shown apart. */
+  bulkBest: MenuCandidate | null;
   candidates: MenuCandidate[];
   shopsConsidered: number;
   itemsConsidered: number;
@@ -74,7 +82,7 @@ export function adviseFromMenus(intent: PurchaseIntent, menus: readonly MenuObse
   let shops = 0;
 
   if (category !== "acai" && category !== "burger") {
-    return { bestForRequest: null, bestValue: null, bestValueOverBudget: false, candidates, shopsConsidered: 0, itemsConsidered: 0, reasoning: [`menu search covers açaí and burgers for now, not ${category}`] };
+    return { bestForRequest: null, bestValue: null, bestValueOverBudget: false, nearest: null, bulkBest: null, candidates, shopsConsidered: 0, itemsConsidered: 0, reasoning: [`menu search covers açaí and burgers for now, not ${category}`] };
   }
 
   for (const menu of menus) {
@@ -105,6 +113,11 @@ export function adviseFromMenus(intent: PurchaseIntent, menus: readonly MenuObse
         unit: amount === null ? null : category === "acai" ? "ml" : "g carne",
         pricePer100Cents: amount ? Math.round((item.priceCents * 100) / amount) : null,
         sizeMatch: wantedMl === undefined ? true : amount !== null && Math.abs(amount - wantedMl) <= wantedMl * 0.1,
+        bulk: category === "acai" && isBulkFormat(item.title, amount),
+        itemUrl:
+          menu.merchant.path && item.itemId && /^[0-9a-f-]{36}$/.test(item.itemId)
+            ? `https://www.ifood.com.br${menu.merchant.path}?prato=${item.itemId}`
+            : null,
         ageMinutes: Math.round(age)
       });
     }
@@ -114,11 +127,21 @@ export function adviseFromMenus(intent: PurchaseIntent, menus: readonly MenuObse
   const byTotal = (a: MenuCandidate, b: MenuCandidate) => (a.estimatedTotalCents ?? Infinity) - (b.estimatedTotalCents ?? Infinity);
   const byValue = (a: MenuCandidate, b: MenuCandidate) => (a.pricePer100Cents ?? Infinity) - (b.pricePer100Cents ?? Infinity) || (b.amount ?? 0) - (a.amount ?? 0);
 
-  const forRequest = candidates.filter((c) => c.sizeMatch && c.estimatedTotalCents !== null && inBudget(c)).sort(byTotal);
-  const valued = candidates.filter((c) => c.pricePer100Cents !== null).sort(byValue);
+  // Potes only compete when a bulk size was asked for.
+  const wantsBulk = wantedMl !== undefined && wantedMl >= 1500;
+  const pool = candidates.filter((c) => c.bulk === wantsBulk || category !== "acai");
+  const forRequest = pool.filter((c) => c.sizeMatch && c.estimatedTotalCents !== null && inBudget(c)).sort(byTotal);
+  const valued = pool.filter((c) => c.pricePer100Cents !== null).sort(byValue);
   const bestForRequest = forRequest[0] ?? null;
   const bestValue = valued[0] ?? null;
   const bestValueOverBudget = bestValue !== null && !inBudget(bestValue);
+  const nearest =
+    bestForRequest || wantedMl === undefined
+      ? null
+      : (pool
+          .filter((c) => c.amount !== null && c.estimatedTotalCents !== null && inBudget(c))
+          .sort((a, b) => Math.abs(a.amount! - wantedMl) - Math.abs(b.amount! - wantedMl) || byTotal(a, b))[0] ?? null);
+  const bulkBest = wantsBulk ? null : (candidates.filter((c) => c.bulk && c.pricePer100Cents !== null).sort(byValue)[0] ?? null);
 
   reasoning.push(`${candidates.length} itens de ${shops} loja(s) lidas nas últimas ${Math.round(maxAge / 60)} h.`);
   const sized = candidates.filter((c) => c.sizeMatch).length;
@@ -127,6 +150,8 @@ export function adviseFromMenus(intent: PurchaseIntent, menus: readonly MenuObse
   reasoning.push(`Total estimado = item × ${quantity} + frete da loja + taxa de serviço ${brl(service)}; confirme na sacola.`);
   if (bestForRequest) reasoning.push(`Mais barato no tamanho pedido: ${bestForRequest.title} em ${bestForRequest.merchantName}, ${brl(bestForRequest.estimatedTotalCents!)} estimado.`);
   else reasoning.push("Nenhum item do tamanho pedido cabe no orçamento entre as lojas lidas.");
+  if (nearest) reasoning.push(`Tamanho mais próximo que cabe: ${nearest.title} (${nearest.amount} ml) em ${nearest.merchantName}, ${brl(nearest.estimatedTotalCents!)} estimado.`);
+  if (bulkBest) reasoning.push(`Potes ficam à parte (outra compra): ${bulkBest.title} em ${bulkBest.merchantName} sai ${brl(bulkBest.pricePer100Cents! * 10)}/L.`);
   if (bestValue) {
     reasoning.push(`Melhor custo por ${bestValue.unit === "ml" ? "litro" : "100 g de carne"}: ${bestValue.title} em ${bestValue.merchantName}, ${brl(bestValue.pricePer100Cents! * (bestValue.unit === "ml" ? 10 : 1))}${bestValue.unit === "ml" ? "/L" : "/100 g"}${bestValueOverBudget ? " (acima do orçamento no total estimado)" : ""}.`);
   }
@@ -134,5 +159,5 @@ export function adviseFromMenus(intent: PurchaseIntent, menus: readonly MenuObse
     const cheaper = Math.round(((bestForRequest.pricePer100Cents - bestValue.pricePer100Cents!) / bestForRequest.pricePer100Cents) * 1000) / 10;
     if (cheaper > 0) reasoning.push(`Levando ${bestValue.amount} ${bestValue.unit} em vez de ${bestForRequest.amount}, cada 100 sai ${cheaper.toLocaleString("pt-BR")}% mais barato.`);
   }
-  return { bestForRequest, bestValue, bestValueOverBudget, candidates: [...candidates].sort(byTotal), shopsConsidered: shops, itemsConsidered: candidates.length, reasoning };
+  return { bestForRequest, bestValue, bestValueOverBudget, nearest, bulkBest, candidates: [...candidates].sort(byTotal), shopsConsidered: shops, itemsConsidered: candidates.length, reasoning };
 }

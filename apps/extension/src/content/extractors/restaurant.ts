@@ -64,8 +64,30 @@ export function extractMenu(root: Element): MenuCard[] {
     if (seen.has(key)) continue;
     seen.add(key);
     const serves = card.querySelector('[class*="dish-info-serves"]');
-    out.push({ title, priceCents: priceCents as Cents, originalPriceCents: original as Cents | null, servingsText: serves ? clean(textOf(serves)) : null });
+    out.push({
+      title,
+      priceCents: priceCents as Cents,
+      originalPriceCents: original as Cents | null,
+      servingsText: serves ? clean(textOf(serves)) : null,
+      itemId: itemIdOf(card)
+    });
     if (out.length >= 200) break;
   }
   return out;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The item id in a card link (?prato=<uuid> or ?item=<uuid>); nothing else from the URL is kept. */
+function itemIdOf(card: Element): string | null {
+  const anchor = card.closest("a[href]") ?? card.querySelector("a[href]");
+  const href = anchor?.getAttribute("href");
+  if (!href) return null;
+  try {
+    const url = new URL(href, "https://www.ifood.com.br");
+    const id = url.searchParams.get("prato") ?? url.searchParams.get("item");
+    return id && UUID.test(id) ? id.toLowerCase() : null;
+  } catch {
+    return null;
+  }
 }

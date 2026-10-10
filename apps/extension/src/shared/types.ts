@@ -48,6 +48,8 @@ export interface MenuCard {
   priceCents: Cents;
   originalPriceCents: Cents | null;
   servingsText: string | null;
+  /** Platform item id from the card link (?prato=<uuid>), for a direct link; null when absent. */
+  itemId?: string | null;
 }
 
 export interface ProductSnapshot {

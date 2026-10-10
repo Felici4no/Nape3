@@ -150,6 +150,15 @@ export interface MenuItemInput {
   originalPriceCents?: number | null;
 }
 
+/**
+ * Bulk formats (potes, baldes, caixas, ≥ 1,5 L) are a different purchase from
+ * a cup: they are kept out of size comparisons unless asked for.
+ */
+export function isBulkFormat(title: string, volumeMl: number | null): boolean {
+  if (volumeMl !== null && volumeMl >= 1500) return true;
+  return /\b(pote|balde|caixa|kg|quilo|para estocar)\b/i.test(title) && (volumeMl === null || volumeMl >= 1000);
+}
+
 /** What a menu is ranked by: açaí per 100 ml, burgers per 100 g of meat. */
 export type MenuMeasure = "volume" | "meat";
 
@@ -164,12 +173,15 @@ export interface MenuValue {
   spreadPct: number | null;
   /** Items without a readable volume (not ranked). */
   unranked: number;
+  /** Best bulk item (potes, ≥ 1,5 L) per 100 ml, kept apart from the ranking. */
+  bulkBest: (MenuItemInput & { volumeMl: number; pricePer100mlCents: number }) | null;
 }
 
 /** "Tamanho que compensa": ranks a shop's menu by price per 100 ml. Duplicate cards are counted once. */
 export function menuValue(items: readonly MenuItemInput[], measure: MenuMeasure = "volume"): MenuValue {
   const seen = new Set<string>();
   const ranked: MenuValue["ranked"] = [];
+  const bulk: MenuValue["ranked"] = [];
   let unranked = 0;
   for (const item of items) {
     const key = `${item.title.trim().toLowerCase()}|${item.priceCents}`;
@@ -180,8 +192,11 @@ export function menuValue(items: readonly MenuItemInput[], measure: MenuMeasure 
       unranked += 1;
       continue;
     }
-    ranked.push({ ...item, volumeMl, pricePer100mlCents: Math.round((item.priceCents * 100) / volumeMl) });
+    const entry = { ...item, volumeMl, pricePer100mlCents: Math.round((item.priceCents * 100) / volumeMl) };
+    if (measure === "volume" && isBulkFormat(item.title, volumeMl)) bulk.push(entry);
+    else ranked.push(entry);
   }
+  bulk.sort((a, b) => a.pricePer100mlCents - b.pricePer100mlCents);
   ranked.sort((a, b) => a.pricePer100mlCents - b.pricePer100mlCents || b.volumeMl - a.volumeMl);
   const best = ranked[0] ?? null;
   const worst = ranked.length > 1 ? ranked[ranked.length - 1]! : null;
@@ -191,6 +206,7 @@ export function menuValue(items: readonly MenuItemInput[], measure: MenuMeasure 
     best,
     worst,
     spreadPct: best && worst && worst.pricePer100mlCents > 0 ? pct(worst.pricePer100mlCents - best.pricePer100mlCents, worst.pricePer100mlCents) : null,
-    unranked
+    unranked,
+    bulkBest: bulk[0] ?? null
   };
 }

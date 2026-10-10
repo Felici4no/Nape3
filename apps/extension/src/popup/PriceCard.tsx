@@ -231,6 +231,11 @@ export function MenuValueCard({ menu }: { menu: readonly MenuCard[] }) {
           </ul>
         </>
       )}
+      {!meat && value.bulkBest && (
+        <p className="muted small">
+          Potes à parte: {value.bulkBest.title} sai <span className="num">{brl(value.bulkBest.pricePer100mlCents * 10)}/L</span> (outra compra).
+        </p>
+      )}
       {combos.slice(0, 2).map((combo) => (
         <p className="small" key={combo.combo}>
           No combo, {combo.extras.length ? combo.extras.join(" + ") : "os extras"} custam <strong className="num">{brl(combo.extrasCents)}</strong> a mais que o lanche sozinho.
@@ -246,6 +251,28 @@ export function MenuValueCard({ menu }: { menu: readonly MenuCard[] }) {
 
 const per = (c: MenuCandidate) => (c.unit === "ml" ? `${brl(c.pricePer100Cents! * 10)}/L` : `${brl(c.pricePer100Cents!)}/100 g`);
 
+function CandidateBlock({ c, lead }: { c: MenuCandidate; lead?: string }) {
+  return (
+    <div className="advice__best">
+      {lead && <span className="eyebrow">{lead}</span>}
+      <span className="display num">{brl(c.estimatedTotalCents!)}</span>
+      <span className="small">
+        <strong>{c.title}</strong> · {c.merchantName}
+      </span>
+      <span className="muted small">
+        {brl(c.priceCents)}
+        {c.quantity > 1 ? ` × ${c.quantity}` : ""} + frete {brl(c.deliveryFeeCents ?? 0)} + serviço {brl(c.serviceFeeCents)}
+        {c.pricePer100Cents ? ` · ${per(c)}` : ""}
+      </span>
+      {(c.itemUrl ?? c.merchantPath) && (
+        <a className="advice__link" href={c.itemUrl ?? `https://www.ifood.com.br${c.merchantPath}`} target="_blank" rel="noreferrer">
+          {c.itemUrl ? "Abrir este item no iFood →" : "Abrir a loja no iFood →"}
+        </a>
+      )}
+    </div>
+  );
+}
+
 /** "Pesquisa no cardápio": the agent's answer from the menus already read — estimates, never offers. */
 export function MenuAdvicePanel({ advice }: { advice: MenuAdvice }) {
   if (advice.itemsConsidered === 0) {
@@ -256,37 +283,32 @@ export function MenuAdvicePanel({ advice }: { advice: MenuAdvice }) {
       </section>
     );
   }
-  const best = advice.bestForRequest;
-  const value = advice.bestValue;
+  const { bestForRequest: best, bestValue: value, nearest, bulkBest } = advice;
   return (
     <section className="xray advice">
       <div className="price-card__top">
-        <span className="eyebrow">Pesquisa no cardápio</span>
+        <span className="eyebrow">Pesquisa no cardápio · {advice.shopsConsidered} loja{advice.shopsConsidered === 1 ? "" : "s"}</span>
         <span className="chip chip--warn">estimativa</span>
       </div>
       {best ? (
-        <div className="advice__best">
-          <span className="display num">{brl(best.estimatedTotalCents!)}</span>
-          <span className="small">
-            <strong>{best.title}</strong> · {best.merchantName}
-          </span>
-          <span className="muted small">
-            {brl(best.priceCents)}{best.quantity > 1 ? ` × ${best.quantity}` : ""} + frete {brl(best.deliveryFeeCents ?? 0)} + serviço {brl(best.serviceFeeCents)}
-            {best.pricePer100Cents ? ` · ${per(best)}` : ""}
-          </span>
-          {best.merchantPath && (
-            <a className="advice__link" href={`https://www.ifood.com.br${best.merchantPath}`} target="_blank" rel="noreferrer">
-              Abrir a loja no iFood
-            </a>
-          )}
-        </div>
+        <CandidateBlock c={best} />
+      ) : nearest ? (
+        <>
+          <p className="small">Nada no tamanho pedido cabe no orçamento. O tamanho mais próximo que cabe:</p>
+          <CandidateBlock c={nearest} />
+        </>
       ) : (
         <p className="small">Nada no tamanho e no orçamento pedidos entre as lojas lidas.</p>
       )}
-      {value && value !== best && (
+      {value && value !== best && value !== nearest && (
         <p className="small">
           Melhor custo por {value.unit === "ml" ? "litro" : "100 g de carne"}: <strong>{value.title}</strong> em {value.merchantName} · <span className="num">{per(value)}</span>
           {advice.bestValueOverBudget ? <span className="muted"> · passa do orçamento no total</span> : null}
+        </p>
+      )}
+      {bulkBest && (
+        <p className="muted small">
+          Para estocar: {bulkBest.title} em {bulkBest.merchantName} sai <span className="num">{per(bulkBest)}</span> (pote é outra compra; fica fora da comparação).
         </p>
       )}
       <details>

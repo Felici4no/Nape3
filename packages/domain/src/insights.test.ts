@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costInsights, menuValue, priceLayers, unitInsights } from "./insights";
+import { costInsights, isBulkFormat, menuValue, priceLayers, unitInsights } from "./insights";
 import { parseServings, parseWeightG } from "./volume";
 
 describe("priceLayers (you pay 3 times for food)", () => {
@@ -82,5 +82,23 @@ describe("menuValue (tamanho que compensa)", () => {
     expect(menu.best?.volumeMl).toBe(700);
     expect(menu.spreadPct).toBe(34.7);
     expect(menu.unranked).toBe(1);
+  });
+});
+
+describe("bulk formats (real menu, Açaí Godoi, 2026-10-10)", () => {
+  it("keeps potes apart from cup sizes", () => {
+    expect(isBulkFormat("Pote de açaí 5 litros", 5000)).toBe(true);
+    expect(isBulkFormat("Pote de açaí 2 litros", 2000)).toBe(true);
+    expect(isBulkFormat("Açaí 1 litro", 1000)).toBe(false);
+    expect(isBulkFormat("Açaí Cremoso 300ml + 3 Complementos Grátis", 300)).toBe(false);
+    const v = menuValue([
+      { title: "Pote de açaí 5 litros", priceCents: 8791 },
+      { title: "Pote de açaí 2 litros", priceCents: 4590 },
+      { title: "Açaí Cremoso 300ml + 3 Complementos Grátis", priceCents: 876 },
+      { title: "Açaí 500ml", priceCents: 1990 }
+    ]);
+    expect(v.best?.title).toBe("Açaí Cremoso 300ml + 3 Complementos Grátis");
+    expect(v.ranked).toHaveLength(2);
+    expect(v.bulkBest).toMatchObject({ title: "Pote de açaí 5 litros", pricePer100mlCents: 176 });
   });
 });
