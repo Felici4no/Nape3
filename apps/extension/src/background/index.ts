@@ -6,6 +6,7 @@ import { createLogger, errorMessage } from "../shared/log";
 import { executorHealth, executorIdentity, scheduleExecutor } from "./executor";
 import { isAllowedPayOrigin, parseWalletReport, payability, type PendingPayment, type WalletStatus } from "../shared/payment";
 import { mergeNetworkObservations } from "../shared/network";
+import { emptyUsage, recordSearch, recordShop, type UsageStats } from "../shared/usage";
 import { mergeObservation, requirementFromObservation, snapshotToObservation } from "../shared/observation";
 import {
   DEFAULT_SETTINGS,
@@ -190,12 +191,17 @@ async function getMenus(now = Date.now()): Promise<MenuObservation[]> {
   return (menus ?? []).filter((m) => now - Date.parse(m.observedAt) <= MENU_TTL_MS);
 }
 
+async function getUsage(): Promise<UsageStats> {
+  const { usage } = (await chrome.storage.local.get("usage")) as { usage?: UsageStats };
+  return usage ?? emptyUsage();
+}
+
 async function recordMenu(menu: MenuObservation): Promise<ExtensionResponse> {
   const settings = await getSettings();
   const entry: MenuObservation = { ...menu, ...(settings.marketRegion ? { marketRegion: settings.marketRegion } : {}) };
   const key = (m: MenuObservation) => m.merchant.platformId ?? m.merchant.name;
   const menus = [entry, ...(await getMenus()).filter((m) => key(m) !== key(entry))].slice(0, MAX_MENUS);
-  await chrome.storage.local.set({ menus });
+  await chrome.storage.local.set({ menus, usage: recordShop(await getUsage(), key(entry), entry.items.length) });
   log.info("menu.recorded", { merchant: entry.merchant.name, items: entry.items.length, shops: menus.length });
   return { ok: true, type: "DONE" };
 }
@@ -218,6 +224,7 @@ async function handlePlan(request: string, snapshot: PageSnapshot | null): Promi
   const menuAdvice = plan.intent.ok
     ? adviseFromMenus(plan.intent.intent, await getMenus(now.getTime()), { now, ...(settings.marketRegion ? { marketRegion: settings.marketRegion } : {}) })
     : null;
+  if (plan.intent.ok) await chrome.storage.local.set({ usage: recordSearch(await getUsage(), menuAdvice) });
   // The agent's pick is outlined on that shop's page (content/highlight.ts).
   const pick = menuAdvice?.bestForRequest ?? menuAdvice?.nearest ?? null;
   await chrome.storage.local.set({
@@ -462,6 +469,8 @@ async function handle(message: ExtensionMessage, tabId: number | undefined): Pro
       return { ok: true, type: "MARKET", market: await handleRecord(message.snapshot, tabId) };
     case "RECORD_MENU":
       return recordMenu(message.menu);
+    case "GET_USAGE":
+      return { ok: true, type: "USAGE", usage: await getUsage() };
     case "GET_MENUS":
       return { ok: true, type: "MENUS", menus: await getMenus() };
     case "PLAN_INTENT":

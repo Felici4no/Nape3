@@ -3,6 +3,7 @@ import type { CandidateEvaluation, Decision } from "@nape3/agent";
 import { formatBRL, type Cents, type Membership } from "@nape3/domain";
 import { PRIVACY_COPY } from "@nape3/payments/privacy-copy";
 import { errorMessage } from "../shared/log";
+import { usageText, type UsageStats } from "../shared/usage";
 import { agentExport, CostXray, DrinksPerLiterCard, MenuAdvicePanel, MenuValueCard, PriceCard } from "./PriceCard";
 import { abbreviateAddress, payability, walletSummary, type WalletStatus } from "../shared/payment";
 import type {
@@ -783,7 +784,35 @@ export function App() {
 
       {settings && <SettingsPanel settings={settings} onSave={(s) => void saveSettings(s)} onClear={() => void clearObservations()} />}
 
+      <UsageCard onNotice={setNotice} />
+
       <footer>Visible page data only · no checkout automation · no cookies or tokens</footer>
     </main>
+  );
+}
+
+function UsageCard({ onNotice }: { onNotice: (n: string) => void }) {
+  const [usage, setUsage] = useState<UsageStats | null>(null);
+  useEffect(() => {
+    void chrome.runtime.sendMessage({ type: "GET_USAGE" } satisfies ExtensionMessage).then((r: ExtensionResponse) => {
+      if (r.ok && r.type === "USAGE") setUsage(r.usage);
+    });
+  }, []);
+  if (!usage || (usage.shops.length === 0 && usage.searches === 0)) return null;
+  return (
+    <section className="usage">
+      <span className="eyebrow">Seus números</span>
+      <div className="metrics">
+        <div className="metric"><span className="num">{usage.shops.length}</span><span className="muted">lojas lidas</span></div>
+        <div className="metric"><span className="num">{usage.itemsRead}</span><span className="muted">itens comparados</span></div>
+        <div className="metric metric--ok"><span className="num">{formatBRL(usage.savingsCents as Cents)}</span><span className="muted">economia estimada</span></div>
+      </div>
+      <button
+        className="secondary"
+        onClick={() => void navigator.clipboard.writeText(usageText(usage)).then(() => onNotice("Copiado: seus números (sem dados pessoais)."))}
+      >
+        Copiar meus números
+      </button>
+    </section>
   );
 }

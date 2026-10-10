@@ -1,3 +1,4 @@
+import type { UsageStats } from "./usage";
 import type { MenuAdvice, MenuObservation } from "@nape3/agent";
 import type { Decision } from "@nape3/agent";
 import type { Cents, CartQuoteObservation, Membership } from "@nape3/domain";
@@ -208,6 +209,7 @@ export type ExtensionMessage =
   | { type: "RECORD_MENU"; menu: MenuObservation }
   /** Popup → background: the menus read in the last 24 h, for "Copiar para o seu agente". */
   | { type: "GET_MENUS" }
+  | { type: "GET_USAGE" }
   /** Popup → content: scroll to an item on the open restaurant page and pulse its outline. */
   | { type: "REVEAL_ITEM"; title: string; priceCents: number }
   | { type: "PLAN_INTENT"; request: string; snapshot: PageSnapshot | null }
@@ -234,6 +236,7 @@ export type ExtensionResponse =
     }
   | { ok: true; type: "SETTINGS"; settings: ExtensionSettings }
   | { ok: true; type: "MENUS"; menus: MenuObservation[] }
+  | { ok: true; type: "USAGE"; usage: UsageStats }
   | { ok: true; type: "REVEALED"; found: boolean }
   | { ok: true; type: "DONE" }
   | { ok: true; type: "DOM_CAPTURE"; capture: string }
