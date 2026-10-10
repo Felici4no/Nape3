@@ -1,5 +1,5 @@
 import { adviseFromMenus, parseIntent, type MenuObservation } from "@nape3/agent";
-import { comboPremiums, costInsights, liquidValue, menuValue, priceLayers, readBurger } from "@nape3/domain";
+import { comboPremiums, costInsights, liquidValue, menuValue, priceLayers, readBagText, readBurger, readMenuText } from "@nape3/domain";
 
 /**
  * UPAY3FOOD for other agents: the same pure calculations the extension uses,
@@ -180,6 +180,70 @@ export function advise(input: { request: string; menus: AdviseMenuInput[]; now?:
     items: a.itemsConsidered,
     reasoning: a.reasoning,
     caveat: "Estimated checkout from menu prices plus the shop's delivery fee and R$0,99 service fee. Coupons, membership and address change prices: confirm in the bag. Never an offer.",
+    methodology: METHODOLOGY_URL
+  };
+}
+
+/** Page text an agent read (shop page) → structured menu, ready for `advise` and `rank_menu`. */
+export function readMenuFromText(input: { text: string; shop_name?: string | null; shop_url?: string | null }) {
+  const r = readMenuText(input.text);
+  const link = input.shop_url ? parseIfoodLink(input.shop_url) : null;
+  const menu = {
+    merchant_name: input.shop_name ?? "loja",
+    merchant_url: link?.ok ? link.shop_url : null,
+    delivery_fee_brl: r.deliveryFeeBrl,
+    items: r.items.map((i) => ({ title: i.title, price_brl: i.priceBrl, original_price_brl: i.originalPriceBrl, servings_text: i.servingsText }))
+  };
+  return {
+    menu,
+    minimum_order_brl: r.minimumOrderBrl,
+    items_read: r.items.length,
+    blocks_skipped: r.skippedBlocks,
+    summary: r.items.length ? rankMenu({ items: r.items.map((i) => ({ title: i.title, price_brl: i.priceBrl })) }) : null,
+    next: "Pass `menu` (one per shop) to `advise` with the user's request.",
+    methodology: METHODOLOGY_URL
+  };
+}
+
+/** Bag/checkout text → the three layers, checked against the total. */
+export function readBagFromText(input: { text: string; cheapest_comparable_brl?: number | null }) {
+  const b = readBagText(input.text);
+  return {
+    lines: b.lines.map((l) => ({ quantity: l.quantity, title: l.title, total_brl: l.totalBrl })),
+    reconciles: b.reconciles,
+    breakdown:
+      b.subtotalBrl === null
+        ? null
+        : priceBreakdown({
+            food_brl: b.subtotalBrl,
+            delivery_fee_brl: b.deliveryFeeBrl,
+            service_fee_brl: b.serviceFeeBrl,
+            discount_brl: b.discountBrl === null ? null : Math.abs(b.discountBrl),
+            total_brl: b.totalBrl,
+            cheapest_comparable_brl: input.cheapest_comparable_brl ?? null
+          }),
+    warning: b.subtotalBrl === null || b.totalBrl === null ? "subtotal or total not found in the text" : b.reconciles === false ? "the parts do not add up to the total; check the text" : null
+  };
+}
+
+/**
+ * Several real bags for the same purchase (other shops or platforms): ranked by total,
+ * each with its three layers, where layer 3 is the difference to the cheapest bag.
+ */
+export function compareBags(input: {
+  bags: Array<{ label: string; food_brl: number; delivery_fee_brl?: number | null; service_fee_brl?: number | null; discount_brl?: number | null; total_brl: number; link?: string | null }>;
+}) {
+  const cheapest = Math.min(...input.bags.map((b) => b.total_brl));
+  const rows = input.bags
+    .map((b) => ({ label: b.label, link: b.link ?? null, ...priceBreakdown({ ...b, cheapest_comparable_brl: cheapest }) }))
+    .sort((a, b) => (a.total_brl ?? 0) - (b.total_brl ?? 0));
+  const best = rows[0]!;
+  const worst = rows[rows.length - 1]!;
+  return {
+    best: { label: best.label, total_brl: best.total_brl, link: best.link },
+    spread_brl: toBrl(Math.round(((worst.total_brl ?? 0) - (best.total_brl ?? 0)) * 100)),
+    bags: rows,
+    note: "Compare bags with the same items and quantities. Totals depend on each account's coupons, membership and address.",
     methodology: METHODOLOGY_URL
   };
 }

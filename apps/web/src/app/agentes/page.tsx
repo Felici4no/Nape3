@@ -21,6 +21,9 @@ const TOOLS = [
   ["item_cost", "Raio-X do preço", "por 100 ml, litro, 100 g, por pessoa, 100 ml com taxas, taxas em ml do produto, gramas de carne"],
   ["rank_menu", "Tamanho que compensa", "cardápio por 100 ml ou por 100 g de carne, potes à parte, combos, bebidas por litro"],
   ["advise", "Pesquisa no cardápio", "“quero açaí 500ml até R$25” → total estimado, tamanho mais próximo, melhor por litro, link do item"],
+  ["read_menu_text", "Ler cardápio (texto)", "cole o texto da página da loja → itens, preço riscado, porções, frete e resumo por litro"],
+  ["read_bag_text", "Ler sacola (texto)", "cole o texto da sacola → linhas, taxas, total conferido e as 3 camadas"],
+  ["compare_bags", "Comparar sacolas", "sacolas reais da mesma compra → ranking e a diferença real para a mais barata"],
   ["parse_ifood_link", "Ler link do iFood", "cidade, loja, id da loja e do item; descarta tokens e rastreio"],
   ["methodology", "Metodologia", "como cada número é calculado e o que nunca afirmamos"]
 ];
@@ -54,7 +57,7 @@ export default function Agentes() {
             </article>
           ))}
         </div>
-        <p className="muted small">Os nomes dos menus mudam entre versões de cada app; o que vale é adicionar um servidor MCP remoto por URL (Streamable HTTP).</p>
+        <p className="muted small">Também há o prompt <code>pesquisar_delivery</code>, que guia o agente passo a passo. Os nomes dos menus mudam entre versões de cada app; o que vale é adicionar um servidor MCP remoto por URL (Streamable HTTP).</p>
       </section>
 
       <section className="wrap">

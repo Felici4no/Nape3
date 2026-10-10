@@ -3,8 +3,9 @@ import packageJson from "./package.json";
 
 export default defineManifest({
   manifest_version: 3,
-  name: "UPAY3FOOD.agent",
-  description: "Observes delivery prices you see on iFood and compares your checkout with recent market observations.",
+  name: "UPAY3FOOD",
+  description: "Você paga 3 vezes pela comida: mostra a comida, as taxas e a diferença no iFood, compara o cardápio por litro e leva ao item que compensa.",
+  icons: { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
   version: packageJson.version,
   // storage: local observations/settings. activeTab: read the active tab on request.
   // alarms: poll the agent runtime for executor commands (only when agentApiUrl is configured).
@@ -25,7 +26,8 @@ export default defineManifest({
     matches: ["https://upay3food.com/*", "http://localhost/*", "http://127.0.0.1/*"]
   },
   action: {
-    default_popup: "src/popup/index.html"
+    default_popup: "src/popup/index.html",
+    default_icon: { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png" }
   },
   content_scripts: [
     {

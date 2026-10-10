@@ -5,7 +5,9 @@
 ## MCP server
 
 - URL (Streamable HTTP, stateless, no auth): https://upay3food.com/api/mcp
-- Tools: price_breakdown, item_cost, rank_menu, advise, parse_ifood_link, methodology
+- Tools: read_menu_text, read_bag_text, compare_bags, price_breakdown, item_cost, rank_menu, advise, parse_ifood_link, methodology
+- Prompt: pesquisar_delivery (step-by-step research)
+- Typical flow: read_menu_text for each shop page text → advise(request, menus) → link to the item; read_bag_text + compare_bags for real totals.
 - Amounts in BRL (reais). Nothing is stored; the server never fetches any platform.
 
 ## Rules for agents

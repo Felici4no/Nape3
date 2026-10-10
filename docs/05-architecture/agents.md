@@ -12,12 +12,23 @@ use them: Claude, ChatGPT, Cursor, Claude Code, or your own.
 
 | Tool | Input (BRL) | Output |
 |---|---|---|
+| `read_menu_text` | the visible text of a shop page (+ name, link) | structured menu (items, struck prices, servings, delivery fee, minimum order) and a per-litre summary, ready for `advise` |
+| `read_bag_text` | the visible text of a bag/checkout | lines, subtotal, fees, discount, total, whether it adds up, the 3 layers |
+| `compare_bags` | 2–20 real bags of the same purchase | ranked by total; layer 3 = difference to the cheapest bag |
 | `price_breakdown` | food, delivery, service, discount, total, cheapest comparable | the 3 layers, fee share, estimate flags |
 | `item_cost` | title, price, struck price, servings text, fees | per 100 ml / litre / 100 g, 100 ml with fees, fees in ml of product, per person, discount, burger meat grams/type |
 | `rank_menu` | menu items | açaí per 100 ml (potes apart), burgers per 100 g of meat + combo extras, drinks per litre by kind |
 | `advise` | request in pt-BR + menus the agent read | cheapest estimated checkout for the size, nearest size within budget, best per litre, link to the item |
 | `parse_ifood_link` | URL | city, shop slug, shop id, item id; drops every other query value |
 | `methodology` | — | the rules, link to [price calculations](price-calculations.md) |
+
+Prompt `pesquisar_delivery(pedido)`: read 3–5 shop pages → `read_menu_text` →
+`advise` → answer with the item link; bags → `read_bag_text` → `compare_bags`.
+
+The text readers are tested on the real text of a São Paulo shop page
+(`packages/domain/src/__fixtures__/maranata-menu-text.txt`, commercial data
+only): 32 items, delivery fee and struck prices read; section headers are
+never taken for titles.
 
 ## Data and trust
 
