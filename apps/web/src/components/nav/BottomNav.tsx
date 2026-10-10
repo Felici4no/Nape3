@@ -4,49 +4,58 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import styles from "./BottomNav.module.css";
 
-/** 24×24 stroke icons, drawn for this bar so they share one weight and corner style. */
+/**
+ * 24×24 icons drawn for this bar: one 1.7 stroke, round joins, and a soft
+ * fill (`.tint`) on one shape each that warms up when the item is active.
+ */
 const ICONS = {
-  market: (
+  home: (
     <>
-      <path d="M3.5 9.5 5 4.5h14l1.5 5" />
-      <path d="M4.5 9.5V20h15V9.5" />
-      <path d="M3.5 9.5h17a2.8 2.8 0 0 1-5.6 0 2.8 2.8 0 0 1-5.8 0 2.8 2.8 0 0 1-5.6 0" />
-      <path d="M10 20v-5h4v5" />
+      <path className="tint" d="M10 20v-4.5a2 2 0 0 1 4 0V20Z" />
+      <path d="M3.8 10.4 12 3.8l8.2 6.6" />
+      <path d="M5.8 8.9V18.5a1.5 1.5 0 0 0 1.5 1.5h9.4a1.5 1.5 0 0 0 1.5-1.5V8.9" />
+      <path d="M10 20v-4.5a2 2 0 0 1 4 0V20" />
+    </>
+  ),
+  extension: (
+    <>
+      <path
+        className="tint"
+        d="M7 4.8h2.8a2.2 2.2 0 1 1 4.4 0H17a1.5 1.5 0 0 1 1.5 1.5v2.8a2.2 2.2 0 1 1 0 4.4v4.2a1.5 1.5 0 0 1-1.5 1.5H7a1.5 1.5 0 0 1-1.5-1.5V6.3A1.5 1.5 0 0 1 7 4.8Z"
+      />
+      <path d="M7 4.8h2.8a2.2 2.2 0 1 1 4.4 0H17a1.5 1.5 0 0 1 1.5 1.5v2.8a2.2 2.2 0 1 1 0 4.4v4.2a1.5 1.5 0 0 1-1.5 1.5H7a1.5 1.5 0 0 1-1.5-1.5V6.3A1.5 1.5 0 0 1 7 4.8Z" />
     </>
   ),
   agent: (
     <>
-      <path d="M11 3.5 12.9 8.6 18 10.5 12.9 12.4 11 17.5 9.1 12.4 4 10.5 9.1 8.6Z" />
-      <path d="M18.5 15.5 19.3 17.7 21.5 18.5 19.3 19.3 18.5 21.5 17.7 19.3 15.5 18.5 17.7 17.7Z" />
+      <path d="M5.3 4.8h13.4a1.8 1.8 0 0 1 1.8 1.8v8.6a1.8 1.8 0 0 1-1.8 1.8H12l-4.6 3.4v-3.4H5.3a1.8 1.8 0 0 1-1.8-1.8V6.6a1.8 1.8 0 0 1 1.8-1.8Z" />
+      <path className="tint solid" d="M12 7.4l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1Z" />
+    </>
+  ),
+  proof: (
+    <>
+      <circle className="tint" cx="12" cy="9.6" r="5.9" />
+      <circle cx="12" cy="9.6" r="5.9" />
+      <path d="m9.6 9.7 1.7 1.7 3.1-3.3" />
+      <path d="M8.6 14.5 7.3 20.3l4.7-2.1 4.7 2.1-1.3-5.8" />
     </>
   ),
   wallet: (
     <>
-      <path d="M17.5 6.5V5.8A1.8 1.8 0 0 0 15.3 4L5 6.3A2 2 0 0 0 3.5 8.2" />
-      <rect x="3.5" y="6.5" width="17" height="13" rx="2.5" />
-      <path d="M20.5 11h-3.8a2 2 0 0 0 0 4h3.8" />
-    </>
-  ),
-  install: (
-    <>
-      <path d="M12 3.5v11" />
-      <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
-      <path d="M4.5 16v2.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V16" />
-    </>
-  ),
-  privacy: (
-    <>
-      <path d="M12 3 19.5 6v5.5c0 4.6-3.2 8-7.5 9.5-4.3-1.5-7.5-4.9-7.5-9.5V6Z" />
-      <path d="m9 12 2.2 2.2L15.5 10" />
+      <rect className="tint" x="3.5" y="6.8" width="17" height="12.7" rx="3" />
+      <path d="M16.6 6.8V5.4a1.5 1.5 0 0 0-1.9-1.45L6 6.8" />
+      <rect x="3.5" y="6.8" width="17" height="12.7" rx="3" />
+      <path d="M20.5 11.4h-3.4a1.75 1.75 0 0 0 0 3.5h3.4" />
+      <circle className="solid" cx="17.2" cy="13.15" r="0.75" />
     </>
   )
 };
 
 const ITEMS: Array<{ href: string; label: string; icon: keyof typeof ICONS }> = [
-  { href: "/", label: "Início", icon: "market" },
-  { href: "/instalar", label: "Instalar", icon: "install" },
+  { href: "/", label: "Início", icon: "home" },
+  { href: "/instalar", label: "Instalar", icon: "extension" },
   { href: "/agentes", label: "Agentes", icon: "agent" },
-  { href: "/transparencia", label: "Prova", icon: "privacy" },
+  { href: "/transparencia", label: "Prova", icon: "proof" },
   { href: "/wallet", label: "Carteira", icon: "wallet" }
 ];
 

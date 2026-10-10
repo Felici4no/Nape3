@@ -1,4 +1,42 @@
-.bar { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--cream) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  isolation: isolate;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--paper) 82%, transparent), color-mix(in srgb, var(--cream) 86%, transparent));
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: 0 1px 0 var(--line), 0 10px 24px -20px rgba(23, 19, 14, 0.5);
+}
+/* paper grain, then the brand stripe (the splash's four food colors) along the bottom edge */
+.bar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--grain);
+  opacity: 0.16;
+  mix-blend-mode: multiply;
+  filter: invert(1);
+  pointer-events: none;
+}
+.bar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--burger) 0 25%, var(--pizza) 25% 50%, var(--acai-2) 50% 75%, var(--sushi-2) 75% 100%);
+  opacity: 0.85;
+  transform-origin: left;
+  animation: stripeIn 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--after-splash, 0ms);
+}
+@keyframes stripeIn { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.links a { position: relative; }
+.links a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 2px; border-radius: 2px; background: var(--burger-2); transform: scaleX(0); transition: transform 0.2s ease; }
+.links a:hover::after { transform: scaleX(1); }
 .inner { display: flex; align-items: center; gap: 28px; height: 64px; }
 .word {
   font-family: var(--font-display);
@@ -43,5 +81,5 @@
   .footer { padding-bottom: calc(120px + env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .word { animation: none; }
+  .word, .bar::after { animation: none; }
 }
