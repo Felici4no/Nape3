@@ -36,14 +36,15 @@ export default async function Home() {
         <div className={`wrap ${styles.heroGrid}`}>
           <div className={styles.heroCopy}>
             <span className="eyebrow">Market now · {REGION.label} · <SourceTag mode={source.mode} /></span>
-            <h1 className={`display ${styles.headline}`}>The food market is moving.</h1>
+            <h1 className={`display ${styles.headline}`}>Você paga <span className={styles.three}>3</span> vezes pela comida.</h1>
             <p className={styles.lede}>
-              Observed delivery prices, normalized into comparable food. UPAY3FOOD finds the lowest valid way to complete the purchase,
-              then funds it privately.
+              A comida, as taxas e a diferença para a opção mais barata. A extensão UPAY3FOOD mostra as três no iFood, compara o cardápio
+              por litro e te leva ao item que compensa. Depois, financia a compra com privacidade.
             </p>
+            <p className="muted small">You pay three times for food: the food, the fees, and the difference.</p>
             <div className={styles.ctas}>
-              <Link className="btn" href="/agent">Ask the agent</Link>
-              <Link className="btn ghost" href="/market">Open the market</Link>
+              <Link className="btn" href="/instalar">Instalar a extensão</Link>
+              <Link className="btn ghost" href="/agent">Ask the agent</Link>
             </div>
           </div>
           <div className={styles.heroBoard}>

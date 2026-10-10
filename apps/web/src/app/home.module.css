@@ -1,6 +1,7 @@
 .hero { padding: 48px 0 56px; }
 .heroGrid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: end; }
-.headline { font-size: clamp(64px, 11vw, 168px); margin: 12px 0 18px; }
+.headline { font-size: clamp(48px, 7vw, 104px); margin: 12px 0 18px; max-width: 11ch; }
+.three { color: var(--burger-2); }
 .lede { font-size: 19px; max-width: 34ch; color: var(--ink-2); margin: 0 0 24px; }
 .ctas { display: flex; gap: 10px; flex-wrap: wrap; }
 .heroBoard { background: var(--paper); border-radius: var(--radius-xl); padding: 18px 22px 10px; border: 1px solid var(--line); }

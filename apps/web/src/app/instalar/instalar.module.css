@@ -1,0 +1,27 @@
+.page { display: grid; gap: 56px; padding-bottom: 72px; }
+.hero { padding: 56px 0 8px; }
+.title { font-size: clamp(44px, 9vw, 112px); max-width: 14ch; margin: 12px 0 18px; }
+.three { color: var(--burger-2); }
+.lede { font-size: clamp(17px, 2vw, 21px); max-width: 52ch; margin: 0 0 6px; color: var(--ink-2); }
+.en { max-width: 60ch; margin: 0 0 22px; font-size: 14px; }
+.ctas { display: flex; flex-wrap: wrap; gap: 10px; }
+.meta { margin-top: 12px; }
+.meta code { font-family: var(--font-num); }
+.h2 { font-size: clamp(32px, 5vw, 56px); margin: 0 0 20px; }
+.views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-bottom: 10px; }
+.view { margin: 0; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-l); overflow: hidden; display: grid; }
+.view img { width: 100%; height: 360px; object-fit: cover; object-position: top; background: var(--cream); border-bottom: 1px solid var(--line); }
+.view figcaption { display: grid; gap: 6px; padding: 16px 18px 20px; font-size: 14px; }
+.steps { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 12px; counter-reset: s; }
+.steps li { display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: start; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 14px 16px; }
+.steps p { margin: 4px 0 0; }
+.n { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; background: var(--burger); color: var(--ink); font-weight: 700; }
+.night { background: var(--night); color: var(--night-ink); padding: 48px 0; }
+.promises { list-style: none; margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.promises li { border: 1px solid var(--night-line); border-radius: var(--radius-m); padding: 14px 16px; }
+.nightNote { color: var(--night-ink-2); margin: 0; }
+.nightNote a { color: var(--burger); }
+@media (max-width: 860px) {
+  .views { grid-template-columns: 1fr; }
+  .view img { height: 300px; }
+}

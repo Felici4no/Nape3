@@ -6,10 +6,11 @@
   "description": "UPAY3FOOD.agent Food Market: market, agent, wallet, private payment",
   "scripts": {
     "dev": "node scripts/build-docs.mjs && next dev --port 3000",
-    "build": "node scripts/build-docs.mjs && next build",
+    "build": "node scripts/build-docs.mjs && node scripts/pack-extension.mjs && next build",
     "start": "next start --port 3000",
     "typecheck": "node scripts/build-docs.mjs && tsc --noEmit",
-    "docs": "node scripts/build-docs.mjs"
+    "docs": "node scripts/build-docs.mjs",
+    "pack:extension": "node scripts/pack-extension.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.6",
@@ -31,6 +32,7 @@
     "@types/node": "^22.18.0",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
+    "fflate": "^0.8.3",
     "marked": "^18.1.0",
     "typescript": "^5.9.2"
   }
