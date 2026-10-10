@@ -1,3 +1,4 @@
+import { DataBanner } from "@/components/Shell";
 import type { Metadata } from "next";
 import { SourceTag } from "@/components/bits";
 import { EmptyMarket, marketIsEmpty } from "@/components/EmptyMarket";
@@ -14,6 +15,8 @@ export default async function MarketPage() {
   const source = await getMarketSource();
   const quotes = quoteAll(source, new Date(source.fetchedAt));
   return (
+    <>
+    <DataBanner />
     <div className="wrap">
       <header className={styles.header}>
         <span className="eyebrow">Market overview · {REGION.label} · <SourceTag mode={source.mode} /></span>
@@ -49,5 +52,6 @@ export default async function MarketPage() {
         </ol>
       </section>
     </div>
+    </>
   );
 }

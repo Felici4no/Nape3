@@ -4,7 +4,7 @@ import "@fontsource-variable/inter";
 import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/700.css";
 import "./globals.css";
-import { DataBanner, Footer, TopBar } from "@/components/Shell";
+import { Footer, TopBar } from "@/components/Shell";
 import { BottomNav } from "@/components/nav/BottomNav";
 import { Splash, SPLASH_BOOT } from "@/components/nav/Splash";
 
@@ -27,7 +27,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Splash />
         <TopBar />
-        <DataBanner />
         <main>{children}</main>
         <Footer />
         <BottomNav />

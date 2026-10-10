@@ -1,5 +1,5 @@
 .hero { padding: 48px 0 56px; }
-.heroGrid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: end; }
+.heroGrid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 48px; align-items: center; }
 .headline { font-size: clamp(48px, 7vw, 104px); margin: 12px 0 18px; max-width: 11ch; }
 .three { color: var(--burger-2); }
 .lede { font-size: 19px; max-width: 34ch; color: var(--ink-2); margin: 0 0 24px; }
@@ -54,4 +54,24 @@
   .cheap a > span:last-child { grid-column: 2; }
   .cheapArt { width: 48px; height: 48px; }
   .privacyBand { padding: 26px; }
+}
+
+.heroShot { margin: 0; justify-self: end; display: grid; gap: 8px; }
+.heroShot img { width: 340px; height: auto; border-radius: 22px; border: 1px solid var(--line); box-shadow: 0 30px 60px rgba(23, 19, 14, 0.18); transform: rotate(1.5deg); }
+.how { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.how li { display: grid; gap: 8px; align-content: start; }
+.how img { width: 100%; height: 260px; object-fit: cover; object-position: top; border-radius: var(--radius-l); border: 1px solid var(--line); background: var(--paper); }
+.how strong { font-size: 17px; }
+.bands { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.band { display: grid; gap: 10px; padding: 28px; border-radius: var(--radius-xl); color: var(--night-ink); text-decoration: none; min-height: 220px; align-content: end; transition: transform 0.15s ease; }
+.band:hover { transform: translateY(-2px); }
+.band .display { font-size: clamp(26px, 3vw, 40px); line-height: 1; }
+.band code { color: var(--burger); font-size: 15px; }
+.bandAgents { background: linear-gradient(150deg, #241034, var(--acai)); }
+.bandTransp { background: linear-gradient(150deg, #0f2a24, var(--sushi)); }
+.demoNote { margin: -8px 0 18px; color: var(--warn); }
+@media (max-width: 900px) {
+  .how, .bands { grid-template-columns: minmax(0, 1fr); }
+  .heroShot { justify-self: center; }
+  .heroShot img { width: 280px; transform: none; }
 }

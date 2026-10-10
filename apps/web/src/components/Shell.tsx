@@ -64,16 +64,17 @@ export function Footer() {
   return (
     <footer className={`night ${styles.footer}`}>
       <div className="wrap">
-        <p className={`display ${styles.sentence}`}>Find the lowest valid way to complete the purchase.</p>
+        <p className={`display ${styles.sentence}`}>Pare de pagar a terceira vez.</p>
         <div className={styles.cols}>
           <p>
-            <strong>Website</strong> · market, agent, wallet and private payment.
+            <Link href="/instalar">Extensão</Link> · <Link href="/agentes">Agentes (MCP)</Link> · <Link href="/transparencia">Transparência</Link> ·{" "}
+            <Link href="/docs">Docs</Link> · <a href="https://github.com/Felici4no/Nape3-UPAY3FOOD">GitHub</a>
             <br />
-            <strong>Extension</strong> · observes prices in your own iFood session, reads your checkout and detects Pix.
+            Lê só o que está na sua tela, na sua sessão do iFood. Nunca faz pedido nem paga sozinha.
           </p>
           <p className="small">
-            Prices are observations, not offers: a price seen in another account may not be available to yours. Pix settlement is
-            disabled until a licensed off-ramp is integrated. No affiliation with iFood, Rappi or 99Food.
+            Preços de cardápio são estimativas até a sacola: cupons, Clube e endereço mudam o valor. O repasse para Pix fica desligado até
+            existir um parceiro licenciado. Sem afiliação com iFood, Rappi, 99Food ou Keeta.
           </p>
         </div>
       </div>

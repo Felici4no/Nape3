@@ -1,3 +1,4 @@
+import { DataBanner } from "@/components/Shell";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -34,6 +35,7 @@ export default async function ProductPage({
 
   return (
     <>
+      <DataBanner />
       <section className={`tone-${instrument.tone} ${styles.band}`}>
         <div className={`wrap ${styles.bandGrid}`}>
           <div>

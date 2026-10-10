@@ -35,11 +35,11 @@ export default async function Home() {
       <section className={styles.hero}>
         <div className={`wrap ${styles.heroGrid}`}>
           <div className={styles.heroCopy}>
-            <span className="eyebrow">Market now · {REGION.label} · <SourceTag mode={source.mode} /></span>
+            <span className="eyebrow">Extensão · agente · MCP · Solana</span>
             <h1 className={`display ${styles.headline}`}>Você paga <span className={styles.three}>3</span> vezes pela comida.</h1>
             <p className={styles.lede}>
               A comida, as taxas e a diferença para a opção mais barata. A extensão UPAY3FOOD mostra as três no iFood, compara o cardápio
-              por litro e te leva ao item que compensa. Depois, financia a compra com privacidade.
+              por litro e por grama, marca o item que compensa e te leva até ele.
             </p>
             <p className="muted small">You pay three times for food: the food, the fees, and the difference.</p>
             <div className={styles.ctas}>
@@ -47,21 +47,63 @@ export default async function Home() {
               <Link className="btn ghost" href="/agentes">Plugue o seu agente</Link>
             </div>
           </div>
-          <div className={styles.heroBoard}>
-            {empty ? <EmptyMarket source={source} quotes={quotes} /> : <MarketRows quotes={[acai, burger, pizza, sushi]} dense />}
-            <p className="muted small">
-              Best = lowest fresh comparable checkout total (fees and discounts included). USDC at {USDC_RATE.label}. 24h movement
-              only where history exists.
-            </p>
-          </div>
+          <figure className={styles.heroShot}>
+            <img src="/instalar/raio-x.png" width={380} height={666} alt="Popup da extensão num produto real: Você paga 3 vezes e Raio-X do preço" />
+            <figcaption className="muted small">Tela real · Marmitex de Açaí 700 ml · São Paulo, 10/10/2026</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section className="wrap">
+        <div className={styles.head}>
+          <h2 className={`display ${styles.h2}`}>Como funciona</h2>
+          <Link href="/docs/04-product" className={styles.headLink}>Produto →</Link>
+        </div>
+        <ol className={styles.how}>
+          <li>
+            <img src="/instalar/tamanho.png" width={380} height={313} alt="Tamanho que compensa num cardápio real" loading="lazy" />
+            <strong>1 · Lê o cardápio da loja</strong>
+            <span className="muted">Sem login, sem API privada: só o que está na sua tela. Ordena por litro, por 100 g de carne e bebidas por tipo.</span>
+          </li>
+          <li>
+            <img src="/instalar/destaque.png" width={500} height={320} alt="Destaque do melhor item no cardápio" loading="lazy" />
+            <strong>2 · Marca o que compensa</strong>
+            <span className="muted">Contorna no próprio iFood o melhor por litro e o item que o agente recomendou para o seu pedido.</span>
+          </li>
+          <li>
+            <img src="/instalar/sacola.png" width={380} height={572} alt="Sacola lida da página" loading="lazy" />
+            <strong>3 · Confere na sacola</strong>
+            <span className="muted">Comida, taxas e diferença lidas da página e conferidas contra o total. Nada é clicado por você.</span>
+          </li>
+        </ol>
+      </section>
+
+      <section className="wrap">
+        <div className={styles.bands}>
+          <Link href="/agentes" className={`${styles.band} ${styles.bandAgents}`}>
+            <span className="eyebrow">Para agentes · MCP</span>
+            <strong className="display">Seu Claude ou ChatGPT com o preço real do delivery.</strong>
+            <code className="num">upay3food.com/api/mcp</code>
+          </Link>
+          <Link href="/transparencia" className={`${styles.band} ${styles.bandTransp}`}>
+            <span className="eyebrow">Transparência · Solana</span>
+            <strong className="display">A regra do cálculo registrada na mainnet.</strong>
+            <span className="small">Hash da metodologia e do código, verificável por qualquer pessoa.</span>
+          </Link>
         </div>
       </section>
 
       <section className="wrap" id="market-now">
         <div className={styles.head}>
-          <h2 className={`display ${styles.h2}`}>Market now</h2>
+          <h2 className={`display ${styles.h2}`}>Painel do mercado</h2>
           <Link href="/market" className={styles.headLink}>Full market →</Link>
         </div>
+        <p className={`small ${styles.demoNote}`}>
+          {source.mode === "demo"
+            ? "Demonstração com dados fictícios: a rede de observações ainda não está publicada. Os números reais estão na extensão."
+            : "Observações reais registradas pela extensão. Observações, não ofertas."}{" "}
+          <SourceTag mode={source.mode} />
+        </p>
         {!empty && <div className={styles.bento}>
           <div className={styles.b1}><InstrumentCard quote={acai} size="xl" /></div>
           <div className={styles.b2}><InstrumentCard quote={burger} size="l" /></div>
@@ -70,80 +112,6 @@ export default async function Home() {
           <div className={styles.b5}><InstrumentCard quote={acai300} size="s" /></div>
         </div>}
         {empty && <MarketRows quotes={quotes} />}
-      </section>
-
-      <section className="wrap">
-        <div className={styles.split}>
-          <div>
-            <div className={styles.head}>
-              <h2 className={`display ${styles.h2}`}>Cheapest near you</h2>
-              <span className="muted small">{REGION.label} · checkout totals</span>
-            </div>
-            {cheapest.length === 0 && <p className="muted">No fresh comparable checkouts near you yet.</p>}
-            <ol className={styles.cheap}>
-              {cheapest.map(({ q, best }) => (
-                <li key={q.instrument.slug}>
-                  <Link href={`/market/${q.instrument.slug}`}>
-                    <FoodArt kind={q.instrument.art} className={styles.cheapArt} />
-                    <span className={styles.cheapName}>
-                      <strong>{q.instrument.name}</strong>
-                      <span className="muted small">{best.merchant} · {best.source} · {freshnessLabel(best.ageMinutes)}</span>
-                    </span>
-                    <Price cents={best.totalCents} usdc={q.usdc.lowest} size="m" />
-                    {best.accountSpecific && <span className="tag" title="Seen with an account-specific promotion or membership; may not be available to your account">account price</span>}
-                  </Link>
-                </li>
-              ))}
-            </ol>
-          </div>
-          <div className={`night ${styles.dropsPanel}`}>
-            <div className={styles.head}>
-              <h2 className={`display ${styles.h2}`}>Biggest price drops</h2>
-              <span className="small" style={{ opacity: 0.7 }}>median vs 24 h ago</span>
-            </div>
-            {drops.length === 0 ? (
-              <p>No drops with enough history to report.</p>
-            ) : (
-              <ul className={styles.drops}>
-                {drops.map((q) => (
-                  <li key={q.instrument.slug}>
-                    <Link href={`/market/${q.instrument.slug}`}>
-                      <span className={`display ${styles.dropName}`}>{q.instrument.name}</span>
-                      <span className={styles.dropNums}>
-                        <Change change={q.change} />
-                        <span className="num small">{brl(q.change!.previousMedianCents)} → {brl(q.change!.currentMedianCents)}</span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {noHistory.length > 0 && (
-              <p className={styles.noHist}>
-                No movement shown for {noHistory.map((q) => q.instrument.name).join(", ")}: not enough observations 24 h ago.
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="wrap">
-        <div className={styles.head}>
-          <h2 className={`display ${styles.h2}`}>Your watchlist</h2>
-        </div>
-        <Watchlist quotes={quotes} />
-      </section>
-
-      <section className="wrap">
-        <div className={styles.head}>
-          <h2 className={`display ${styles.h2}`}>Agent picks</h2>
-          <span className="muted small">Same decision engine as the extension: hard constraints first, then an explainable score.</span>
-        </div>
-        <div className={styles.picks}>
-          {picks.map((p) => (
-            <DecisionCard key={p.instrument.slug} intent={p.intent} decision={p.decision} error={p.error} href={`/agent?q=${encodeURIComponent(p.intent)}`} />
-          ))}
-        </div>
       </section>
 
       <section className="wrap">
