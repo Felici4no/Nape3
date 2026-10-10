@@ -100,12 +100,18 @@ let lastMenu: MenuCard[] | undefined;
 function highlight(snapshot: PageSnapshot) {
   if (settings.highlightMenu === false || !pageSettled) return;
   const context = snapshot.detection.context;
-  if (context === "RESTAURANT" && snapshot.restaurant?.menu?.length) lastMenu = snapshot.restaurant.menu;
-  else if (context !== "PRODUCT") {
+  if (context === "PRODUCT") {
+    // A product modal is open (often straight from a recommendation link): never draw over it.
+    // The menu is kept, so the outlines come back as soon as the modal closes.
+    clearHighlights();
+    return;
+  }
+  if (context !== "RESTAURANT") {
     lastMenu = undefined;
     clearHighlights();
     return;
   }
+  if (snapshot.restaurant?.menu?.length) lastMenu = snapshot.restaurant.menu;
   if (!lastMenu?.length) return;
   const key = snapshot.merchant?.path ?? snapshot.merchant?.name ?? snapshot.restaurant?.merchantName.value ?? null;
   const pick = recommended && key && (recommended.merchantKey === key || recommended.merchantKey === snapshot.merchant?.name) ? recommended : null;
