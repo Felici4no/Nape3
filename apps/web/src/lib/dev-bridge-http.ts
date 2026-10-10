@@ -9,5 +9,5 @@ export function json(body: unknown, status = 200): Response {
 
 /** The bridge does not exist at all (404) unless both tokens are configured. */
 export function bridge(env: BridgeEnv = process.env): BridgeStore | null {
-  return bridgeEnabled(env) ? blobStore(env.BLOB_READ_WRITE_TOKEN!) : null;
+  return bridgeEnabled(env) ? blobStore(env.BLOB_READ_WRITE_TOKEN?.trim() || undefined) : null;
 }

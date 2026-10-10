@@ -1,8 +1,12 @@
 import { del, get, list, put } from "@vercel/blob";
 import type { BridgeStore } from "./dev-bridge";
 
-/** Vercel Blob, private access: objects are readable only with BLOB_READ_WRITE_TOKEN, never by URL. */
-export function blobStore(token: string): BridgeStore {
+/**
+ * Vercel Blob, private access: objects are readable only with the store's
+ * credentials, never by URL. With no token, the SDK uses BLOB_STORE_ID and the
+ * function's Vercel OIDC token.
+ */
+export function blobStore(token?: string): BridgeStore {
   return {
     async put(pathname, body) {
       await put(pathname, body, { access: "private", contentType: "application/json", addRandomSuffix: false, allowOverwrite: true, token });

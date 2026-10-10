@@ -4,7 +4,8 @@
  * snapshots; developers read the latest one back.
  *
  * Rules enforced here:
- *  - off unless DEV_BRIDGE_TOKEN (writes) and BLOB_READ_WRITE_TOKEN (store) are set;
+ *  - off unless DEV_BRIDGE_TOKEN (writes) and a Blob store credential are set
+ *    (BLOB_READ_WRITE_TOKEN, or BLOB_STORE_ID with Vercel OIDC);
  *  - writes need `Authorization: Bearer <DEV_BRIDGE_TOKEN>`; the token is never in code;
  *  - session ids are random (128 bits) and unrelated to any account; reads are
  *    by session id only (capability), and only of sanitized data;
@@ -23,6 +24,7 @@ const ROOT = "dev-bridge/";
 export interface BridgeEnv {
   DEV_BRIDGE_TOKEN?: string | undefined;
   BLOB_READ_WRITE_TOKEN?: string | undefined;
+  BLOB_STORE_ID?: string | undefined;
   [key: string]: string | undefined;
 }
 
@@ -63,12 +65,15 @@ export function bridgeConfig(env: BridgeEnv): {
   enabled: boolean;
   devBridgeToken: "missing" | "too-short" | "ok";
   blobToken: "missing" | "ok";
+  /** How the Blob store is reached: a read-write token, or the store id with Vercel OIDC. */
+  blobAuth: "read-write-token" | "oidc" | "missing";
   minTokenLength: number;
 } {
   const token = (env.DEV_BRIDGE_TOKEN ?? "").trim();
   const devBridgeToken = token === "" ? "missing" : token.length < MIN_TOKEN_LENGTH ? "too-short" : "ok";
-  const blobToken = (env.BLOB_READ_WRITE_TOKEN ?? "").trim() ? "ok" : "missing";
-  return { enabled: devBridgeToken === "ok" && blobToken === "ok", devBridgeToken, blobToken, minTokenLength: MIN_TOKEN_LENGTH };
+  const blobAuth = (env.BLOB_READ_WRITE_TOKEN ?? "").trim() ? "read-write-token" : (env.BLOB_STORE_ID ?? "").trim() ? "oidc" : "missing";
+  const blobToken = blobAuth === "missing" ? "missing" : "ok";
+  return { enabled: devBridgeToken === "ok" && blobToken === "ok", devBridgeToken, blobToken, blobAuth, minTokenLength: MIN_TOKEN_LENGTH };
 }
 
 function timingSafeEqual(a: string, b: string): boolean {

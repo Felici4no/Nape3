@@ -26,7 +26,9 @@ describe("dev bridge: enabled only with both tokens, writes only with the bridge
   });
 
   it("reports why it is off, without values", () => {
-    expect(bridgeConfig({})).toEqual({ enabled: false, devBridgeToken: "missing", blobToken: "missing", minTokenLength: 24 });
+    expect(bridgeConfig({})).toEqual({ enabled: false, devBridgeToken: "missing", blobToken: "missing", blobAuth: "missing", minTokenLength: 24 });
+    expect(bridgeConfig({ DEV_BRIDGE_TOKEN: TOKEN, BLOB_STORE_ID: "store_abc" })).toMatchObject({ enabled: true, blobAuth: "oidc" });
+    expect(bridgeConfig({ DEV_BRIDGE_TOKEN: TOKEN, BLOB_READ_WRITE_TOKEN: "x", BLOB_STORE_ID: "store_abc" })).toMatchObject({ blobAuth: "read-write-token" });
     expect(bridgeConfig({ DEV_BRIDGE_TOKEN: "short", BLOB_READ_WRITE_TOKEN: "x" })).toMatchObject({ enabled: false, devBridgeToken: "too-short", blobToken: "ok" });
     expect(bridgeConfig({ DEV_BRIDGE_TOKEN: ` ${TOKEN}\n`, BLOB_READ_WRITE_TOKEN: "x" })).toMatchObject({ enabled: true });
     expect(JSON.stringify(bridgeConfig({ DEV_BRIDGE_TOKEN: TOKEN, BLOB_READ_WRITE_TOKEN: "vercel_blob_rw_secret" }))).not.toMatch(/dev-bridge-test|vercel_blob_rw/);

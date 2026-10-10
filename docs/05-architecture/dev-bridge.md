@@ -16,7 +16,7 @@ iFood DOM (the user's own session)
 
 | Rule | Where |
 |---|---|
-| Off unless `DEV_BRIDGE_TOKEN` (≥ 24 chars) and `BLOB_READ_WRITE_TOKEN` are set; `GET /api/dev/extension/status` says why, without values | `lib/dev-bridge.ts` `bridgeConfig` |
+| Off unless `DEV_BRIDGE_TOKEN` (≥ 24 chars) and a Blob credential are set (`BLOB_READ_WRITE_TOKEN`, or `BLOB_STORE_ID` with Vercel OIDC); `GET /api/dev/extension/status` says why, without values | `lib/dev-bridge.ts` `bridgeConfig` |
 | Writes need `Authorization: Bearer <DEV_BRIDGE_TOKEN>`; the token is typed by the developer in the popup, never in code | `authorized` |
 | Session ids are random (128 bits), unrelated to any account; reads are by session id (capability) | `newSessionId` |
 | Logical TTL 30 min; expired objects deleted on every read and write; expired sessions refuse writes | `sweep`, `sessionAlive` |
@@ -34,7 +34,7 @@ as structure only, input values never, query values by shape), and
 
 ## Use
 
-1. Vercel project: a Blob store connected (`BLOB_READ_WRITE_TOKEN`) and `DEV_BRIDGE_TOKEN` (Sensitive,
+1. Vercel project: a Blob store connected (`BLOB_STORE_ID` via OIDC, or `BLOB_READ_WRITE_TOKEN`) and `DEV_BRIDGE_TOKEN` (Sensitive,
    ≥ 24 chars, Production + Preview), then a redeploy.
 2. Check `https://upay3food.com/api/dev/extension/status`: `"enabled": true`.
 3. Extension popup → Debug → Dev bridge: URL `https://upay3food.com`, paste the token → **Start bridge
