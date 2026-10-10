@@ -1,0 +1,27 @@
+.page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 64px; padding-bottom: 96px; }
+.page > :global(.wrap) { width: 100%; }
+.hero { background: linear-gradient(150deg, #0f2a24 0%, var(--sushi) 60%, #12352d 100%); color: var(--night-ink); padding: 72px 0; }
+.kicker { font-family: var(--font-num); font-size: 12px; letter-spacing: 0.06em; color: #9fd8c4; }
+.title { font-size: clamp(44px, 7vw, 100px); max-width: 13ch; margin: 14px 0 20px; }
+.lede { font-size: clamp(17px, 1.8vw, 20px); color: #d4ebe2; max-width: 58ch; margin: 0; }
+.h2 { font-size: clamp(32px, 4.4vw, 56px); margin: 0 0 22px; }
+.hashes { display: grid; gap: 12px; margin: 0 0 18px; }
+.hashes > div { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 14px; padding: 14px 16px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); }
+.hashes dt { font-weight: 700; }
+.hashes dd { margin: 0; display: grid; gap: 4px; min-width: 0; }
+.hashes code { font-size: 13px; overflow-wrap: anywhere; color: var(--sushi); }
+.cmd, .memo { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--night); color: #f3ede1; font: 12.5px/1.5 var(--font-num); overflow-x: auto; }
+.memo { white-space: pre-wrap; overflow-wrap: anywhere; }
+.panel { display: grid; gap: 22px; }
+.anchors { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.anchors li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 14px; align-items: center; padding: 14px 16px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); }
+.anchors a { color: var(--sushi); font-weight: 700; }
+.verify { padding: 8px 14px; font-size: 13px; }
+.new { display: grid; gap: 10px; padding: 18px; border: 1.5px solid var(--ink); border-radius: var(--radius-l); background: var(--paper); }
+.confirm { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.ok { margin: 0; color: var(--cheaper); }
+.why ul { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 10px; font-size: 17px; max-width: 74ch; }
+@media (max-width: 700px) {
+  .hashes > div { grid-template-columns: 1fr; }
+  .anchors li { grid-template-columns: 1fr; }
+}

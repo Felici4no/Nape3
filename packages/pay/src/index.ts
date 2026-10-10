@@ -51,3 +51,4 @@ export {
   type RpcFailureClass,
   type RpcTraceEntry
 } from "./rpc-trace";
+export { anchorMemo, anchorOnSolana, parseAnchorMemo, readAnchor, ANCHOR_PREFIX, MEMO_PROGRAM_ID, type AnchorPayload, type AnchorResult, type AnchorCheck } from "./anchor";

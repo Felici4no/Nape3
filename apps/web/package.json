@@ -5,10 +5,10 @@
   "type": "module",
   "description": "UPAY3FOOD.agent Food Market: market, agent, wallet, private payment",
   "scripts": {
-    "dev": "node scripts/build-docs.mjs && next dev --port 3000",
-    "build": "node scripts/build-docs.mjs && node scripts/pack-extension.mjs && next build",
+    "dev": "node scripts/build-docs.mjs && node scripts/transparency.mjs && next dev --port 3000",
+    "build": "node scripts/build-docs.mjs && node scripts/transparency.mjs && node scripts/pack-extension.mjs && next build",
     "start": "next start --port 3000",
-    "typecheck": "node scripts/build-docs.mjs && tsc --noEmit",
+    "typecheck": "node scripts/build-docs.mjs && node scripts/transparency.mjs && tsc --noEmit",
     "docs": "node scripts/build-docs.mjs",
     "pack:extension": "node scripts/pack-extension.mjs"
   },
